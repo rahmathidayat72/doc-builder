@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.ats import router as ats_router
 from app.api.auth import router as auth_router
+from app.api.converter import router as converter_router
+from app.api.export import router as export_router
 from app.api.health import router as health_router
+from app.api.import_cv import router as import_router
+from app.api.pdf_tools import router as pdf_tools_router
 from app.core.config import settings
 from app.core.middleware import SecurityMiddleware
 from app.core.security import session_manager
@@ -30,6 +35,11 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(export_router, prefix="/api")
+    app.include_router(import_router, prefix="/api")
+    app.include_router(ats_router, prefix="/api")
+    app.include_router(converter_router, prefix="/api")
+    app.include_router(pdf_tools_router, prefix="/api")
 
     return app
 

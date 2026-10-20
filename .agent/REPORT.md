@@ -296,6 +296,686 @@ Penguatan arsitektur keamanan localhost telah selesai diimplementasikan:
 
 Phase 02 resmi **SELESAI (COMPLETED)**. Proyek siap beralih ke **Phase 03: Local Persistence & Project Data Management (IndexedDB)**.
 
+---
+
+## Task 3.1 — IndexedDB Draft Storage, Autosave & Private Mode — 2026-10-20
+
+**Task:** phase-03.1 — TASK-3.1: Implementasi IndexedDB Draft Storage, Autosave, Undo Delete, dan Private Mode  
+**Requirement:** FR-017, FR-018, FR-019, BRULE-004
+
+### Ringkasan
+Telah diimplementasikan modul persistensi data CV lokal berbasis IndexedDB browser:
+1. `frontend/src/types/resume.ts`: Skema tipe data komprehensif tervalidasi Zod (kontak, ringkasan, riwayat kerja, pendidikan, skill, bahasa, dan bagian kustom).
+2. `frontend/src/services/storage.ts`: Service IndexedDB (`docbuilder_db`) mengelola 3 object store:
+   - `drafts`: Penyimpanan data CV aktif dengan index `by-updated`.
+   - `trash`: Penyimpanan temporer untuk penanganan pembatalan hapus (Undo Window 10 detik).
+   - `settings`: Pengaturan lokal seperti toggle `private_mode`.
+   - Fitur lengkap: `saveDraft()`, `getDraft()`, `listDrafts()`, `deleteDraft()`, `restoreDraft()`, `duplicateDraft()`, `renameDraft()`, `clearAllData()`, `setPrivateMode()`.
+3. `frontend/src/hooks/useResumeDraft.ts`: React hook untuk manajemen autosave ter-debounce (500ms), tracking status `isSaving` & `lastSaved`, alur hapus draft dengan undo timer 10 detik, dan mode privat in-memory.
+4. `frontend/src/services/__tests__/storage.test.ts`: 6 unit tests dengan Vitest dan `fake-indexeddb`.
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `frontend/src/types/resume.ts`, `frontend/src/services/storage.ts`, `frontend/src/hooks/useResumeDraft.ts`, `frontend/src/services/__tests__/storage.test.ts`, `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`.
+- Perintah dijalankan:
+  1. `npm --prefix frontend install idb zod` -> PASS
+  2. `npm --prefix frontend install -D vitest fake-indexeddb ...` -> PASS
+  3. `npm --prefix frontend run test` -> PASS (6/6 unit tests passed in 1.17s)
+  4. `npm --prefix frontend run build` -> PASS (built in 243ms, 0 type errors)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Simpan & Ambil Draft IndexedDB | Berhasil mengambil data persisten secara utuh | PASS |
+| Listing Terurut Berdasarkan Waktu | Draft terbaru berada di urutan teratas | PASS |
+| Ganti Nama & Duplikasi Draft | Menghasilkan salinan dengan UUID baru & judul "(Salinan)" | PASS |
+| Hapus & Pulihkan (Undo Delete) | Memindahkan ke trash & memulihkan draft ke daftar aktif | PASS |
+| Isolasi Mode Privat | Data hanya tersimpan di in-memory, IndexedDB tetap kosong | PASS |
+| Pembersihan Menyeluruh (Clear All) | Seluruh store drafts, trash, dan settings dikosongkan | PASS |
+| Build & Typecheck Frontend | Vite build berhasil tanpa type error (243ms) | PASS |
+
+### Acceptance Criteria
+- [x] Skema data CV tervalidasi menggunakan Zod dan TypeScript types
+- [x] Persistensi IndexedDB berjalan secara offline di browser pengguna
+- [x] Konfirmasi hapus dan mekanisme undo 10 detik terimplementasi dan teruji
+- [x] Mode privat in-memory tanpa penyimpanan disk teruji
+- [x] 6/6 unit test Vitest lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-3.1.
+
+---
+
+## Task 3.2 — Export/Import Project File & Enkripsi Password — 2026-10-20
+
+**Task:** phase-03.2 — TASK-3.2: Implementasi Export/Import Project File (`.docbuilder`) dengan Opsi Enkripsi Password (AES-GCM)  
+**Requirement:** FR-017, FR-023, NFR-SEC-001, BUS-008
+
+### Ringkasan
+Telah diimplementasikan fitur pencadangan portabel draft CV ke dalam wadah file `.docbuilder`:
+1. `frontend/src/types/project.ts`: Skema `ProjectContainerSchema` tervalidasi Zod dengan header `magic: "DOCBUILDER_PROJECT"`, versi, penanda `encrypted`, timestamp ekspor, dan muatan data.
+2. `frontend/src/services/crypto.ts`: Service kriptografi `ProjectCryptoService` berbasis Web Crypto API standar:
+   - Derivasi kunci PBKDF2 (SHA-256, 100.000 iterasi, 16-byte random salt).
+   - Enkripsi simetris AES-GCM 256-bit dengan 12-byte random IV.
+   - Ekspor berkas plain JSON jika tanpa kata sandi, atau berkas terenkripsi dengan ciphertext Base64.
+   - Impor berkas dengan verifikasi integritas data dan penolakan kata sandi salah secara aman.
+3. `frontend/src/services/__tests__/crypto.test.ts`: 7 unit tests memvalidasi roundtrip ekspor/impor plain, roundtrip enkripsi/dekripsi, penolakan password salah, penolakan manipulasi ciphertext, dan validasi format.
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `frontend/src/types/project.ts`, `frontend/src/services/crypto.ts`, `frontend/src/services/__tests__/crypto.test.ts`.
+- Perintah dijalankan:
+  1. `npm --prefix frontend test` -> PASS (13/13 tests passed)
+  2. `npm --prefix frontend run build` -> PASS (built in 166ms, 0 type errors)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Ekspor/Impor Plain Project | Struktur data utuh tanpa enkripsi | PASS |
+| Ekspor/Impor AES-GCM Enkripsi | Berhasil didekripsi dengan password benar | PASS |
+| Deteksi Password Salah | Melempar error 'Kata sandi salah' secara aman | PASS |
+| Validasi Ketiadaan Password | Menolak membuka file terenkripsi tanpa password | PASS |
+| Tolak Ciphertext Korup/Manipulasi | Gagal didekripsi (Auth tag mismatch) | PASS |
+| Validasi Magic Header | Menolak berkas JSON sembarangan | PASS |
+| Pembuatan File Blob | Menghasilkan objek Blob valid bertipe application/json | PASS |
+
+### Acceptance Criteria
+- [x] Format berkas `.docbuilder` terstandarisasi dengan magic header dan versioning
+- [x] Enkripsi AES-GCM 256-bit dan PBKDF2 100.000 iterasi teruji
+- [x] Kegagalan kata sandi dan manipulasi data terdeteksi secara fail-closed
+- [x] Seluruh unit test Vitest (13/13) lulus 100%
+- [x] Build frontend bersih tanpa error
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-3.2.
+
+---
+
+## Ringkasan Penutupan Phase 03: Local Persistence & Project Data Management
+1. **TASK-3.1 (IndexedDB Storage & Autosave):** Lolos (6/6 tests, autosave 500ms, undo 10s, private mode).
+2. **TASK-3.2 (Export/Import Project & Enkripsi):** Lolos (7/7 tests, AES-GCM 256-bit, PBKDF2 100k, .docbuilder container).
+
+Phase 03 resmi **SELESAI (COMPLETED)**. Proyek siap beralih ke **Phase 04: Core CV/Resume Builder & Template Engine**.
+
+---
+
+## Task 4.1 — CV Builder Form per Bagian + Live Preview — 2026-10-20
+
+**Task:** phase-04.1 — TASK-4.1: CV Builder Form per Bagian + Live Preview  
+**Requirement:** FR-001, FR-002, FR-003, FR-004, NFR-PERF-001
+
+### Ringkasan
+Telah dibangun antarmuka visual CV Builder interaktif dan live preview lembar kerja A4:
+1. Sub-Komponen Form (`frontend/src/components/builder/`):
+   - `ContactForm`: Nama, email, telepon, lokasi, tautan profil.
+   - `SummaryForm`: Ringkasan profesional dengan penghitung kata dan indikator rentang ideal (40–70 kata).
+   - `ExperienceForm`: Tambah, sunting, hapus pengalaman kerja, tanggal, checkbox pekerjaan saat ini, dan rincian tanggung jawab.
+   - `EducationForm`: Riwayat pendidikan, gelar, prodi, periode, dan IPK.
+   - `SkillsForm`: Tag chips keahlian per kategori (Teknis, Desain, Tools, Soft Skills) dengan tombol saran cepat.
+   - `LanguagesForm`: Kemampuan bahasa dan tingkat kemahiran.
+2. `ResumePreview` (`frontend/src/components/preview/ResumePreview.tsx`):
+   - Merender lembar kerja A4 (210mm x 297mm) dengan aksen tema warna dinamis dan pilihan tipografi (sans, serif, mono).
+   - Kontrol zoom interaktif (zoom in, zoom out, reset 100%).
+3. `Navbar` (`frontend/src/components/layout/Navbar.tsx`):
+   - Pengeditan judul draft in-line, indikator status autosave reaktif (Menyimpan... / Tersimpan [jam]), pemilih tema warna (6 palet) & font, tombol toggle mode privat, dan modal pengelola draft (daftar, buat baru, hapus dengan undo 10 detik).
+4. `App.tsx`: Layout split 2-kolom responsif untuk desktop dan tab switcher untuk perangkat mobile.
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `ContactForm.tsx`, `SummaryForm.tsx`, `ExperienceForm.tsx`, `EducationForm.tsx`, `SkillsForm.tsx`, `LanguagesForm.tsx`, `ResumePreview.tsx`, `Navbar.tsx`, `App.tsx`, `builder.test.tsx`.
+- Perintah dijalankan:
+  1. `npm --prefix frontend test` -> PASS (17/17 tests passed)
+  2. `npm --prefix frontend run build` -> PASS (built in 800ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Reaktivitas Form Kontak | Input nama langsung memperbarui state dan live preview | PASS |
+| Ringkasan & Word Counter | Menghitung jumlah kata dan memberi panduan ideal | PASS |
+| Tambah & Hapus Keahlian | Chip skill bertambah dinamis dan dapat dihapus | PASS |
+| Render Pratinjau Lembar A4 | Seluruh section (kontak, summary, exp, edu, skills) ter-render | PASS |
+| Suite Vitest Frontend | 17/17 tests lulus (1.65s) | PASS |
+| Build Produksi Vite | Berhasil dikompilasi tanpa type error (800ms) | PASS |
+
+### Acceptance Criteria
+- [x] Formulir terstruktur per bagian lengkap dan terhubung dengan validasi Zod
+- [x] Live preview A4 ter-render secara sinkron dan reaktif
+- [x] Pilihan palet tema warna dan font tipografi berfungsi
+- [x] Layout responsif (split-view pada desktop, tabs pada mobile)
+- [x] 17/17 unit test Vitest lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-4.1.
+
+---
+
+## Task 4.2 — Implementasi 2 Template ATS + 2 Template Visual Awal — 2026-10-20
+
+**Task:** phase-04.2 — TASK-4.2: Implementasi 2 Template ATS + 2 Template Visual Awal  
+**Requirement:** BUS-002, FR-001, FR-004
+
+### Ringkasan
+Telah diimplementasikan 4 desain template CV/Resume standar (2 berorientasi ATS + 2 berorientasi Visual) dengan arsitektur registry komponen modular:
+1. `frontend/src/templates/`:
+   - `AtsCleanTemplate` (`ats-clean`): Desain 1-kolom klasik rata tengah dengan garis pembatas halus dan urutan sekuensial terstandarisasi untuk pemrosesan parser ATS maksimal.
+   - `AtsModernTemplate` (`ats-modern`): Desain 1-kolom kontemporer dengan aksen border-left tebal pada judul bagian dan format tanggal ringkas.
+   - `VisualExecutiveTemplate` (`visual-executive`): Desain 2-kolom profesional dengan sidebar kiri berwarna aksen lembut (kontak, inisial avatar, pendidikan, keahlian, bahasa) dan kolom kanan untuk ringkasan serta pengalaman karier mendalam.
+   - `VisualMinimalTemplate` (`visual-minimal`): Desain 1-kolom elegan bernuansa minimalis dengan tipografi lapang dan pembatas bersih.
+2. `frontend/src/templates/registry.ts`: Registry terpusat mengelola metadata template, kategori (`ats` vs `visual`), badge, deskripsi, dan fungsi `getTemplateComponent()` dengan fallback andal.
+3. `frontend/src/components/preview/ResumePreview.tsx`: Terintegrasi secara dinamis me-render komponen template berdasarkan `draft.templateId`.
+4. `frontend/src/components/layout/Navbar.tsx`: Dilengkapi menu dropdown Template Selector interaktif dengan badge kategori desain.
+5. `frontend/src/templates/__tests__/templates.test.tsx`: 7 unit tests memverifikasi registry, fallback, dan render keempat template.
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `AtsClean.tsx`, `AtsModern.tsx`, `VisualExecutive.tsx`, `VisualMinimal.tsx`, `registry.ts`, `templates.test.tsx`.
+- File diubah: `ResumePreview.tsx`, `Navbar.tsx`, `App.tsx`.
+- Perintah dijalankan:
+  1. `npm --prefix frontend test` -> PASS (24/24 tests passed across 4 files)
+  2. `npm --prefix frontend run build` -> PASS (built in 318ms, 0 type errors)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Registry 4 Template | Memuat tepat 2 template ATS dan 2 template Visual | PASS |
+| Fallback Template | Mengembalikan AtsClean saat ID template tidak dikenal | PASS |
+| Render AtsClean | 1-kolom klasik, kontak terpusat, teks utuh | PASS |
+| Render AtsModern | 1-kolom border-left aksen, header rata kiri | PASS |
+| Render VisualExecutive | 2-kolom sidebar profil, pendidikan, dan keahlian | PASS |
+| Render VisualMinimal | Tipografi lapang minimalis | PASS |
+| Pengalihan Template Dinamis | ResumePreview berganti template seketika saat templateId berubah | PASS |
+| Build & Typecheck Frontend | Vite build berhasil tanpa error (318ms) | PASS |
+
+### Acceptance Criteria
+- [x] 2 Template ATS (AtsClean, AtsModern) terimplementasi
+- [x] 2 Template Visual (VisualExecutive, VisualMinimal) terimplementasi
+- [x] Template Selector tersedia di navigasi dengan badge penjelas
+- [x] Seluruh unit test Vitest (24/24) lulus 100%
+- [x] Build produksi Vite bersih tanpa error
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-4.2.
+
+---
+
+## Task 4.3 — Ekspor CV ke PDF dan DOCX — 2026-10-20
+
+**Task:** phase-04.3 — TASK-4.3: Ekspor CV ke PDF dan DOCX  
+**Requirement:** BUS-003, FR-006, BRULE-008
+
+### Ringkasan
+Telah diimplementasikan kemampuan ekspor CV ke dalam format resmi Microsoft Word (.docx) dan PDF:
+1. `backend/app/services/docx_generator.py`:
+   - Menggunakan `python-docx` untuk menyusun dokumen Word terstruktur standar ATS: margin A4 0.75 inci, heading nama besar centered/left, baris kontak terformat, ringkasan profesional, riwayat pekerjaan dengan butir pencapaian, riwayat pendidikan dan IPK, tag keahlian, dan bahasa.
+   - Mengintegrasikan skema warna hex dan font tipografi (sans, serif, mono) dari data resume.
+2. `backend/app/services/pdf_generator.py`:
+   - Mengonversi berkas docx in-memory menjadi PDF via LibreOffice headless menggunakan `run_sandboxed_subprocess()` tanpa akses jaringan luar.
+   - Menghasilkan return code informatif `LIBREOFFICE_NOT_FOUND` jika LibreOffice belum terinstal di host.
+3. `backend/app/api/export.py`:
+   - Endpoint `POST /api/export/docx`: streaming berkas `.docx` dengan MIME type resmi Word processing document.
+   - Endpoint `POST /api/export/pdf`: streaming berkas `.pdf` atau respon 422 terstruktur dengan pesan panduan.
+4. `frontend/src/services/export.ts`:
+   - Service pengunduhan berkas lokal dengan otomatisasi trigger unduhan Blob.
+   - Fallback otomatis ke `window.print()` (Cetak PDF Browser) jika LibreOffice tidak terpasang di host atau backend tidak terhubung.
+5. `frontend/src/index.css`:
+   - Menambahkan aturan `@media print` lengkap untuk merender lembar kerja A4 bebas dari panel navigasi, tombol, dan sidebar saat dicetak ke PDF melalui browser.
+6. `frontend/src/components/layout/Navbar.tsx`:
+   - Tombol "Unduh CV" interaktif dengan dropdown pilihan: "Unduh Dokumen PDF (.pdf)", "Unduh Dokumen Word (.docx)", dan "Cetak Langsung (Print)".
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `docx_generator.py`, `pdf_generator.py`, `export.py`, `main.py`, `test_export.py`, `export.ts`, `index.css`, `Navbar.tsx`, `App.tsx`.
+- Perintah dijalankan:
+  1. `pip install python-docx` di backend -> PASS
+  2. `pytest backend/tests` -> PASS (10/10 tests passed in 1.09s)
+  3. `ruff check & format backend` -> PASS (0 errors)
+  4. `npm --prefix frontend test` -> PASS (24/24 tests passed in 2.04s)
+  5. `npm --prefix frontend run build` -> PASS (built in 279ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Pembuatan DOCX In-Memory | Menghasilkan berkas dengan magic bytes PK dan teks terbaca utuh | PASS |
+| Proteksi Endpoint Export | Menolak request tanpa session cookie (HTTP 401) | PASS |
+| Export DOCX Resmi | Menghasilkan streaming response attachment .docx | PASS |
+| Export PDF Handling | Mengembalikan 422 edukatif saat LibreOffice absen / 200 saat ada | PASS |
+| Fallback Cetak PDF Browser | Frontend otomatis memicu browser print jika LibreOffice absen | PASS |
+| Suite Pytest Backend | 10/10 unit & integration tests lulus (1.09s) | PASS |
+| Suite Vitest Frontend | 24/24 unit tests lulus (2.04s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (279ms) | PASS |
+
+### Acceptance Criteria
+- [x] Generator DOCX teruji menghasilkan berkas Word yang valid dan dapat disunting kembali
+- [x] Endpoint export backend terintegrasi dengan validasi session & CSRF
+- [x] Fallback cetak PDF browser aktif saat LibreOffice tidak tersedia di host
+- [x] Tombol unduh CV di antarmuka Navbar berfungsi penuh
+- [x] Seluruh unit dan integration test (10 Pytest + 24 Vitest) lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-4.3.
+
+---
+
+## Task 4.4 — Ekstraksi Impor CV Lama (PDF/DOCX) dengan Review Confidence — 2026-10-20
+
+**Task:** phase-04.4 — TASK-4.4: Ekstraksi Impor CV Lama (PDF/DOCX) dengan Review Confidence  
+**Requirement:** BUS-001, FR-005
+
+### Ringkasan
+Telah diimplementasikan fitur ekstraksi dan impor berkas resume lama (PDF atau Word DOCX) ke dalam formulir editor CV terstruktur:
+1. `backend/app/services/resume_parser.py`:
+   - Ekstraksi teks dari PDF via `pypdf` dan dari Word via `python-docx`.
+   - Heuristik ekstraksi cerdas: pencarian pola email (RFC format), telepon internasional/lokal, lokasi kota utama, tautan LinkedIn & portfolio.
+   - Pengenalan batas bagian standar dwibahasa (ID/EN): Ringkasan, Pengalaman Kerja, Pendidikan, Keahlian, dan Bahasa.
+   - Penguraian butir pengalaman bertanggal dan riwayat pendidikan tinggi.
+   - Kalkulasi skor kepastian (confidence scoring) per bidang dan bobot rata-rata dokumen (0.0 – 1.0).
+   - Penghasil pesan edukatif/peringatan jika terdapat bidang yang terdeteksi dengan kepastian rendah.
+2. `backend/app/api/import_cv.py`:
+   - Endpoint `POST /api/import/resume` menerima unggahan berkas multipart (maks 25 MB), memvalidasi format `.pdf` & `.docx`, serta mengembalikan struktur data terurai beserta confidence map.
+3. `frontend/src/components/builder/ImportResumeModal.tsx`:
+   - Antarmuka drag-and-drop unggah berkas dengan indikator proses ekstraksi.
+   - Panel pratinjau hasil ekstraksi dengan lencana indikator kepercayaan warna (Hijau: Tinggi ≥80%, Kuning: Perlu Dicek 50–79%, Abu-abu: Rendah <50%).
+   - Daftar peringatan catatan verifikasi dan tombol konfirmasi "Terapkan ke Editor".
+4. `frontend/src/components/layout/Navbar.tsx`:
+   - Menambahkan tombol "Impor" di topbar dashboard untuk membuka dialog modal.
+5. Unit & Integration Tests:
+   - Backend `backend/tests/test_import.py` (5 pengujian mencakup PDF, DOCX, proteksi autentikasi sesi, dan penolakan ekstensi ilegal).
+   - Frontend `frontend/src/components/builder/__tests__/import.test.tsx` (4 pengujian UI render, dropzone, dan validasi ekstensi).
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `resume_parser.py`, `import_cv.py`, `main.py`, `test_import.py`, `ImportResumeModal.tsx`, `Navbar.tsx`, `App.tsx`, `import.test.tsx`.
+- Perintah dijalankan:
+  1. `pip install pypdf python-multipart` di backend -> PASS
+  2. `pytest backend/tests` -> PASS (15/15 tests passed in 1.33s)
+  3. `ruff check & format backend` -> PASS (0 errors)
+  4. `npm --prefix frontend test` -> PASS (28/28 tests passed in 2.73s)
+  5. `npm --prefix frontend run build` -> PASS (built in 280ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Ekstraksi CV dari PDF Asli | Mengekstrak nama, email, phone, dan menghasilkan confidence >60% | PASS |
+| Ekstraksi CV dari DOCX Asli | Mengekstrak kontak, pengalaman, dan daftar skill terstruktur | PASS |
+| Proteksi Endpoint Impor | Menolak upload tanpa session cookie aktif (HTTP 401) | PASS |
+| Tolak Format Ilegal | Menolak berkas selain .pdf dan .docx (HTTP 400) | PASS |
+| Komponen UI Import Modal | Dropzone tervalidasi dan mengaktifkan tombol ekstrak | PASS |
+| Suite Pytest Backend | 15/15 unit & integration tests lulus (1.33s) | PASS |
+| Suite Vitest Frontend | 28/28 unit tests lulus (2.73s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (280ms) | PASS |
+
+### Acceptance Criteria
+- [x] Ekstraksi PDF dan DOCX teruji pada berkas nyata
+- [x] Skor confidence terhitung per bidang dan secara menyeluruh
+- [x] Dialog review menampilkan status confidence dan peringatan edukatif
+- [x] Tombol terapkan ke editor memperbarui form state reaktif
+- [x] Seluruh unit dan integration test (15 Pytest + 28 Vitest) lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-4.4.
+
+---
+
+## Ringkasan Penutupan Phase 04: Core CV/Resume Builder & Template Engine
+1. **TASK-4.1 (CV Builder Form & Live Preview):** Lolos (Form per bagian, A4 live preview responsif, autosave debounce, undo 10s).
+2. **TASK-4.2 (Template Engine 2 ATS + 2 Visual):** Lolos (AtsClean, AtsModern, VisualExecutive, VisualMinimal, template registry & selector).
+3. **TASK-4.3 (Ekspor CV ke PDF & DOCX):** Lolos (Generator DOCX python-docx, PDF converter LibreOffice, browser print fallback).
+4. **TASK-4.4 (Ekstraksi Impor CV Lama):** Lolos (Parser PDF/DOCX, confidence scoring, review modal dialog).
+
+Phase 04 resmi **SELESAI (COMPLETED)**. Proyek siap beralih ke **Phase 05: Deterministic ATS Analysis & Job Match Engine**.
+
+---
+
+## Task 5.1 — Mesin Skor ATS Struktur (0–100) dan Rekomendasi Heuristik — 2026-10-20
+
+**Task:** phase-05.1 — TASK-5.1: Mesin Skor ATS Struktur 0-100 dan Rekomendasi Heuristik  
+**Requirement:** BUS-004, FR-007, FR-009, BRULE-006
+
+### Ringkasan
+Telah dibangun modul analisis evaluasi kepatuhan tata letak format ATS (Applicant Tracking System) secara deterministik dan 100% offline:
+1. `backend/app/services/ats_analyzer.py`:
+   - Evaluasi 5 pilar struktur ATS:
+     - Kontak (Maks 25): Email valid (10), Telepon valid (10), Lokasi (5).
+     - Kelengkapan Struktur (Maks 25): Pengalaman kerja (10), Pendidikan (5), Keahlian minimal 3 (10).
+     - Ringkasan Profesional (Maks 20): Panjang ideal 30–80 kata (20), <30 kata (10), >80 kata (12).
+     - Dampak Terukur (Maks 20): Deteksi metrik kuantitatif (angka, persentase %, nominal biaya) pada butir pekerjaan (≥2 posisi: 20 poin, 1 posisi: 10 poin).
+     - Integritas Konten & Anti-Stuffing (Maks 10): Deteksi otomatis frekuensi kata tak wajar (stuffing).
+   - Penentuan Grade: A (85–100), B (70–84), C (50–69), D (<50).
+   - Daftar checklist per kategori dengan bobot poin dan tips edukatif.
+   - Rekomendasi tindakan prioritas tanpa mengubah teks CV secara otomatis.
+   - Peringatan disclaimer hukum standar.
+2. `backend/app/api/ats.py`:
+   - Endpoint `POST /api/ats/analyze-structure` menerima data draft CV dan mengembalikan rincian skor JSON lengkap.
+3. `frontend/src/services/ats.ts`:
+   - Service pemanggilan API `/api/ats/analyze-structure` dengan fallback komputasi lokal murni di browser jika backend tidak tersambung.
+4. `frontend/src/components/ats/AtsScorePanel.tsx`:
+   - Panel dialog modal dengan visual skor radial lingkaran, rincian kartu 5 pilar, filter checklist (Semua, Perlu Cek, Lolos), kartu rekomendasi prioritas, dan disclaimer.
+5. `frontend/src/components/layout/Navbar.tsx` & `App.tsx`:
+   - Tombol lencana skor interaktif di header (misal: "ATS: 95" warna hijau) yang dapat diklik pengguna kapan saja untuk membuka panel skor.
+   - Evaluasi skor berlangsung reaktif saat data CV diedit.
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `ats_analyzer.py`, `ats.py`, `main.py`, `test_ats.py`, `ats.ts`, `AtsScorePanel.tsx`, `Navbar.tsx`, `App.tsx`, `ats.test.tsx`.
+- Perintah dijalankan:
+  1. `pytest backend/tests` -> PASS (19/19 tests passed in 1.83s)
+  2. `ruff check & format backend` -> PASS (0 errors)
+  3. `npm --prefix frontend test` -> PASS (33/33 tests passed in 3.26s)
+  4. `npm --prefix frontend run build` -> PASS (built in 353ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Skor CV Lengkap & Terukur | Memperoleh skor ≥ 85 (Grade A) tanpa rekomendasi kritis | PASS |
+| Skor CV Kosong / Minim | Memperoleh skor < 40 (Grade D) dengan rekomendasi konkret | PASS |
+| Deteksi Keyword Stuffing | Mengidentifikasi pengulangan kata berlebih & menganulir pilar integritas | PASS |
+| Endpoint API ATS Berautentikasi | Merespons 200 OK dengan rincian 5 pilar dan checklist | PASS |
+| Fallback Offline Client-Side | Menghitung skor akurat di browser saat backend disconnected | PASS |
+| Filter Checklist UI | Filter 'Semua', 'Perlu Cek', dan 'Lolos' berfungsi presisi | PASS |
+| Suite Pytest Backend | 19/19 unit tests lulus (1.83s) | PASS |
+| Suite Vitest Frontend | 33/33 unit tests lulus (3.26s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (353ms) | PASS |
+
+### Acceptance Criteria
+- [x] Mesin ATS 5 pilar terimplementasi secara deterministik
+- [x] Skor 0-100 dan grade A-D terhitung akurat
+- [x] Peringatan anti-keyword stuffing teruji
+- [x] Checklist indikator dan saran perbaikan tampil jelas di antarmuka
+- [x] Disclaimer resmi tercantum pada antarmuka
+- [x] 19 Pytest dan 33 Vitest tests lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-5.1.
+
+---
+
+## Task 5.2 — Job Matching Parser & Skor Relevansi Terpisah — 2026-10-20
+
+**Task:** phase-05.2 — TASK-5.2: Job Matching Parser (Teks & PDF/DOCX) dan Skor Relevansi Terpisah  
+**Requirement:** BUS-004, FR-008, FR-010
+
+### Ringkasan
+Telah dibangun modul pencocokan spesifik terhadap deskripsi lowongan kerja (Job Description) yang terpisah dari skor tata letak ATS:
+1. `backend/app/services/job_matcher.py`:
+   - Engine ekstraksi keahlian terstandarisasi berbasis taksonomi n-gram (unigram, bigram, trigram) dan pemetaan sinonim dwibahasa (ID/EN).
+   - Pengurutan relevansi probabilitik teks konteks via Okapi BM25 ranker (`PureBM25Ranker`).
+   - Kalkulasi persentase kecocokan keahlian (Match Score 0–100%) dan pengelompokan ke dalam `matched_skills` dan `missing_skills`.
+   - Generator panduan penyesuaian (advice) terstruktur tanpa menyarankan keyword stuffing.
+2. `backend/app/api/ats.py`:
+   - Endpoint `POST /api/ats/match-job` menerima pasangan CV dan teks lowongan kerja, mengembalikan skor kecocokan, skor BM25, serta daftar keahlian cocok dan belum tercantum.
+3. `frontend/src/services/ats.ts`:
+   - Menambahkan method `matchResumeToJob` dengan fallback komparasi client-side murni di browser jika backend terputus.
+4. `frontend/src/components/ats/JobMatchModal.tsx`:
+   - Dialog modal interaktif menyediakan area penempelan teks lowongan kerja, tombol cepat masukkan contoh lowongan, visualisasi skor kecocokan (persentase warna hijau/biru/kuning), skor relevansi konteks BM25, chip keahlian cocok (hijau), chip keahlian belum ada di CV (kuning), dan panduan konkret penyesuaian CV.
+5. `frontend/src/components/layout/Navbar.tsx` & `App.tsx`:
+   - Menambahkan tombol akses "Cocokkan Lowongan" di header navigasi.
+6. Unit Tests:
+   - Backend `backend/tests/test_job_match.py` (3 tests: verifikasi kecocokan skill, deteksi missing skill, proteksi autentikasi sesi, respons API 200 OK).
+   - Frontend `frontend/src/components/ats/__tests__/job_match.test.tsx` (5 tests: verifikasi fallback kalkulasi, render modal, pengisian teks contoh, dan penutupan dialog).
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `job_matcher.py`, `ats.py`, `test_job_match.py`, `ats.ts`, `JobMatchModal.tsx`, `Navbar.tsx`, `App.tsx`, `job_match.test.tsx`.
+- Perintah dijalankan:
+  1. `pytest backend/tests` -> PASS (22/22 tests passed in 1.45s)
+  2. `ruff check & format backend` -> PASS (0 errors)
+  3. `npm --prefix frontend test` -> PASS (38/38 tests passed in 3.13s)
+  4. `npm --prefix frontend run build` -> PASS (built in 400ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Ekstraksi Kualifikasi Lowongan | Mendeteksi Python, FastAPI, PostgreSQL, Docker, Redis | PASS |
+| Identifikasi Matched Skills | Memetakan keahlian yang ada di CV (Python, FastAPI, Postgres) | PASS |
+| Identifikasi Missing Skills | Menemukan keahlian yang belum dicantumkan di CV (Docker, Redis) | PASS |
+| Skor Konteks Okapi BM25 | Menghasilkan probabilitas relevansi teks query | PASS |
+| Proteksi Endpoint Match-Job | Menolak request tanpa session cookie (HTTP 401) | PASS |
+| Fallback Client-Side | Menghitung matched & missing skills di browser secara offline | PASS |
+| Komponen UI JobMatchModal | Berfungsi lancar dengan contoh lowongan dan render chip | PASS |
+| Suite Pytest Backend | 22/22 unit tests lulus (1.45s) | PASS |
+| Suite Vitest Frontend | 38/38 unit tests lulus (3.13s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (400ms) | PASS |
+
+### Acceptance Criteria
+- [x] Pencocokan lowongan menghasilkan skor terpisah dari skor struktur ATS
+- [x] Daftar matched skills dan missing skills disajikan secara visual
+- [x] Input deskripsi pekerjaan mendukung penempelan teks langsung dan contoh
+- [x] Rekomendasi tidak mendorong manipulasi teks atau keyword stuffing
+- [x] 22 Pytest dan 38 Vitest tests lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-5.2.
+
+---
+
+## Task 5.3 — Ekspor Laporan Analisis ATS ke PDF — 2026-10-20
+
+**Task:** phase-05.3 — TASK-5.3: Ekspor Laporan Analisis ATS ke PDF  
+**Requirement:** FR-011, BUS-004
+
+### Ringkasan
+Telah diimplementasikan fitur ekspor laporan audit evaluasi ATS ke berkas Word (.docx) dan PDF:
+1. `backend/app/services/ats_report_generator.py`:
+   - Menggunakan `python-docx` untuk menyusun dokumen laporan evaluasi resmi: judul laporan, metadata berkas, kartu skor total & grade, tabel rincian 5 pilar struktur, daftar rekomendasi tindakan prioritas, tabel matriks checklist indikator lengkap (kategori, indikator, status lolos/perlu cek dengan warna, dan tips panduan), serta kotak disclaimer penafian hukum.
+   - Mengonversi berkas dokumen laporan ke PDF via LibreOffice headless menggunakan `run_sandboxed_subprocess()` tanpa akses jaringan luar.
+2. `backend/app/api/ats.py`:
+   - Endpoint `POST /api/ats/export-report-docx` streaming berkas Word attachment.
+   - Endpoint `POST /api/ats/export-report-pdf` streaming berkas PDF attachment atau respon 422 edukatif saat LibreOffice belum terinstal di host.
+3. `frontend/src/services/ats.ts`:
+   - Method `exportAtsReportDocx()` dan `exportAtsReportPdf()` dengan otomatisasi pengunduhan Blob dan fallback cetak browser jika LibreOffice belum terinstal.
+4. `frontend/src/components/ats/AtsScorePanel.tsx`:
+   - Menambahkan tombol unduh "Laporan Word" dan "Unduh Laporan PDF" pada bagian footer modal evaluasi skor ATS.
+5. Unit & Integration Tests:
+   - Backend `backend/tests/test_ats_report.py` (3 tests memvalidasi struktur docx, endpoint docx, dan endpoint pdf).
+   - Frontend `frontend/src/components/ats/__tests__/ats_report.test.tsx` (verifikasi render tombol unduh).
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `ats_report_generator.py`, `ats.py`, `test_ats_report.py`, `ats.ts`, `AtsScorePanel.tsx`, `App.tsx`, `ats_report.test.tsx`.
+- Perintah dijalankan:
+  1. `pytest backend/tests` -> PASS (25/25 tests passed in 1.31s)
+  2. `ruff check & format backend` -> PASS (0 errors)
+  3. `npm --prefix frontend test` -> PASS (39/39 tests passed in 5.57s)
+  4. `npm --prefix frontend run build` -> PASS (built in 348ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Pembuatan DOCX Laporan In-Memory | Menghasilkan dokumen terstruktur dengan 2 tabel dan teks utuh | PASS |
+| Proteksi Endpoint Export Laporan | Memvalidasi session token & CSRF | PASS |
+| Export Laporan DOCX | Menghasilkan streaming response attachment .docx | PASS |
+| Export Laporan PDF Handling | Merespons 422 edukatif saat LibreOffice absen / 200 saat ada | PASS |
+| Tombol UI Download Laporan | Terpasang rapi di footer modal skor ATS | PASS |
+| Suite Pytest Backend | 25/25 unit tests lulus (1.31s) | PASS |
+| Suite Vitest Frontend | 39/39 unit tests lulus (5.57s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (348ms) | PASS |
+
+### Acceptance Criteria
+- [x] Dokumen laporan evaluasi resmi ATS berhasil digenerasi dalam format DOCX dan PDF
+- [x] Laporan merangkum skor total, grade, tabel 5 pilar, checklist, rekomendasi, dan disclaimer
+- [x] Tombol unduh laporan terintegrasi di modal skor ATS antarmuka pengguna
+- [x] 25 Pytest dan 39 Vitest tests lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-5.3.
+
+---
+
+## Ringkasan Penutupan Phase 05: Deterministic ATS Analysis & Job Match Engine
+1. **TASK-5.1 (Mesin Skor ATS Struktur 0-100 & Rekomendasi):** Lolos (5 pilar struktur, anti-stuffing, disclaimer, modal radial gauge).
+2. **TASK-5.2 (Job Matching Parser & Relevansi):** Lolos (n-gram taxonomy, BM25 ranker, matched & missing skills, modal komparasi).
+3. **TASK-5.3 (Ekspor Laporan Analisis ATS ke PDF):** Lolos (Laporan resmi DOCX & PDF via LibreOffice / print fallback).
+
+Phase 05 resmi **SELESAI (COMPLETED)**. Proyek siap beralih ke **Phase 06: Document Conversion Orchestration & Sandbox**.
+
+---
+
+## Task 6.1 — Orkestrator Konversi DOCX ke PDF via Sandbox LibreOffice — 2026-10-20
+
+**Task:** phase-06.1 — TASK-6.1: Orkestrator Konversi DOCX ke PDF via LibreOffice Headless Terisolasi  
+**Requirement:** BUS-005, BUS-006, FR-012, NFR-SEC-001, NFR-SEC-004
+
+### Ringkasan
+Telah diimplementasikan modul orkestrasi konversi berkas perkantoran umum (Microsoft Word .docx ke PDF) secara aman di dalam sandbox subprocess terisolasi:
+1. `backend/app/services/converter.py`:
+   - Validasi ketat header magic bytes kontainer ZIP/DOCX (`PK\x03\x04`). Penolakan berkas korup atau manipulatif secara aman (fail-closed) dengan `ValueError`.
+   - Isolasi eksekusi subprocess LibreOffice headless via `run_sandboxed_subprocess()`:
+     - Tanpa akses jaringan keluar (network egress block).
+     - Batas alokasi memori (maks 1 GB).
+     - Batas waktu proses SLA (timeout 300.0 detik / 5 menit).
+     - Otomatisasi pembersihan direktori temporer unik UUIDv4 segera setelah berkas dikonversi.
+2. `backend/app/api/converter.py`:
+   - Endpoint `POST /api/converter/docx-to-pdf` menerima upload berkas multipart (maks 25 MB), memvalidasi ekstensi `.docx`, dan mengalirkan streaming file PDF keluaran.
+   - Mengembalikan respon HTTP 422 edukatif jika LibreOffice belum terinstal di host.
+3. `frontend/src/services/converter.ts`:
+   - Service konversi dokumen lokal dengan otomatisasi trigger unduhan Blob keluaran PDF.
+4. `frontend/src/components/converter/DocxToPdfModal.tsx`:
+   - Modal antarmuka pengguna dengan area drag-and-drop berkas DOCX, animasi tahapan progress (validasi biner -> isolasi sandbox -> konversi PDF), tombol batalkan (cancel), panduan instalasi jika LibreOffice belum ada, dan notifikasi sukses unduhan.
+5. `frontend/src/components/layout/Navbar.tsx` & `App.tsx`:
+   - Tombol "Konversi DOCX" di topbar navigasi aplikasi.
+6. Unit & Integration Tests:
+   - Backend `backend/tests/test_converter.py` (5 tests memvalidasi magic bytes, penolakan non-docx, proteksi session, dan konversi berkas).
+   - Frontend `frontend/src/components/converter/__tests__/converter.test.tsx` (5 tests memvalidasi render modal, dropzone, penolakan format non-docx, dan aktivasi tombol).
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `converter.py`, `converter.py` (api), `main.py`, `test_converter.py`, `converter.ts`, `DocxToPdfModal.tsx`, `Navbar.tsx`, `App.tsx`, `converter.test.tsx`.
+- Perintah dijalankan:
+  1. `pytest backend/tests` -> PASS (30/30 tests passed in 1.88s)
+  2. `ruff check & format backend` -> PASS (0 errors)
+  3. `npm --prefix frontend test` -> PASS (44/44 tests passed in 4.92s)
+  4. `npm --prefix frontend run build` -> PASS (built in 859ms)
+
+### Verifikasi
+| Skenario Pengujian | Hasil Aktual | Status |
+|---|---|---|
+| Validasi Magic Bytes DOCX | Menerima PK\x03\x04 dan menolak biner ilegal | PASS |
+| Proteksi Endpoint Konverter | Menolak request tanpa session cookie (HTTP 401) | PASS |
+| Tolak Format Non-DOCX | Menolak unggahan selain .docx (HTTP 400) | PASS |
+| Eksekusi Konversi Sandbox | Menghasilkan PDF atau 422 edukatif jika LibreOffice absen | PASS |
+| Dropzone & Validasi Ukuran UI | Menolak file >25 MB dan ekstensi selain .docx | PASS |
+| Suite Pytest Backend | 30/30 unit & integration tests lulus (1.88s) | PASS |
+| Suite Vitest Frontend | 44/44 unit tests lulus (4.92s) | PASS |
+| Build Produksi Frontend | Berhasil dikompilasi tanpa error (859ms) | PASS |
+
+### Acceptance Criteria
+- [x] Validasi header biner DOCX aktif dan teruji
+- [x] Konversi DOCX ke PDF berjalan dalam sandbox terisolasi tanpa akses jaringan
+- [x] Timeout SLA 5 menit dan pembersihan temp workspace otomatis terintegrasi
+- [x] Panduan instalasi edukatif aktif jika LibreOffice belum terpasang di host
+- [x] 30 Pytest dan 44 Vitest tests lulus 100%
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-6.1.
+
+---
+
+## Task 6.2 — Orkestrator Konversi PDF ke DOCX — 2026-10-20
+
+**Task:** phase-06.2 — TASK-6.2: Orkestrator Konversi PDF ke DOCX via pdf2docx  
+**Requirement:** BUS-005, BUS-006, FR-012, DEC-004
+
+### Ringkasan
+Telah diselesaikan modul rekonstruksi PDF ke Microsoft Word DOCX secara lokal dan terisolasi:
+1. `backend/app/services/pdf2docx_converter.py`:
+   - Validasi magic bytes `%PDF` sebelum parsing.
+   - Pemanggilan `pdf2docx.Converter` di worker subprocess terpisah.
+   - Sandbox tanpa network, batas memori 1 GB, timeout 5 menit, dan temp workspace otomatis dibersihkan.
+   - Nama file disanitasi dan workspace memakai prefix UUID unik.
+2. `backend/app/api/converter.py`:
+   - Endpoint `POST /api/converter/pdf-to-docx` dengan batas file 25 MB.
+   - Menolak ekstensi non-PDF dan payload dengan magic bytes tidak valid.
+   - Streaming attachment DOCX ketika berhasil.
+3. `frontend/src/services/converter.ts`:
+   - Method `convertPdfToDocx()` mengunggah PDF dan mengunduh Blob DOCX.
+4. `frontend/src/components/converter/PdfToDocxModal.tsx`:
+   - Drag-and-drop PDF, progress bertahap, cancel, pesan best-effort layout, dan status sukses/error.
+5. `Navbar.tsx` dan `App.tsx`:
+   - Tombol `PDF→DOCX` dan integrasi modal.
+6. Pengujian:
+   - Backend `test_pdf2docx.py`: 6 test mencakup magic bytes, autentikasi, ekstensi, konversi corpus nyata, dan endpoint streaming.
+   - Frontend `pdf2docx.test.tsx`: 5 test render, validasi file, aktivasi konversi, dan close callback.
+
+### Kesesuaian dengan Code Plan
+- File dibuat/diubah: `pdf2docx_converter.py`, `converter.py` (API), `test_pdf2docx.py`, `converter.ts`, `PdfToDocxModal.tsx`, `pdf2docx.test.tsx`, `Navbar.tsx`, dan `App.tsx`.
+- Dependensi `pdf2docx` dipasang pada virtual environment backend.
+- Artefak sintaks yang sempat mencemari akhir `pdf2docx_converter.py` dipulihkan sebelum verifikasi akhir.
+
+### Verifikasi
+| Pemeriksaan | Hasil | Status |
+|---|---|---|
+| Ruff backend | All checks passed | PASS |
+| Pytest backend | 36/36 test lulus | PASS |
+| Vitest frontend | 49/49 test lulus | PASS |
+| Vite production build | Berhasil tanpa type error (668 ms) | PASS |
+| Corpus PDF nyata | Output DOCX memiliki magic bytes `PK` | PASS |
+| Endpoint tanpa sesi | HTTP 401 | PASS |
+| File non-PDF | HTTP 400 | PASS |
+
+### Risiko Tersisa
+- Konversi PDF kompleks tetap bersifat best-effort.
+- `pdf2docx` bergantung pada PyMuPDF dual-license; distribusi komersial/tertutup wajib meninjau lisensi Artifex.
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-6.2.
+
+---
+
+## Task 6.3 — Job Queueing, Timeout, dan Cleanup TTL — 2026-10-20
+
+**Task:** phase-06.3 — TASK-6.3: Satu Job Aktif, Timeout 5 Menit, Cleanup Per-Job/TTL 5 Menit  
+**Requirement:** NFR-SEC-004, NFR-REL-002, NFR-REL-003, BRULE-002, BRULE-003
+
+### Ringkasan
+Telah diimplementasikan manajemen lifecycle job konversi global:
+1. `backend/app/services/job_manager.py`:
+   - Atomic non-blocking lock untuk maksimal satu job konversi aktif.
+   - Status job `queued`, `running`, `succeeded`, `failed`, dan `cancelled`.
+   - Workspace UUID terpisah untuk setiap job.
+   - Context manager menjamin status transition dan cleanup melalui blok `finally`.
+   - Sweeper menghapus workspace orphan yang telah melewati TTL 300 detik.
+2. `backend/app/core/jobs.py`:
+   - Singleton `conversion_job_manager` dengan root workspace dari konfigurasi aplikasi.
+   - Startup sweep dijalankan saat manager diinisialisasi.
+3. `backend/app/api/converter.py`:
+   - Kedua endpoint DOCX→PDF dan PDF→DOCX menggunakan job manager yang sama.
+   - Request bersamaan ditolak dengan HTTP 429.
+   - Response sukses menyertakan header `X-Job-ID`.
+4. `backend/tests/test_job_manager.py`:
+   - Lima pengujian untuk concurrency lock, success status, failure status, release lock, workspace cleanup, TTL sweep, dan serialisasi state.
+
+### Verifikasi
+| Pemeriksaan | Hasil | Status |
+|---|---|---|
+| Ruff backend | All checks passed | PASS |
+| Pytest backend | 41/41 test lulus | PASS |
+| Vitest frontend regression | 49/49 test lulus | PASS |
+| Vite production build | Berhasil tanpa type error (735 ms) | PASS |
+| Concurrent job kedua | Ditolak atomik dengan `JobBusyError` / HTTP 429 | PASS |
+| Cleanup setelah success/failure | Workspace dihapus, lock dilepas | PASS |
+| Startup/TTL sweep | Hanya workspace ≥300 detik yang dihapus | PASS |
+
+### Acceptance Criteria
+- [x] Hanya satu job konversi dapat aktif pada satu waktu
+- [x] Timeout 5 menit tetap ditegakkan oleh sandbox converter
+- [x] Workspace per-job dibersihkan untuk success dan failure
+- [x] Orphan workspace dibersihkan melalui startup/TTL sweep 5 menit
+- [x] Seluruh quality gates lulus
+
+### Status
+✅ Selesai dan terverifikasi untuk TASK-6.3.
+
+---
+
+## Ringkasan Penutupan Phase 06: Document Conversion Orchestration & Sandbox
+1. **TASK-6.1:** DOCX→PDF via sandbox LibreOffice.
+2. **TASK-6.2:** PDF→DOCX via sandbox pdf2docx.
+3. **TASK-6.3:** Global one-job lock, status lifecycle, timeout delegation, dan cleanup TTL.
+
+Phase 06 resmi **SELESAI (COMPLETED)**. Phase 07 belum dimulai.
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

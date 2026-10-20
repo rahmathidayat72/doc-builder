@@ -8,19 +8,19 @@
 | TASK-1.4 | phase-01 | NFR-PERF-002, BUS-009 | Feasibility spike packaging executable backend (PyInstaller/Nuitka) | Tidak ada | Medium | ✅ Selesai dan terverifikasi | Cold start 1.289s (SLA ≤5s), ukuran biner 30.5MB |
 | TASK-2.1 | phase-02 | BUS-009, NFR-OFFLINE-001 | Setup monorepo/workspace Vite + React + TS dan Python FastAPI + uv | Phase 1 | High | ✅ Selesai dan terverifikasi | Frontend build PASS (142ms), Backend pytest PASS |
 | TASK-2.2 | phase-02 | NFR-SEC-001, FR-021 | Implementasi loopback binding, dynamic port, session cookie, dan health check | TASK-2.1 | High | ✅ Selesai dan terverifikasi | 6/6 Pytest test_security.py PASS, Origin & CSRF verified |
-| TASK-3.1 | phase-03 | FR-017, FR-018, FR-019 | Implementasi IndexedDB draft storage, autosave, undo delete, dan private mode | TASK-2.1 | High | 📋 Siap | Unit/integration test IndexedDB & migration |
-| TASK-3.2 | phase-03 | FR-017, NFR-SEC-001 | Implementasi export/import project dengan opsi enkripsi password | TASK-3.1 | Medium | ⬜ Belum siap | Roundtrip export/import test, encryption test |
-| TASK-4.1 | phase-04 | FR-001, FR-002, FR-003, FR-004 | CV Builder Form per bagian + live preview (Tailwind + Radix) | TASK-3.1 | High | ⬜ Belum siap | UI testing, responsive layout test |
-| TASK-4.2 | phase-04 | BUS-002, FR-001 | Implementasi 2 template ATS + 2 template visual awal | TASK-4.1 | High | ⬜ Belum siap | Visual rendering test |
-| TASK-4.3 | phase-04 | BUS-003, FR-006 | Ekspor CV ke PDF dan DOCX | TASK-4.2 | High | ⬜ Belum siap | Export verification, file integrity check |
-| TASK-4.4 | phase-04 | BUS-001, FR-005 | Ekstraksi impor CV lama (PDF/DOCX) dengan review confidence | TASK-4.1 | High | ⬜ Belum siap | Parsing test corpus CV lama |
-| TASK-5.1 | phase-05 | BUS-004, FR-007 | Mesin skor ATS struktur 0-100 dan rekomendasi heuristik | TASK-4.1 | High | ⬜ Belum siap | Rule engine unit test, edge case test |
-| TASK-5.2 | phase-05 | BUS-004, FR-008, FR-010 | Job matching parser (teks & PDF/DOCX) dan skor relevansi terpisah | TASK-5.1 | High | ⬜ Belum siap | Matching test corpus lowongan |
-| TASK-5.3 | phase-05 | FR-011 | Ekspor laporan analisis ATS ke PDF | TASK-5.2 | Medium | ⬜ Belum siap | Export PDF integrity test |
-| TASK-6.1 | phase-06 | BUS-005, FR-012 | Orkestrator konversi DOCX ke PDF via LibreOffice headless terisolasi | TASK-1.1, TASK-2.2 | High | ⬜ Belum siap | Fidelitas visual test ≥95% |
-| TASK-6.2 | phase-06 | BUS-005, FR-012 | Orkestrator konversi PDF ke DOCX via engine terpilih | TASK-1.1, TASK-6.1 | High | ⬜ Belum siap | Conversion benchmark pada corpus |
-| TASK-6.3 | phase-06 | NFR-SEC-004, NFR-REL-003 | Job queueing (1 job aktif), timeout 5 menit, dan per-job cleanup (TTL 5m) | TASK-6.1 | High | ⬜ Belum siap | Concurrency test, timeout & cleanup test |
-| TASK-7.1 | phase-07 | FR-013, FR-014, FR-015 | PDF Tools: merge PDF/image, split PDF rentang halaman, PDF to image | TASK-6.3 | Medium | ⬜ Belum siap | Tool functionality integration test |
+| TASK-3.1 | phase-03 | FR-017, FR-018, FR-019 | Implementasi IndexedDB draft storage, autosave, undo delete, dan private mode | TASK-2.1 | High | ✅ Selesai dan terverifikasi | 6/6 Vitest storage.test.ts PASS, Autosave debounce & undo |
+| TASK-3.2 | phase-03 | FR-017, NFR-SEC-001 | Implementasi export/import project dengan opsi enkripsi password | TASK-3.1 | Medium | ✅ Selesai dan terverifikasi | 7/7 Vitest crypto.test.ts PASS, AES-GCM 256-bit roundtrip |
+| TASK-4.1 | phase-04 | FR-001, FR-002, FR-003, FR-004 | CV Builder Form per bagian + live preview (Tailwind + Radix) | TASK-3.1 | High | ✅ Selesai dan terverifikasi | 17/17 Vitest PASS, Split-screen A4 live preview & form builder |
+| TASK-4.2 | phase-04 | BUS-002, FR-001 | Implementasi 2 template ATS + 2 template visual awal | TASK-4.1 | High | ✅ Selesai dan terverifikasi | 24/24 Vitest PASS, AtsClean, AtsModern, VisualExecutive, VisualMinimal |
+| TASK-4.3 | phase-04 | BUS-003, FR-006 | Ekspor CV ke PDF dan DOCX | TASK-4.2 | High | ✅ Selesai dan terverifikasi | 10/10 Pytest PASS, DOCX generation & PDF fallback print |
+| TASK-4.4 | phase-04 | BUS-001, FR-005 | Ekstraksi impor CV lama (PDF/DOCX) dengan review confidence | TASK-4.1 | High | ✅ Selesai dan terverifikasi | 15/15 Pytest, 28/28 Vitest, Import & confidence review |
+| TASK-5.1 | phase-05 | BUS-004, FR-007 | Mesin skor ATS struktur 0-100 dan rekomendasi heuristik | TASK-4.1 | High | ✅ Selesai dan terverifikasi | 19/19 Pytest, 33/33 Vitest, 5 pilar ATS & anti-stuffing |
+| TASK-5.2 | phase-05 | BUS-004, FR-008, FR-010 | Job matching parser (teks & PDF/DOCX) dan skor relevansi terpisah | TASK-5.1 | High | ✅ Selesai dan terverifikasi | 22/22 Pytest, 38/38 Vitest, Matched & missing skills |
+| TASK-5.3 | phase-05 | FR-011 | Ekspor laporan analisis ATS ke PDF | TASK-5.2 | Medium | ✅ Selesai dan terverifikasi | 25/25 Pytest, 39/39 Vitest, PDF & DOCX ATS report |
+| TASK-6.1 | phase-06 | BUS-005, FR-012 | Orkestrator konversi DOCX ke PDF via LibreOffice headless terisolasi | TASK-1.1, TASK-2.2 | High | ✅ Selesai dan terverifikasi | 30/30 Pytest, 44/44 Vitest, Sandboxed DOCX to PDF |
+| TASK-6.2 | phase-06 | BUS-005, FR-012 | Orkestrator konversi PDF ke DOCX via engine terpilih | TASK-1.1, TASK-6.1 | High | ✅ Selesai dan terverifikasi | Ruff PASS, 36/36 Pytest, 49/49 Vitest, corpus DOCX valid |
+| TASK-6.3 | phase-06 | NFR-SEC-004, NFR-REL-003 | Job queueing (1 job aktif), timeout 5 menit, dan per-job cleanup (TTL 5m) | TASK-6.1 | High | ✅ Selesai dan terverifikasi | 41/41 Pytest, atomic lock, status, cleanup & TTL sweep |
+| TASK-7.1 | phase-07 | FR-013, FR-014, FR-015 | PDF Tools: merge PDF/image, split PDF rentang halaman, PDF to image | TASK-6.3 | Medium | 📋 Siap | Tool functionality integration test |
 | TASK-7.2 | phase-07 | FR-016 | Image resize target KB/MB dengan optimasi otomatis dan EXIF stripping | TASK-2.2 | Medium | ⬜ Belum siap | Quality test, EXIF metadata removal test |
 | TASK-8.1 | phase-08 | NFR-PERF-001, NFR-COMP-001 | Aksesibilitas WCAG 2.2 AA & Browser testing (Chrome, Edge, Firefox, Safari) | All core | High | ⬜ Belum siap | Axe accessibility test, Playwright multi-browser |
 | TASK-8.2 | phase-08 | NFR-SEC-001, SEC Gates | Security scans (Secret, SCA, SAST, DAST baseline) & regression tests | All core | High | ⬜ Belum siap | Scan reports & retest closure |
