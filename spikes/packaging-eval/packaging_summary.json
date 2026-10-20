@@ -1,0 +1,8 @@
+{
+  "executable": "docbuilder_server_onedir.exe",
+  "directory_size_mb": 30.52,
+  "cold_start_sec": 1.289,
+  "warm_start_avg_sec": 0.592,
+  "target_sla_sec": 5.0,
+  "passed": true
+}

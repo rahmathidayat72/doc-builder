@@ -1,0 +1,13 @@
+{
+  "name": "doc-builder-root",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Doc-builder local document productivity platform",
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "powershell -Command \"& backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload --port 8000\"",
+    "build:frontend": "npm --prefix frontend run build",
+    "test:backend": "powershell -Command \"& backend/.venv/Scripts/pytest.exe backend/tests\"",
+    "lint:backend": "powershell -Command \"& backend/.venv/Scripts/ruff.exe check backend/app\""
+  }
+}

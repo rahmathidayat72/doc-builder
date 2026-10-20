@@ -1,0 +1,140 @@
+{
+  "average_latency_ms": 1.88,
+  "peak_memory_kb": 169.34,
+  "test_cases": [
+    {
+      "id": "ID_BACKEND_01",
+      "role": "Senior Backend Developer",
+      "lang": "id",
+      "latency_ms": 4.21,
+      "job_match_score": 100.0,
+      "bm25_relevance_score": 87.8,
+      "ats_structure_score": 100,
+      "matched_skills_found": [
+        "django",
+        "docker",
+        "fastapi",
+        "postgresql",
+        "pytest",
+        "python",
+        "redis",
+        "rest api"
+      ],
+      "missing_skills_found": [],
+      "expected_matched": [
+        "django",
+        "docker",
+        "fastapi",
+        "git",
+        "microservices",
+        "mysql",
+        "postgresql",
+        "pytest",
+        "python",
+        "redis",
+        "rest api"
+      ],
+      "skill_recall_percent": 72.7,
+      "recommendations_count": 0
+    },
+    {
+      "id": "ID_UIUX_02",
+      "role": "Product Designer / UI/UX",
+      "lang": "id",
+      "latency_ms": 1.0,
+      "job_match_score": 77.8,
+      "bm25_relevance_score": 76.8,
+      "ats_structure_score": 75,
+      "matched_skills_found": [
+        "adobe xd",
+        "css",
+        "figma",
+        "html",
+        "prototyping",
+        "usability testing",
+        "user research"
+      ],
+      "missing_skills_found": [
+        "flutter",
+        "react"
+      ],
+      "expected_matched": [
+        "adobe xd",
+        "css",
+        "design system",
+        "figma",
+        "html",
+        "prototyping",
+        "usability testing",
+        "user research",
+        "wireframing"
+      ],
+      "skill_recall_percent": 77.8,
+      "recommendations_count": 2
+    },
+    {
+      "id": "EN_FRONTEND_03",
+      "role": "Senior Frontend Engineer",
+      "lang": "en",
+      "latency_ms": 1.18,
+      "job_match_score": 75.0,
+      "bm25_relevance_score": 61.0,
+      "ats_structure_score": 75,
+      "matched_skills_found": [
+        "css",
+        "graphql",
+        "playwright",
+        "react",
+        "rest api",
+        "tailwind css"
+      ],
+      "missing_skills_found": [
+        "aws",
+        "kubernetes"
+      ],
+      "expected_matched": [
+        "graphql",
+        "playwright",
+        "react",
+        "rest api",
+        "tailwind css",
+        "typescript"
+      ],
+      "skill_recall_percent": 83.3,
+      "recommendations_count": 2
+    },
+    {
+      "id": "CROSS_LANG_04",
+      "role": "Data Analyst (ID CV vs EN Job)",
+      "lang": "cross_id_cv_en_job",
+      "latency_ms": 1.11,
+      "job_match_score": 50.0,
+      "bm25_relevance_score": 47.3,
+      "ats_structure_score": 75,
+      "matched_skills_found": [
+        "excel",
+        "pandas",
+        "power bi",
+        "python",
+        "sql"
+      ],
+      "missing_skills_found": [
+        "analytical thinking",
+        "bigquery",
+        "communication",
+        "dbt",
+        "snowflake"
+      ],
+      "expected_matched": [
+        "excel",
+        "pandas",
+        "power bi",
+        "python",
+        "sql",
+        "tableau"
+      ],
+      "skill_recall_percent": 83.3,
+      "recommendations_count": 2
+    }
+  ]
+}

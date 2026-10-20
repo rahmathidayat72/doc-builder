@@ -1,0 +1,38 @@
+[
+  {
+    "file": "01_cv_sample.pdf",
+    "success": true,
+    "error": null,
+    "duration_sec": 0.275,
+    "peak_memory_mb": 3.45,
+    "docx_size_kb": 36.02,
+    "paragraphs_detected": 13,
+    "tables_detected": 2,
+    "source_word_count": 144,
+    "word_recall_ratio": 100.0
+  },
+  {
+    "file": "02_office_table_sample.pdf",
+    "success": true,
+    "error": null,
+    "duration_sec": 0.497,
+    "peak_memory_mb": 2.85,
+    "docx_size_kb": 35.79,
+    "paragraphs_detected": 5,
+    "tables_detected": 1,
+    "source_word_count": 97,
+    "word_recall_ratio": 100.0
+  },
+  {
+    "file": "03_formal_letter_sample.pdf",
+    "success": true,
+    "error": null,
+    "duration_sec": 0.164,
+    "peak_memory_mb": 2.91,
+    "docx_size_kb": 35.61,
+    "paragraphs_detected": 17,
+    "tables_detected": 0,
+    "source_word_count": 109,
+    "word_recall_ratio": 100.0
+  }
+]
