@@ -1,15 +1,18 @@
-import React, { useState, useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import {
-  Upload,
-  FileText,
-  CheckCircle2,
   AlertTriangle,
-  X,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  FileText,
+  Info,
   Loader2,
   Sparkles,
-  ArrowRight
+  Upload,
+  X
 } from 'lucide-react'
 import { type ResumeData } from '../../types/resume'
+import { apiFetch } from '../../services/apiClient'
 
 interface ConfidenceMap {
   overall: number
@@ -20,6 +23,17 @@ interface ConfidenceMap {
   experiences: number
   education: number
   skills: number
+  languages: number
+  customSections: number
+}
+
+interface ExtractionSummary {
+  sourceFormat: string
+  lineCount: number
+  textCharacters: number
+  detectedSections: string[]
+  missingSections: string[]
+  layoutPreserved: boolean
 }
 
 interface ParsedResumeResponse {
@@ -27,6 +41,7 @@ interface ParsedResumeResponse {
   filename: string
   data: ResumeData
   confidence: ConfidenceMap
+  extraction: ExtractionSummary
   warnings: string[]
 }
 
@@ -35,8 +50,6 @@ interface ImportResumeModalProps {
   onClose: () => void
   onApply: (extractedData: ResumeData) => void
 }
-
-const BACKEND_URL = 'http://127.0.0.1:8000'
 
 export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   isOpen,
@@ -47,23 +60,28 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [parsedResult, setParsedResult] = useState<ParsedResumeResponse | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
+  const [confirmReplace, setConfirmReplace] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selected = e.target.files[0]
-      const ext = selected.name.toLowerCase().split('.').pop()
-      if (ext !== 'pdf' && ext !== 'docx') {
-        setErrorMessage('Hanya berkas format .pdf dan .docx yang didukung.')
-        return
-      }
-      setFile(selected)
-      setErrorMessage(null)
-      setParsedResult(null)
+  const resetResult = () => {
+    setParsedResult(null)
+    setConfirmReplace(false)
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0]
+    if (!selected) return
+
+    const extension = selected.name.toLowerCase().split('.').pop()
+    if (extension !== 'pdf' && extension !== 'docx') {
+      setErrorMessage('Hanya berkas format .pdf dan .docx yang didukung.')
+      return
     }
+    setFile(selected)
+    setErrorMessage(null)
+    resetResult()
   }
 
   const handleUploadAndParse = async () => {
@@ -71,263 +89,250 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
 
     setIsLoading(true)
     setErrorMessage(null)
-
     try {
       const formData = new FormData()
       formData.append('file', file)
-
-      const response = await fetch(`${BACKEND_URL}/api/import/resume`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      })
-
+      const response = await apiFetch('/api/import/resume', { method: 'POST', body: formData })
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: 'Gagal memproses berkas' }))
-        throw new Error(errorData.detail || `Server error (${response.status})`)
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || errorData.error || `Server error (${response.status})`)
       }
-
-      const result: ParsedResumeResponse = await response.json()
-      setParsedResult(result)
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal mem-parsing berkas CV.')
+      setParsedResult(await response.json())
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Gagal mem-parsing berkas CV.')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleConfirmApply = () => {
-    if (parsedResult) {
-      onApply(parsedResult.data)
-      onClose()
-    }
+    if (!parsedResult || !confirmReplace) return
+    onApply(parsedResult.data)
+    onClose()
   }
 
-  const getConfidenceBadge = (val: number) => {
-    const percent = Math.round(val * 100)
+  const getConfidenceBadge = (value: number) => {
+    const percent = Math.round(value * 100)
     if (percent >= 80) {
-      return (
-        <span className="px-2 py-0.5 rounded-full text-3xs font-bold bg-emerald-100 text-emerald-800 flex items-center gap-1">
-          <CheckCircle2 className="w-3 h-3" /> Tinggi ({percent}%)
-        </span>
-      )
+      return <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Tinggi {percent}%</span>
     }
     if (percent >= 50) {
-      return (
-        <span className="px-2 py-0.5 rounded-full text-3xs font-bold bg-amber-100 text-amber-800 flex items-center gap-1">
-          <AlertTriangle className="w-3 h-3" /> Perlu Dicek ({percent}%)
-        </span>
-      )
+      return <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">Perlu cek {percent}%</span>
     }
-    return (
-      <span className="px-2 py-0.5 rounded-full text-3xs font-bold bg-slate-100 text-slate-500">
-        Rendah ({percent}%)
-      </span>
-    )
+    return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">Rendah {percent}%</span>
   }
 
+  const previewSections = parsedResult ? [
+    {
+      title: 'Ringkasan',
+      count: parsedResult.data.summary ? 'Terdeteksi' : 'Kosong',
+      confidence: parsedResult.confidence.summary,
+      content: parsedResult.data.summary || 'Tidak terdeteksi.'
+    },
+    {
+      title: 'Pengalaman Kerja',
+      count: `${parsedResult.data.experiences.length} posisi`,
+      confidence: parsedResult.confidence.experiences,
+      content: parsedResult.data.experiences.map(item =>
+        `${item.jobTitle || 'Jabatan belum terbaca'} — ${item.company || 'Perusahaan belum terbaca'}${item.startDate || item.endDate ? ` (${item.startDate || '?'}–${item.endDate || '?'})` : ''}`
+      ).join('\n') || 'Tidak terdeteksi.'
+    },
+    {
+      title: 'Pendidikan',
+      count: `${parsedResult.data.education.length} institusi`,
+      confidence: parsedResult.confidence.education,
+      content: parsedResult.data.education.map(item =>
+        `${item.institution || 'Institusi belum terbaca'}${item.degree || item.fieldOfStudy ? ` — ${[item.degree, item.fieldOfStudy].filter(Boolean).join(', ')}` : ''}`
+      ).join('\n') || 'Tidak terdeteksi.'
+    },
+    {
+      title: 'Keahlian',
+      count: `${parsedResult.data.skills.length} item`,
+      confidence: parsedResult.confidence.skills,
+      content: parsedResult.data.skills.map(item => item.name).join(', ') || 'Tidak terdeteksi.'
+    },
+    {
+      title: 'Bahasa',
+      count: `${parsedResult.data.languages.length} bahasa`,
+      confidence: parsedResult.confidence.languages,
+      content: parsedResult.data.languages.map(item => `${item.language} (${item.proficiency})`).join(', ') || 'Tidak terdeteksi.'
+    },
+    {
+      title: 'Bagian Lain',
+      count: `${parsedResult.data.customSections.length} bagian`,
+      confidence: parsedResult.confidence.customSections,
+      content: parsedResult.data.customSections.map(section => {
+        const details = section.items
+          .map(item => [item.title, item.subtitle, item.date, item.description].filter(Boolean).join(' — '))
+          .filter(Boolean)
+          .join('\n')
+        return details ? `${section.sectionTitle}\n${details}` : section.sectionTitle
+      }).join('\n\n') || 'Tidak terdeteksi.'
+    }
+  ] : []
+
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-              <Upload className="w-5 h-5" />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-resume-title"
+        className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white shadow-2xl sm:max-h-[92vh] sm:max-w-3xl sm:rounded-2xl sm:border sm:border-slate-200"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600"><Upload className="h-5 w-5" /></span>
             <div>
-              <h3 className="text-base font-bold text-slate-800">Impor CV Lama (PDF / DOCX)</h3>
-              <p className="text-xs text-slate-500">
-                Ekstrak teks ke formulir editor dengan tinjauan kepastian (confidence).
-              </p>
+              <h2 id="import-resume-title" className="text-base font-bold text-slate-900">Impor Data CV</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Ekstrak data PDF/DOCX, tinjau hasil, lalu terapkan ke editor.</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
-          >
-            <X className="w-5 h-5" />
+          <button type="button" onClick={onClose} aria-label="Tutup impor CV" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <X className="h-5 w-5" />
           </button>
-        </div>
+        </header>
 
-        {/* Tahap 1: Pilih Berkas */}
-        {!parsedResult && (
-          <div className="space-y-4">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/20 rounded-xl p-8 text-center cursor-pointer transition space-y-2"
-              data-testid="dropzone-import"
-            >
-              <FileText className="w-10 h-10 text-indigo-500 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">
-                {file ? file.name : 'Pilih atau seret berkas CV ke sini'}
-              </p>
-              <p className="text-xs text-slate-400">Mendukung format PDF atau Word (.docx) hingga 25 MB</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.docx"
-                onChange={handleFileChange}
-                className="hidden"
-                data-testid="input-file-import"
-              />
-            </div>
-
-            {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{errorMessage}</span>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+          {!parsedResult ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <p><strong>Yang diimpor hanya data teks.</strong> Desain, font, warna, gambar, dan posisi kolom asli tidak ikut. PDF hasil scan belum didukung.</p>
               </div>
-            )}
 
-            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center transition hover:border-indigo-400 hover:bg-indigo-50/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                data-testid="dropzone-import"
               >
-                Batal
+                <FileText className="mx-auto h-10 w-10 text-indigo-500" />
+                <span className="mt-3 block text-sm font-semibold text-slate-800">{file ? file.name : 'Pilih berkas CV'}</span>
+                <span className="mt-1 block text-xs text-slate-500">PDF atau DOCX berbasis teks, maksimal 25 MB</span>
               </button>
+              <input ref={fileInputRef} type="file" accept=".pdf,.docx" onChange={handleFileChange} className="hidden" data-testid="input-file-import" />
+
+              {errorMessage && (
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-indigo-950">{parsedResult.filename}</p>
+                    <p className="mt-1 text-xs text-indigo-800">
+                      {parsedResult.extraction.sourceFormat} · {parsedResult.extraction.lineCount} baris teks · {parsedResult.extraction.detectedSections.length} bagian terdeteksi
+                    </p>
+                  </div>
+                  {getConfidenceBadge(parsedResult.confidence.overall)}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {parsedResult.extraction.detectedSections.map(section => (
+                    <span key={section} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-indigo-700">{section}</span>
+                  ))}
+                </div>
+              </section>
+
+              <section aria-labelledby="import-contact-title">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id="import-contact-title" className="text-xs font-bold uppercase tracking-wider text-slate-700">Kontak Terdeteksi</h3>
+                  {getConfidenceBadge(parsedResult.confidence.fullName)}
+                </div>
+                <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
+                  <p><span className="text-slate-500">Nama:</span> <strong>{parsedResult.data.contact.fullName || 'Tidak terdeteksi'}</strong></p>
+                  <p><span className="text-slate-500">Email:</span> <strong>{parsedResult.data.contact.email || 'Tidak terdeteksi'}</strong></p>
+                  <p><span className="text-slate-500">Telepon:</span> <strong>{parsedResult.data.contact.phone || 'Tidak terdeteksi'}</strong></p>
+                  <p><span className="text-slate-500">Lokasi:</span> <strong>{parsedResult.data.contact.location || 'Tidak terdeteksi'}</strong></p>
+                </div>
+              </section>
+
+              <section className="space-y-2" aria-labelledby="import-preview-title">
+                <div>
+                  <h3 id="import-preview-title" className="text-xs font-bold uppercase tracking-wider text-slate-700">Tinjau Semua Bagian</h3>
+                  <p className="mt-1 text-xs text-slate-500">Buka setiap bagian dan periksa data sebelum mengganti editor.</p>
+                </div>
+                {previewSections.map((section, index) => (
+                  <details key={section.title} open={index < 2} className="group rounded-xl border border-slate-200 bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                      <div>
+                        <span className="text-sm font-semibold text-slate-900">{section.title}</span>
+                        <span className="ml-2 text-xs text-slate-500">{section.count}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getConfidenceBadge(section.confidence)}
+                        <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
+                      </div>
+                    </summary>
+                    <div className="border-t border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
+                      {section.content}
+                    </div>
+                  </details>
+                ))}
+              </section>
+
+              {parsedResult.extraction.missingSections.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  <strong>Belum terdeteksi:</strong> {parsedResult.extraction.missingSections.join(', ')}. Data bagian ini akan kosong bila impor diterapkan.
+                </div>
+              )}
+
+              <section className="rounded-xl border border-slate-200 p-3">
+                <h3 className="flex items-center gap-2 text-xs font-bold text-slate-800"><Sparkles className="h-4 w-4 text-amber-600" /> Catatan Verifikasi</h3>
+                <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-600">
+                  {parsedResult.warnings.map(warning => <li key={warning}>• {warning}</li>)}
+                </ul>
+              </section>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
+                <input
+                  type="checkbox"
+                  checked={confirmReplace}
+                  onChange={event => setConfirmReplace(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-rose-300 text-indigo-600 focus:ring-indigo-500"
+                  data-testid="confirm-replace-import"
+                />
+                <span className="text-xs leading-relaxed text-rose-900">
+                  Saya sudah meninjau hasil. Terapkan data ini dan <strong>ganti seluruh isi CV pada editor saat ini</strong>.
+                </span>
+              </label>
+            </div>
+          )}
+        </div>
+
+        <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+          {!parsedResult ? (
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Batal</button>
               <button
                 type="button"
                 disabled={!file || isLoading}
                 onClick={handleUploadAndParse}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs"
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
                 data-testid="btn-start-parse"
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Mengekstrak Dokumen...
-                  </>
-                ) : (
-                  <>
-                    Ekstrak Dokumen
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
+                {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Mengekstrak...</> : <>Tinjau Hasil <ArrowRight className="h-4 w-4" /></>}
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Tahap 2: Tinjauan Hasil Ekstraksi (Review Confidence) */}
-        {parsedResult && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-              <div>
-                <span className="text-xs font-bold text-indigo-900 block">
-                  Ekstraksi Berhasil: {parsedResult.filename}
-                </span>
-                <span className="text-2xs text-indigo-700">
-                  Periksa hasil penguraian sebelum menerapkan data ke formulir editor.
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-3xs text-indigo-600 uppercase font-bold block">Skor Rata-Rata</span>
-                {getConfidenceBadge(parsedResult.confidence.overall)}
-              </div>
-            </div>
-
-            {/* Rincian Bidang Terdeteksi */}
-            <div className="max-h-60 overflow-y-auto space-y-2 text-xs border border-slate-200 rounded-xl p-3 bg-slate-50/50">
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-200">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Nama Lengkap</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.contact.fullName || '(Tidak terdeteksi)'}
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.fullName)}
-              </div>
-
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-200">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Email</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.contact.email || '(Tidak terdeteksi)'}
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.email)}
-              </div>
-
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-200">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Nomor Telepon</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.contact.phone || '(Tidak terdeteksi)'}
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.phone)}
-              </div>
-
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-200">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Pengalaman Kerja</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.experiences.length} posisi terdeteksi
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.experiences)}
-              </div>
-
-              <div className="flex items-center justify-between py-1.5 border-b border-slate-200">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Riwayat Pendidikan</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.education.length} institusi terdeteksi
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.education)}
-              </div>
-
-              <div className="flex items-center justify-between py-1.5">
-                <div>
-                  <span className="text-slate-500 block text-2xs">Keahlian (Skills)</span>
-                  <span className="font-semibold text-slate-800">
-                    {parsedResult.data.skills.length} keahlian terdeteksi
-                  </span>
-                </div>
-                {getConfidenceBadge(parsedResult.confidence.skills)}
-              </div>
-            </div>
-
-            {/* Peringatan Edukatif */}
-            {parsedResult.warnings.length > 0 && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
-                <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  Catatan Verifikasi:
-                </span>
-                <ul className="text-2xs text-amber-800 list-disc list-inside space-y-0.5">
-                  {parsedResult.warnings.map((w, idx) => (
-                    <li key={idx}>{w}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-2 border-t">
-              <button
-                type="button"
-                onClick={() => setParsedResult(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
-              >
-                Unggah Ulang
-              </button>
+          ) : (
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              <button type="button" onClick={resetResult} className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100">Pilih Berkas Lain</button>
               <button
                 type="button"
                 onClick={handleConfirmApply}
-                className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-xs flex items-center gap-1.5"
+                disabled={!confirmReplace}
+                className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="btn-confirm-apply"
               >
-                <CheckCircle2 className="w-4 h-4" />
-                Terapkan ke Editor
+                <CheckCircle2 className="h-4 w-4" /> Terapkan ke Editor
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </footer>
       </div>
     </div>
   )

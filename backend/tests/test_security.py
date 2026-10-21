@@ -40,6 +40,19 @@ def test_bootstrap_with_invalid_token_returns_401():
     assert resp.status_code == 401
 
 
+def test_bootstrap_from_trusted_origin_without_token_succeeds():
+    """Bootstrap dari origin lokal terpercaya tanpa token harus berhasil memperoleh sesi & CSRF."""
+    resp = client.post(
+        "/api/auth/bootstrap",
+        json={},
+        headers={"Origin": "http://localhost:5173"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+    assert "csrf_token" in resp.json()
+    assert SESSION_COOKIE_NAME in resp.cookies
+
+
 def test_full_bootstrap_session_and_csrf_flow():
     """Alur lengkap: Bootstrap valid -> dapat Cookie & CSRF -> Akses terproteksi sukses."""
     # 1. Lakukan bootstrap dengan token yang valid
@@ -67,3 +80,25 @@ def test_full_bootstrap_session_and_csrf_flow():
     # Mari kita uji verifikasi CSRF helper langsung
     assert session_manager.verify_csrf(csrf_token) is True
     assert session_manager.verify_csrf("wrong_csrf") is False
+
+
+def test_pdf_tools_mutation_without_csrf_is_rejected_403():
+    """Akses mutasi POST ke /api/pdf-tools/split tanpa CSRF harus ditolak 403."""
+    client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
+    files = {"file": ("test.pdf", b"%PDF-1.4 sample", "application/pdf")}
+    data = {"pages": "1"}
+    headers = {"Origin": "http://localhost:5173"}  # origin valid, tapi CSRF absen
+    resp = client.post("/api/pdf-tools/split", files=files, data=data, headers=headers)
+    assert resp.status_code == 403
+    assert "CSRF" in resp.json().get("error", "")
+
+
+def test_image_tools_mutation_without_csrf_is_rejected_403():
+    """Akses mutasi POST ke /api/image-tools/resize tanpa CSRF harus ditolak 403."""
+    client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
+    files = {"file": ("test.jpg", b"dummy image data", "image/jpeg")}
+    data = {"target_kb": "50"}
+    headers = {"Origin": "http://localhost:5173"}
+    resp = client.post("/api/image-tools/resize", files=files, data=data, headers=headers)
+    assert resp.status_code == 403
+    assert "CSRF" in resp.json().get("error", "")

@@ -1,12 +1,13 @@
 import React from 'react'
 import { type ResumeDraft } from '../types/resume'
+import { CustomSectionsBlock } from './CustomSectionsBlock'
 
 interface TemplateProps {
   draft: ResumeDraft
 }
 
 export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
-  const { contact, summary, experiences, education, skills, languages } = draft.data
+  const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
 
   return (
@@ -124,6 +125,12 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
           </div>
         </section>
       )}
+
+      <CustomSectionsBlock
+        sections={customSections}
+        accentColor={accentColor}
+        variant="visual-minimal"
+      />
     </div>
   )
 }

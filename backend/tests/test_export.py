@@ -64,6 +64,21 @@ SAMPLE_RESUME_PAYLOAD = {
             {"id": "lang-1", "language": "Bahasa Indonesia", "proficiency": "Native"},
             {"id": "lang-2", "language": "English", "proficiency": "Fluent"},
         ],
+        "customSections": [
+            {
+                "id": "custom-1",
+                "sectionTitle": "Sertifikasi",
+                "items": [
+                    {
+                        "id": "custom-item-1",
+                        "title": "AWS Certified Developer",
+                        "subtitle": "Amazon Web Services",
+                        "date": "2025",
+                        "description": "Validasi kompetensi pengembangan aplikasi cloud.",
+                    }
+                ],
+            }
+        ],
     },
 }
 
@@ -83,6 +98,10 @@ def test_generate_resume_docx_creates_valid_document():
     assert "PT Mega Finansial" in text
     assert "Principal Architect" in text
     assert "Python • TypeScript • Docker" in text
+    assert "SERTIFIKASI" in text
+    assert "AWS Certified Developer" in text
+    assert "Amazon Web Services" in text
+    assert "Validasi kompetensi pengembangan aplikasi cloud." in text
 
 
 def test_export_docx_endpoint_requires_auth():

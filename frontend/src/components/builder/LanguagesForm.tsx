@@ -75,6 +75,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
               <input
                 type="text"
                 placeholder="Contoh: Bahasa Indonesia / English"
+                aria-label="Nama Bahasa"
                 value={lang.language}
                 onChange={e => handleUpdate(lang.id, 'language', e.target.value)}
                 className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -82,6 +83,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
 
               <select
                 value={lang.proficiency}
+                aria-label="Tingkat Kemahiran Bahasa"
                 onChange={e => handleUpdate(lang.id, 'proficiency', e.target.value)}
                 className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
               >
@@ -94,6 +96,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
               <button
                 type="button"
                 onClick={() => handleDelete(lang.id)}
+                aria-label="Hapus Bahasa"
                 className="text-slate-400 hover:text-red-500 p-1.5 rounded transition"
               >
                 <Trash2 className="w-4 h-4" />

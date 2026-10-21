@@ -107,6 +107,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
           <button
             type="button"
             onClick={onClose}
+            aria-label="Tutup modal konversi Word ke PDF"
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
             data-testid="btn-close-converter"
           >
@@ -131,6 +132,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
                 ref={fileInputRef}
                 type="file"
                 accept=".docx"
+                aria-label="Pilih berkas Word DOCX"
                 onChange={handleFileChange}
                 className="hidden"
                 data-testid="input-file-docx"

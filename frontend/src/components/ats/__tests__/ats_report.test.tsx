@@ -30,7 +30,7 @@ describe('AtsReport Export Functionality Suite', () => {
 
     expect(screen.getByTestId('btn-export-report-pdf')).toBeInTheDocument()
     expect(screen.getByTestId('btn-export-report-docx')).toBeInTheDocument()
-    expect(screen.getByText(/Unduh Laporan PDF/i)).toBeInTheDocument()
-    expect(screen.getByText(/Laporan Word/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Laporan PDF/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Laporan Word/i })).toBeInTheDocument()
   })
 })

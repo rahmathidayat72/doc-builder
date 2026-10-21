@@ -108,7 +108,12 @@ export function useResumeDraft(initialDraftId?: string) {
       version: 1
     }
 
-    await ResumeStorage.saveDraft(newDraft)
+    try {
+      await ResumeStorage.saveDraft(newDraft)
+    } catch (err) {
+      console.error('Gagal menyimpan draft baru:', err)
+    }
+
     setDraft(newDraft)
     pendingDraftRef.current = newDraft
     setLastSaved(new Date(now))
@@ -192,11 +197,15 @@ export function useResumeDraft(initialDraftId?: string) {
     privateMode,
     pendingDelete,
     loadDraft: async (id: string) => {
-      const d = await ResumeStorage.getDraft(id)
-      if (d) {
-        setDraft(d)
-        pendingDraftRef.current = d
-        setLastSaved(new Date(d.updatedAt))
+      try {
+        const d = await ResumeStorage.getDraft(id)
+        if (d) {
+          setDraft(d)
+          pendingDraftRef.current = d
+          setLastSaved(new Date(d.updatedAt))
+        }
+      } catch (err) {
+        console.error('Gagal memuat draft:', err)
       }
     },
     createNewDraft,

@@ -135,3 +135,47 @@ def test_pdf_to_images_endpoint_returns_zip():
     assert response.headers["content-type"] == "application/zip"
     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
         assert archive.namelist() == ["page_001.jpg"]
+
+
+def test_encrypted_pdf_rejected():
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    writer.encrypt("secret123")
+    output = io.BytesIO()
+    writer.write(output)
+    enc_pdf = output.getvalue()
+
+    files = {"file": ("encrypted.pdf", enc_pdf, "application/pdf")}
+    response = client.post(
+        "/api/pdf-tools/split",
+        files=files,
+        data={"pages": "1"},
+        headers=auth_headers(),
+    )
+    assert response.status_code == 422
+    assert "terenkripsi" in response.json()["detail"]
+
+
+def test_split_invalid_range_rejected():
+    files = {"file": ("sample.pdf", create_pdf(2), "application/pdf")}
+    response = client.post(
+        "/api/pdf-tools/split",
+        files=files,
+        data={"pages": "5-10"},
+        headers=auth_headers(),
+    )
+    assert response.status_code == 422
+    assert "Rentang" in response.json()["detail"]
+
+
+def test_split_filename_sanitized():
+    files = {"file": ("my test file (1)!?.pdf", create_pdf(2), "application/pdf")}
+    response = client.post(
+        "/api/pdf-tools/split",
+        files=files,
+        data={"pages": "1"},
+        headers=auth_headers(),
+    )
+    assert response.status_code == 200
+    disposition = response.headers["content-disposition"]
+    assert "my_test_file__1_split.pdf" in disposition

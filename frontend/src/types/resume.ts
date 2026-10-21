@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const ContactInfoSchema = z.object({
-  fullName: z.string().min(1, 'Nama lengkap wajib diisi'),
+  fullName: z.string().default(''),
   email: z.string().email('Format email tidak valid').or(z.literal('')),
   phone: z.string().default(''),
   location: z.string().default(''),
@@ -12,8 +12,8 @@ export const ContactInfoSchema = z.object({
 
 export const WorkExperienceSchema = z.object({
   id: z.string(),
-  jobTitle: z.string().min(1, 'Jabatan wajib diisi'),
-  company: z.string().min(1, 'Perusahaan wajib diisi'),
+  jobTitle: z.string().default(''),
+  company: z.string().default(''),
   location: z.string().default(''),
   startDate: z.string().default(''),
   endDate: z.string().default(''),
@@ -23,7 +23,7 @@ export const WorkExperienceSchema = z.object({
 
 export const EducationSchema = z.object({
   id: z.string(),
-  institution: z.string().min(1, 'Institusi/Universitas wajib diisi'),
+  institution: z.string().default(''),
   degree: z.string().default(''),
   fieldOfStudy: z.string().default(''),
   startDate: z.string().default(''),
@@ -34,19 +34,19 @@ export const EducationSchema = z.object({
 
 export const SkillItemSchema = z.object({
   id: z.string(),
-  name: z.string().min(1, 'Nama keahlian wajib diisi'),
+  name: z.string().default(''),
   category: z.string().default('Technical')
 })
 
 export const LanguageItemSchema = z.object({
   id: z.string(),
-  language: z.string().min(1, 'Bahasa wajib diisi'),
+  language: z.string().default(''),
   proficiency: z.string().default('Professional')
 })
 
 export const CustomSectionItemSchema = z.object({
   id: z.string(),
-  title: z.string().min(1, 'Judul wajib diisi'),
+  title: z.string().default(''),
   subtitle: z.string().default(''),
   date: z.string().default(''),
   description: z.string().default('')
@@ -54,7 +54,7 @@ export const CustomSectionItemSchema = z.object({
 
 export const CustomSectionSchema = z.object({
   id: z.string(),
-  sectionTitle: z.string().min(1, 'Nama bagian wajib diisi'),
+  sectionTitle: z.string().default(''),
   items: z.array(CustomSectionItemSchema).default([])
 })
 
@@ -70,7 +70,7 @@ export const ResumeDataSchema = z.object({
 
 export const ResumeDraftSchema = z.object({
   id: z.string().uuid(),
-  title: z.string().min(1, 'Nama draft wajib diisi'),
+  title: z.string().default('CV Tanpa Judul'),
   templateId: z.string().default('ats-clean'),
   colorTheme: z.string().default('#1e293b'),
   fontFamily: z.string().default('sans'),

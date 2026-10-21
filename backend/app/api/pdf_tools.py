@@ -1,3 +1,4 @@
+import re
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -14,6 +15,13 @@ from app.services.pdf_tools import (
 
 router = APIRouter(prefix="/pdf-tools", tags=["PDF Tools"])
 MAX_TOTAL_UPLOAD_SIZE = 25 * 1024 * 1024
+
+
+def sanitize_filename(filename: str) -> str:
+    base = filename.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    name_only = base.rsplit(".", 1)[0] if "." in base else base
+    clean = re.sub(r"[^a-zA-Z0-9_-]", "_", name_only).strip("_")
+    return clean or "document"
 
 
 async def _read_uploads(files: list[UploadFile]) -> list[tuple[str, bytes]]:
@@ -59,7 +67,8 @@ async def split_file(
         uploads = await _read_uploads([file])
         with conversion_job_manager.run_job("pdf-split") as job:
             output = split_pdf(uploads[0][1], pages)
-            filename = f"{uploads[0][0].rsplit('.', 1)[0]}_split.pdf"
+            clean_name = sanitize_filename(uploads[0][0])
+            filename = f"{clean_name}_split.pdf"
             return StreamingResponse(
                 output,
                 media_type="application/pdf",
@@ -108,7 +117,8 @@ async def convert_pdf_to_images(
         uploads = await _read_uploads([file])
         with conversion_job_manager.run_job("pdf-to-images") as job:
             output = pdf_to_images_zip(uploads[0][1], image_format, dpi)
-            filename = f"{uploads[0][0].rsplit('.', 1)[0]}_images.zip"
+            clean_name = sanitize_filename(uploads[0][0])
+            filename = f"{clean_name}_images.zip"
             return StreamingResponse(
                 output,
                 media_type="application/zip",

@@ -109,21 +109,43 @@ describe('AtsScorePanel & Client-Side ATS Evaluation Suite', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('AtsScorePanel merender skor, grade, rincian 5 pilar, dan disclaimer saat terbuka', () => {
+  it('AtsScorePanel merender dialog, skor, grade, rincian 5 pilar, dan disclaimer saat terbuka', () => {
     const analysis = evaluateAtsClientFallback(sampleCompleteDraft)
     const mockClose = vi.fn()
 
     render(<AtsScorePanel analysis={analysis} isOpen={true} onClose={mockClose} />)
 
-    expect(screen.getByText(/Evaluasi Keterbacaan ATS/i)).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: /Evaluasi Keterbacaan ATS/i })).toBeInTheDocument()
     expect(screen.getByTestId('ats-score-number')).toHaveTextContent(analysis.score.toString())
     expect(screen.getByText(/Rincian 5 Pilar Penilaian/i)).toBeInTheDocument()
     expect(screen.getByText(/Skor ATS bersifat heuristik/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Tutup evaluasi ATS/i })).toHaveAttribute('aria-label')
 
-    // Klik tombol close
-    const btnClose = screen.getByTestId('btn-close-ats')
-    fireEvent.click(btnClose)
+    fireEvent.click(screen.getByTestId('btn-close-ats'))
     expect(mockClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('CTA perbaikan membuka editor dan Escape menutup dialog', () => {
+    const analysis = evaluateAtsClientFallback(sampleEmptyDraft)
+    const mockClose = vi.fn()
+    const mockEditResume = vi.fn()
+
+    render(
+      <AtsScorePanel
+        analysis={analysis}
+        isOpen={true}
+        onClose={mockClose}
+        onEditResume={mockEditResume}
+      />
+    )
+
+    expect(screen.getByText(/Perbaiki ini lebih dulu/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-edit-resume'))
+    expect(mockEditResume).toHaveBeenCalledTimes(1)
+    expect(mockClose).toHaveBeenCalledTimes(1)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(mockClose).toHaveBeenCalledTimes(2)
   })
 
   it('filter checklist (Semua, Perlu Cek, Lolos) menyaring daftar item dengan tepat', () => {

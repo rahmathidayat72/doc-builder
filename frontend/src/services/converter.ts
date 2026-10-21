@@ -1,4 +1,4 @@
-const BACKEND_URL = 'http://127.0.0.1:8000'
+import { apiFetch } from './apiClient'
 
 export interface ConversionResult {
   success: boolean
@@ -29,9 +29,8 @@ export async function convertDocxToPdf(file: File): Promise<ConversionResult> {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${BACKEND_URL}/api/converter/docx-to-pdf`, {
+    const response = await apiFetch('/api/converter/docx-to-pdf', {
       method: 'POST',
-      credentials: 'include',
       body: formData
     })
 
@@ -83,9 +82,8 @@ export async function convertPdfToDocx(file: File): Promise<ConversionResult> {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${BACKEND_URL}/api/converter/pdf-to-docx`, {
+    const response = await apiFetch('/api/converter/pdf-to-docx', {
       method: 'POST',
-      credentials: 'include',
       body: formData
     })
 

@@ -41,3 +41,14 @@
 2. **Software Composition Analysis (SCA):** Audit dependensi pip (`pip-audit`) dan npm (`npm audit`).
 3. **Static Application Security Testing (SAST):** Linting keamanan menggunakan Bandit (Python) dan Semgrep/Biome.
 4. **Dynamic API & Regression Testing:** Pengujian negatif (unggah file non-PDF dengan ekstensi .pdf, percobaan akses tanpa origin header, CSRF injection, path traversal injection `../../`).
+
+## 6. Status Eksekusi Audit Keamanan (TASK-8.2)
+- **Status Gate Keamanan:** APPROVED & VERIFIED (2026-10-21).
+- **Laporan Lengkap:** Lihat `docs/project/security/SECURITY-SCAN-REPORT.md`.
+- **Hasil Pemindaian:**
+  - SCA npm: 0 kerentanan (`npm audit` PASS).
+  - SCA pip: 0 kerentanan (`pip-audit` PASS pasca upgrade pip ke 26.2.2).
+  - Secret Scan: 0 credential/key di working tree (125 file lulus `scripts/scan_secrets.py`).
+  - SAST: Ruff PASS, Oxlint PASS, TypeScript typecheck PASS.
+  - Regression Test: 7/7 uji keamanan di `test_security.py` lulus (Origin, CSRF, Session, Rejection).
+- **Residual Risk:** LOW (Terkendali pada lingkungan eksekusi desktop lokal).

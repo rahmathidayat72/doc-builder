@@ -116,4 +116,76 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
     const list = await ResumeStorage.listDrafts()
     expect(list).toHaveLength(0)
   })
+
+  it('berhasil menyimpan draft kosong baru (createEmptyResumeData) tanpa error validasi', async () => {
+    const emptyDraft: ResumeDraft = {
+      id: '33333333-3333-4333-8333-333333333333',
+      title: 'Resume Baru',
+      templateId: 'ats-clean',
+      colorTheme: '#1e293b',
+      fontFamily: 'sans',
+      data: createEmptyResumeData(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      version: 1
+    }
+
+    await expect(ResumeStorage.saveDraft(emptyDraft)).resolves.not.toThrow()
+    const loaded = await ResumeStorage.getDraft(emptyDraft.id)
+    expect(loaded).toBeDefined()
+    expect(loaded?.data.contact.fullName).toBe('')
+  })
+
+  it('berhasil menyimpan draft saat item pengalaman, pendidikan, dan bahasa masih kosong', async () => {
+    const incompleteDraft: ResumeDraft = {
+      id: '44444444-4444-4444-8444-444444444444',
+      title: 'Draft Dalam Pengerjaan',
+      templateId: 'ats-clean',
+      colorTheme: '#1e293b',
+      fontFamily: 'sans',
+      data: {
+        ...createEmptyResumeData(),
+        experiences: [
+          {
+            id: 'exp-1',
+            jobTitle: '',
+            company: '',
+            location: '',
+            startDate: '',
+            endDate: '',
+            current: false,
+            description: ''
+          }
+        ],
+        education: [
+          {
+            id: 'edu-1',
+            institution: '',
+            degree: '',
+            fieldOfStudy: '',
+            startDate: '',
+            endDate: '',
+            gpa: '',
+            description: ''
+          }
+        ],
+        languages: [
+          {
+            id: 'lang-1',
+            language: '',
+            proficiency: 'Professional'
+          }
+        ]
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      version: 1
+    }
+
+    await expect(ResumeStorage.saveDraft(incompleteDraft)).resolves.not.toThrow()
+    const loaded = await ResumeStorage.getDraft(incompleteDraft.id)
+    expect(loaded?.data.experiences).toHaveLength(1)
+    expect(loaded?.data.education).toHaveLength(1)
+    expect(loaded?.data.languages).toHaveLength(1)
+  })
 })

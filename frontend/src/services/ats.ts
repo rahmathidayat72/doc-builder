@@ -1,4 +1,5 @@
 import { type ResumeDraft } from '../types/resume'
+import { apiFetch } from './apiClient'
 
 export interface AtsChecklistItem {
   category: string
@@ -38,7 +39,6 @@ export interface JobMatchResult {
   advice: string[]
 }
 
-const BACKEND_URL = 'http://127.0.0.1:8000'
 const DEFAULT_DISCLAIMER =
   'Skor ATS bersifat heuristik untuk mengevaluasi keterbacaan format mesin dan bukan jaminan penerimaan kerja.'
 
@@ -315,12 +315,11 @@ export function evaluateAtsClientFallback(draft: ResumeDraft): AtsAnalysisResult
  */
 export async function analyzeAtsStructure(draft: ResumeDraft): Promise<AtsAnalysisResult> {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/ats/analyze-structure`, {
+    const response = await apiFetch('/api/ats/analyze-structure', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include',
       body: JSON.stringify(draft)
     })
 
@@ -417,12 +416,11 @@ export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: stri
  */
 export async function matchResumeToJob(draft: ResumeDraft, jobText: string): Promise<JobMatchResult> {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/ats/match-job`, {
+    const response = await apiFetch('/api/ats/match-job', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include',
       body: JSON.stringify({
         resume: draft,
         job_text: jobText
@@ -446,12 +444,11 @@ export async function matchResumeToJob(draft: ResumeDraft, jobText: string): Pro
 export async function exportAtsReportDocx(analysis: AtsAnalysisResult, resumeTitle: string): Promise<void> {
   const filename = `Laporan_ATS_${resumeTitle.replace(/\s+/g, '_') || 'Resume'}.docx`
 
-  const response = await fetch(`${BACKEND_URL}/api/ats/export-report-docx`, {
+  const response = await apiFetch('/api/ats/export-report-docx', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    credentials: 'include',
     body: JSON.stringify({
       analysis,
       resume_title: resumeTitle
@@ -477,12 +474,11 @@ export async function exportAtsReportPdf(
   const filename = `Laporan_ATS_${resumeTitle.replace(/\s+/g, '_') || 'Resume'}.pdf`
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/ats/export-report-pdf`, {
+    const response = await apiFetch('/api/ats/export-report-pdf', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include',
       body: JSON.stringify({
         analysis,
         resume_title: resumeTitle

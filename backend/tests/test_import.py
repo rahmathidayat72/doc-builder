@@ -1,6 +1,8 @@
+import io
 import sys
 from pathlib import Path
 
+from docx import Document
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -91,6 +93,75 @@ def test_parse_resume_document_from_docx():
     assert "siti.nurhaliza@example.id" in data["contact"]["email"]
     assert len(data["experiences"]) >= 1
     assert len(data["skills"]) >= 1
+
+
+def test_parse_docx_preserves_table_order_and_extra_sections():
+    """DOCX bertabel tetap berurutan; bahasa dan section tambahan tidak dibuang."""
+    document = Document()
+    document.add_paragraph("Rina Wijaya")
+    document.add_paragraph("rina@example.com | +628123456789 | Jakarta, Indonesia")
+    document.add_paragraph("PENGALAMAN KERJA")
+    experience_table = document.add_table(rows=3, cols=1)
+    experience_table.cell(0, 0).text = "Senior Engineer"
+    experience_table.cell(1, 0).text = "PT Maju Digital"
+    experience_table.cell(2, 0).text = "Jan 2021 - Sekarang"
+    document.add_paragraph("BAHASA")
+    document.add_paragraph("Bahasa Indonesia (Native) | English: Professional")
+    document.add_paragraph("SERTIFIKASI")
+    document.add_paragraph("AWS Certified Developer")
+
+    output = io.BytesIO()
+    document.save(output)
+    result = parse_resume_document(output.getvalue(), "resume_table.docx")
+
+    assert len(result["data"]["experiences"]) == 1
+    experience = result["data"]["experiences"][0]
+    assert experience["jobTitle"] == "Senior Engineer"
+    assert experience["company"] == "PT Maju Digital"
+    assert experience["current"] is True
+    assert [item["language"] for item in result["data"]["languages"]] == [
+        "Bahasa Indonesia",
+        "English",
+    ]
+    assert result["data"]["customSections"][0]["sectionTitle"] == "Sertifikasi"
+    assert (
+        "AWS Certified Developer" in result["data"]["customSections"][0]["items"][0]["description"]
+    )
+
+
+def test_parse_multiline_experience_and_education():
+    """Header jabatan/perusahaan sebelum periode dan pendidikan multi-baris terpetakan."""
+    document = Document()
+    document.add_paragraph("Dimas Pratama")
+    document.add_paragraph("dimas@example.com")
+    document.add_paragraph("PROFESSIONAL EXPERIENCE")
+    document.add_paragraph("Backend Engineer")
+    document.add_paragraph("Acme Technology | Bandung")
+    document.add_paragraph("Feb 2020 - Dec 2023")
+    document.add_paragraph("• Mengurangi latency API 35%")
+    document.add_paragraph("EDUCATION")
+    document.add_paragraph("Universitas Gadjah Mada")
+    document.add_paragraph("2015 - 2019")
+    document.add_paragraph("S1 Teknik Informatika | IPK: 3.75 / 4.00")
+
+    output = io.BytesIO()
+    document.save(output)
+    result = parse_resume_document(output.getvalue(), "resume_multiline.docx")
+
+    experience = result["data"]["experiences"][0]
+    assert experience["jobTitle"] == "Backend Engineer"
+    assert experience["company"] == "Acme Technology"
+    assert experience["location"] == "Bandung"
+    assert experience["startDate"].lower() == "feb 2020"
+    assert experience["endDate"].lower() == "dec 2023"
+    assert "Mengurangi latency API 35%" in experience["description"]
+
+    education = result["data"]["education"][0]
+    assert education["institution"] == "Universitas Gadjah Mada"
+    assert education["startDate"] == "2015"
+    assert education["endDate"] == "2019"
+    assert "S1" in education["degree"]
+    assert education["gpa"] == "3.75 / 4.00"
 
 
 def test_import_resume_endpoint_requires_auth():

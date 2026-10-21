@@ -41,6 +41,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
     education = data.get("education", [])
     skills = data.get("skills", [])
     languages = data.get("languages", [])
+    custom_sections = data.get("customSections", [])
 
     color_theme = resume.get("colorTheme", "#1e293b")
     accent_rgb = parse_color_hex(color_theme)
@@ -207,6 +208,58 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
         ]
         run_lang = p_lang.add_run("  |  ".join(lang_strings))
         run_lang.font.size = Pt(9)
+
+    # 7. BAGIAN TAMBAHAN
+    for custom_section in custom_sections:
+        section_title = custom_section.get("sectionTitle", "").strip()
+        visible_items = [
+            item
+            for item in custom_section.get("items", [])
+            if any(
+                str(item.get(field, "")).strip()
+                for field in ("title", "subtitle", "date", "description")
+            )
+        ]
+        if not section_title and not visible_items:
+            continue
+
+        add_section_heading(section_title or "Bagian Tambahan")
+        for item in visible_items:
+            title = item.get("title", "").strip()
+            subtitle = item.get("subtitle", "").strip()
+            date = item.get("date", "").strip()
+            description = item.get("description", "").strip()
+
+            if title or date:
+                p_item = doc.add_paragraph()
+                p_item.paragraph_format.space_before = Pt(4)
+                p_item.paragraph_format.space_after = Pt(1)
+                if title:
+                    run_title = p_item.add_run(title)
+                    run_title.bold = True
+                    run_title.font.size = Pt(10)
+                if date:
+                    run_date = p_item.add_run(f"\t{date}" if title else date)
+                    run_date.font.size = Pt(9)
+                    run_date.font.color.rgb = RGBColor(100, 116, 139)
+
+            if subtitle:
+                p_subtitle = doc.add_paragraph()
+                p_subtitle.paragraph_format.space_after = Pt(2)
+                run_subtitle = p_subtitle.add_run(subtitle)
+                run_subtitle.font.size = Pt(9)
+                run_subtitle.font.italic = True
+                run_subtitle.font.color.rgb = RGBColor(71, 85, 105)
+
+            if description:
+                for line in description.splitlines():
+                    clean_line = line.strip()
+                    if not clean_line:
+                        continue
+                    p_description = doc.add_paragraph()
+                    p_description.paragraph_format.space_after = Pt(1)
+                    run_description = p_description.add_run(clean_line)
+                    run_description.font.size = Pt(9)
 
     out = io.BytesIO()
     doc.save(out)

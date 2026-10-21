@@ -65,6 +65,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
           <input
             type="text"
             placeholder="Ketik keahlian lalu tekan Enter (misal: Python, React, SQL)..."
+            aria-label="Nama Keahlian"
             value={inputVal}
             onChange={e => setInputVal(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -75,6 +76,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
 
         <select
           value={category}
+          aria-label="Kategori Keahlian"
           onChange={e => setCategory(e.target.value)}
           className="px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
         >
@@ -136,6 +138,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
                 <button
                   type="button"
                   onClick={() => handleDelete(skill.id)}
+                  aria-label={`Hapus ${skill.name}`}
                   className="text-slate-400 hover:text-red-500 rounded-full transition"
                   title="Hapus skill ini"
                 >

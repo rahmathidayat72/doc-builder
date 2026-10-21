@@ -57,6 +57,21 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
       languages: [
         { id: 'lang-1', language: 'Bahasa Indonesia', proficiency: 'Native' },
         { id: 'lang-2', language: 'English', proficiency: 'Professional' }
+      ],
+      customSections: [
+        {
+          id: 'custom-1',
+          sectionTitle: 'Sertifikasi',
+          items: [
+            {
+              id: 'custom-item-1',
+              title: 'AWS Certified Developer',
+              subtitle: 'Amazon Web Services',
+              date: '2025',
+              description: 'Validasi kompetensi pengembangan aplikasi cloud.'
+            }
+          ]
+        }
       ]
     },
     createdAt: Date.now(),
@@ -86,6 +101,7 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     expect(screen.getByText('Dewi Sartika')).toBeInTheDocument()
     expect(screen.getByText('Lead Software Architect')).toBeInTheDocument()
     expect(screen.getByText('Institut Teknologi Bandung')).toBeInTheDocument()
+    expect(screen.getByText('AWS Certified Developer')).toBeInTheDocument()
   })
 
   it('AtsModernTemplate merender tata letak 1-kolom kontemporer', () => {
@@ -93,6 +109,7 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     expect(screen.getByTestId('template-ats-modern')).toBeInTheDocument()
     expect(screen.getByText('Dewi Sartika')).toBeInTheDocument()
     expect(screen.getByText('Lead Software Architect')).toBeInTheDocument()
+    expect(screen.getByText('AWS Certified Developer')).toBeInTheDocument()
   })
 
   it('VisualExecutiveTemplate merender tata letak 2-kolom sidebar', () => {
@@ -100,6 +117,7 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     expect(screen.getByTestId('template-visual-executive')).toBeInTheDocument()
     expect(screen.getByText('Dewi Sartika')).toBeInTheDocument()
     expect(screen.getByText('Profil Profesional')).toBeInTheDocument()
+    expect(screen.getByText('AWS Certified Developer')).toBeInTheDocument()
   })
 
   it('VisualMinimalTemplate merender tata letak minimalis elegan', () => {
@@ -107,6 +125,7 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     expect(screen.getByTestId('template-visual-minimal')).toBeInTheDocument()
     expect(screen.getByText('Dewi Sartika')).toBeInTheDocument()
     expect(screen.getByText('Tentang Saya')).toBeInTheDocument()
+    expect(screen.getByText('AWS Certified Developer')).toBeInTheDocument()
   })
 
   it('ResumePreview berganti template secara dinamis saat templateId berubah', () => {

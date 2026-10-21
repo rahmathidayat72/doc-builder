@@ -1,7 +1,8 @@
 import io
 import re
 import zipfile
-from typing import Iterable, Literal
+from collections.abc import Iterable
+from typing import Literal
 
 import pymupdf
 from PIL import Image, UnidentifiedImageError
@@ -29,10 +30,19 @@ def detect_image_format(file_bytes: bytes) -> Literal["JPEG", "PNG"] | None:
 def _read_pdf(file_bytes: bytes) -> PdfReader:
     if not validate_pdf(file_bytes):
         raise ValueError("Header berkas tidak valid sebagai PDF.")
-    reader = PdfReader(io.BytesIO(file_bytes))
-    if len(reader.pages) > MAX_PAGES:
-        raise ValueError(f"Jumlah halaman melebihi batas {MAX_PAGES} halaman.")
-    return reader
+    try:
+        reader = PdfReader(io.BytesIO(file_bytes))
+        if reader.is_encrypted:
+            raise ValueError("Berkas PDF terenkripsi password tidak didukung.")
+        if len(reader.pages) == 0:
+            raise ValueError("Berkas PDF kosong (0 halaman).")
+        if len(reader.pages) > MAX_PAGES:
+            raise ValueError(f"Jumlah halaman melebihi batas {MAX_PAGES} halaman.")
+        return reader
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Gagal membaca berkas PDF: {exc}") from exc
 
 
 def merge_pdf_and_images(files: Iterable[tuple[str, bytes]]) -> io.BytesIO:
@@ -167,21 +177,32 @@ def pdf_to_images_zip(
     if dpi < 72 or dpi > 300:
         raise ValueError("DPI harus berada antara 72 dan 300.")
 
-    document = pymupdf.open(stream=file_bytes, filetype="pdf")
-    if document.page_count > MAX_PAGES:
-        document.close()
-        raise ValueError(f"Jumlah halaman melebihi batas {MAX_PAGES} halaman.")
+    try:
+        document = pymupdf.open(stream=file_bytes, filetype="pdf")
+        if document.is_encrypted:
+            document.close()
+            raise ValueError("Berkas PDF terenkripsi password tidak didukung.")
+        if document.page_count == 0:
+            document.close()
+            raise ValueError("Berkas PDF kosong (0 halaman).")
+        if document.page_count > MAX_PAGES:
+            document.close()
+            raise ValueError(f"Jumlah halaman melebihi batas {MAX_PAGES} halaman.")
 
-    zoom = dpi / 72
-    matrix = pymupdf.Matrix(zoom, zoom)
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for page_index in range(document.page_count):
-            page = document.load_page(page_index)
-            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-            extension = "jpg" if image_format == "jpeg" else "png"
-            image_bytes = pixmap.tobytes("jpeg" if image_format == "jpeg" else "png")
-            archive.writestr(f"page_{page_index + 1:03d}.{extension}", image_bytes)
-    document.close()
-    output.seek(0)
-    return output
+        zoom = dpi / 72
+        matrix = pymupdf.Matrix(zoom, zoom)
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for page_index in range(document.page_count):
+                page = document.load_page(page_index)
+                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+                extension = "jpg" if image_format == "jpeg" else "png"
+                image_bytes = pixmap.tobytes("jpeg" if image_format == "jpeg" else "png")
+                archive.writestr(f"page_{page_index + 1:03d}.{extension}", image_bytes)
+        document.close()
+        output.seek(0)
+        return output
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Gagal mengekstrak halaman PDF ke gambar: {exc}") from exc

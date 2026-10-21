@@ -1,6 +1,5 @@
 import { type ResumeDraft } from '../types/resume'
-
-const BACKEND_URL = 'http://127.0.0.1:8000'
+import { apiFetch } from './apiClient'
 
 /**
  * Mengunduh Blob ke komputer pengguna
@@ -22,12 +21,11 @@ function downloadBlob(blob: Blob, filename: string) {
 export async function exportResumeDocx(draft: ResumeDraft): Promise<void> {
   const filename = `${draft.title.replace(/\s+/g, '_') || 'Resume'}.docx`
 
-  const response = await fetch(`${BACKEND_URL}/api/export/docx`, {
+  const response = await apiFetch('/api/export/docx', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    credentials: 'include',
     body: JSON.stringify(draft)
   })
 
@@ -47,12 +45,11 @@ export async function exportResumePdf(draft: ResumeDraft): Promise<{ fallbackToP
   const filename = `${draft.title.replace(/\s+/g, '_') || 'Resume'}.pdf`
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/export/pdf`, {
+    const response = await apiFetch('/api/export/pdf', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      credentials: 'include',
       body: JSON.stringify(draft)
     })
 

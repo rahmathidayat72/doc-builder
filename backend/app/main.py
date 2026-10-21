@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.converter import router as converter_router
 from app.api.export import router as export_router
 from app.api.health import router as health_router
+from app.api.image_tools import router as image_tools_router
 from app.api.import_cv import router as import_router
 from app.api.pdf_tools import router as pdf_tools_router
 from app.core.config import settings
@@ -40,6 +41,14 @@ def create_app() -> FastAPI:
     app.include_router(ats_router, prefix="/api")
     app.include_router(converter_router, prefix="/api")
     app.include_router(pdf_tools_router, prefix="/api")
+    app.include_router(image_tools_router, prefix="/api")
+
+    # Sajikan static frontend SPA jika folder dist tersedia (mode rilis / distribusi lokal)
+    frontend_dist = settings.BASE_DIR.parent / "frontend" / "dist"
+    if frontend_dist.exists() and (frontend_dist / "index.html").exists():
+        from starlette.staticfiles import StaticFiles
+
+        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
     return app
 
