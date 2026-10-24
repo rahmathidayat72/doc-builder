@@ -1555,4 +1555,1249 @@ Frontend development sebelumnya selalu memanggil `http://127.0.0.1:8000`. Saat U
 ### Status
 Selesai dan terverifikasi.
 
+---
+
+## Improvement: Sederhanakan Kategori Skill Menjadi General — 2026-10-22
+
+**Task:** IMPROVEMENT-SKILLS-001
+**Requirement:** FR-001, NFR-UX-001
+
+### Ringkasan
+Form Keahlian & Kompetensi (Skills) disederhanakan dengan menghapus segmentasi dropdown kategori (Technical, Design, Tools, Soft Skills). Pengguna kini memasukkan skill secara langsung tanpa pengelompokan. Field internal `category` tetap dipertahankan dengan nilai default `General` untuk menjaga kompatibilitas draft IndexedDB lama.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `SkillsForm.tsx`, `resume.ts`, `resume_parser.py`, `builder.test.tsx`, `test_import.py`.
+- Penyimpangan material: Tidak ada.
+- Tidak ada migrasi data destruktif; draft lama tetap terbaca tanpa perubahan struktur.
+
+### File Diubah
+- `frontend/src/components/builder/SkillsForm.tsx`
+- `frontend/src/types/resume.ts`
+- `backend/app/services/resume_parser.py`
+- `frontend/src/components/builder/__tests__/builder.test.tsx`
+- `backend/tests/test_import.py`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `docs/conversations.json`
+
+### Perubahan
+1. Menghapus state `category` dan elemen `<select>` kategori pada `SkillsForm.tsx`.
+2. Input skill baru otomatis mengisi `category: 'General'`.
+3. Menyesuaikan skema `SkillItemSchema` di `resume.ts` agar nilai default category adalah `'General'`.
+4. Menyesuaikan `parse_skills_section` di `resume_parser.py` agar skill hasil ekstraksi otomatis mengisi category `'General'`.
+5. Memperbarui regression test frontend dan backend.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Frontend regression | `npm --prefix frontend test -- --run` | PASS | 77/77 test; verifikasi dropdown tidak ada di DOM dan skill baru General |
+| Backend import | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_import.py` | PASS | 7/7 test |
+| Backend regression | `backend/.venv/Scripts/python.exe -m pytest backend/tests` | PASS | 65/65 test |
+| Ruff | `backend/.venv/Scripts/python.exe -m ruff check backend/app backend/tests` | PASS | Semua check lulus |
+| Frontend lint | `npm --prefix frontend run lint` | PASS | 0 error; 4 warning existing |
+| Frontend build | `npm --prefix frontend run build` | PASS | Vite build sukses |
+| Distribusi | `python scripts/verify_distribution.py` | PASS | 5/5 pemeriksaan PASS |
+
+### Acceptance Criteria
+- [x] Dropdown kategori skill tidak lagi ditampilkan pada form builder.
+- [x] Input skill baru langsung tersimpan dengan kategori General.
+- [x] Skill hasil impor dokumen terisi General.
+- [x] Draft lama dengan kategori eksisting tetap dapat dibuka tanpa error.
+- [x] Seluruh regression test frontend, backend, lint, build, dan distribusi lulus.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Hotfix: Launcher start-docbuilder & Penanganan Network Error Backend — 2026-10-22
+
+**Task:** HOTFIX-LAUNCHER-001
+**Requirement:** BUS-009, NFR-UX-001
+
+### Masalah
+1. Pengguna menemui `Failed to fetch` di modal Impor CV karena server backend FastAPI di port 8000 belum aktif.
+2. Saat mencoba menjalankan server melalui peluncur proyek, eksekusi root gagal dengan `ModuleNotFoundError: No module named 'app'` karena direktori `backend` tidak berada dalam `sys.path` Python secara default.
+3. Klien frontend melempar `TypeError: Failed to fetch` mentah tanpa pesan edukatif yang menjelaskan bahwa backend lokal perlu diaktifkan.
+
+### Solusi
+1. **Bootstrapping `sys.path` Backend:**
+   - Menambahkan resolusi otomatis path root backend ke `sys.path` di `backend/app/__init__.py`.
+   - Mengatur variabel lingkungan `PYTHONPATH` pada skrip peluncur `start-docbuilder.bat`, `start-docbuilder.ps1`, dan `start-docbuilder.sh` agar `backend` selalu masuk path impor.
+2. **User-Friendly Network Error Handling:**
+   - Membungkus penanganan penolakan jaringan `fetch` di `frontend/src/services/apiClient.ts` agar memberikan pesan jelas untuk menjalankan `start-docbuilder.bat`.
+   - Menambahkan deteksi error koneksi di `frontend/src/components/builder/ImportResumeModal.tsx`.
+3. **Pengujian Regresi:**
+   - Menambahkan unit test di `frontend/src/services/__tests__/apiClient.test.ts` untuk memverifikasi konversi TypeError menjadi pesan bantuan solutif.
+4. **Aktivasi Server Background:**
+   - Server backend FastAPI diaktifkan di port 8000 dan diverifikasi siap melayani endpoint `/api/health` (HTTP 200).
+
+### File Diubah
+- `backend/app/__init__.py`
+- `start-docbuilder.bat`
+- `start-docbuilder.ps1`
+- `start-docbuilder.sh`
+- `frontend/src/services/apiClient.ts`
+- `frontend/src/components/builder/ImportResumeModal.tsx`
+- `frontend/src/services/__tests__/apiClient.test.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `docs/conversations.json`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Health check server lokal | `urllib.request.urlopen('http://127.0.0.1:8000/api/health')` | PASS | Status 200 OK, service ready |
+| Backend import app | `python -c "from backend.app.main import app"` | PASS | App loaded successfully |
+| Suite Vitest Frontend | `npm --prefix frontend test -- --run` | PASS | 78/78 tests passed |
+| Suite Pytest Backend | `pytest backend/tests` | PASS | 65/65 tests passed |
+| Backend Ruff | `ruff check backend/app backend/tests` | PASS | All checks passed |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | 0 error, 4 warning existing |
+| Frontend Build | `npm --prefix frontend run build` | PASS | Vite bundle sukses |
+| Smoke Test Distribusi | `python scripts/verify_distribution.py` | PASS | 5/5 tahapan lulus |
+
+### Acceptance Criteria
+- [x] Launcher `start-docbuilder` (.bat, .ps1, .sh) berjalan lancar tanpa `ModuleNotFoundError`.
+- [x] Error `Failed to fetch` diubah menjadi pesan instruktif untuk menyalakan backend.
+- [x] Backend aktif di background pada port 8000 melayani API dan health check.
+- [x] Seluruh test suite (78 Vitest, 65 Pytest, Ruff, build, dan verify_distribution) lulus.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Improvement: Opsi Dwibahasa Label Bawaan CV (ID/EN) — 2026-10-22
+
+**Task:** IMPROVEMENT-CV-LANGUAGE-001
+**Requirement:** BUS-002, BUS-003, FR-001, FR-006
+
+### Ringkasan
+Menambahkan opsi pemilihan bahasa (Indonesia dan English) untuk label bawaan CV pada pratinjau live, cetak browser (PDF), serta ekspor backend (DOCX dan PDF). Pilihan bahasa hanya memengaruhi label bawaan/heading (Ringkasan Profesional / Professional Summary, Pengalaman Kerja / Work Experience, Pendidikan / Education, Keahlian & Kompetensi / Skills & Competencies, Kemampuan Bahasa / Language Proficiency, Sekarang / Present, dalam / in, IPK / GPA), tanpa mengubah isi teks yang diketikkan pengguna atau formulir editor.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `ResumeLanguageSchema` dan `ResumeDraftSchema` di `resume.ts`, hook `useResumeDraft.ts`, kamus `resumeLabels.ts`, empat template (`AtsClean`, `AtsModern`, `VisualExecutive`, `VisualMinimal`), blok `CustomSectionsBlock`, topbar desktop & mobile di `Navbar.tsx`, wiring di `App.tsx`, generator DOCX di `docx_generator.py`, serta test regresi frontend dan backend.
+- Penyimpangan material: Tidak ada.
+- Tidak ada migrasi destruktif; draft lama di IndexedDB otomatis fallback ke `'id'`.
+
+### File Dibuat
+- `frontend/src/templates/resumeLabels.ts`
+
+### File Diubah
+- `frontend/src/types/resume.ts`
+- `frontend/src/hooks/useResumeDraft.ts`
+- `frontend/src/templates/AtsClean.tsx`
+- `frontend/src/templates/AtsModern.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/templates/VisualMinimal.tsx`
+- `frontend/src/templates/CustomSectionsBlock.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `backend/app/services/docx_generator.py`
+- `backend/tests/test_export.py`
+- `frontend/src/templates/__tests__/templates.test.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `frontend/src/components/ats/__tests__/ats.test.tsx`
+- `frontend/src/components/ats/__tests__/ats_report.test.tsx`
+- `frontend/src/components/ats/__tests__/job_match.test.tsx`
+- `frontend/src/components/builder/__tests__/builder.test.tsx`
+- `frontend/src/services/__tests__/crypto.test.ts`
+- `frontend/src/services/__tests__/storage.test.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `docs/conversations.json`
+
+### Perubahan
+1. **Schema & State:**
+   - Menambahkan `ResumeLanguageSchema = z.enum(['id', 'en']).default('id')` pada `ResumeDraftSchema`.
+   - Menambahkan field `resumeLanguage` pada pembuatan draft baru di `useResumeDraft.ts` dan memperluas tipe `updateMeta`.
+2. **Kamus Label Terpusat:**
+   - Membuat `frontend/src/templates/resumeLabels.ts` berisi kamus label terstruktur untuk Bahasa Indonesia (`id`) dan Bahasa Inggris (`en`).
+3. **Template CV:**
+   - Mengintegrasikan fungsi pembantu `getResumeLabels` pada `AtsClean`, `AtsModern`, `VisualExecutive`, `VisualMinimal`, dan `CustomSectionsBlock`.
+   - Mengganti teks statis bahasa Indonesia dengan label dinamis terlokalisasi sesuai bahasa draft.
+4. **Topbar Navbar:**
+   - Menambahkan segmented control `ID` / `EN` di desktop berdampingan dengan pemilih template dan di toolbar sekunder responsif mobile.
+5. **Backend DOCX Generator:**
+   - Menambahkan kamus `RESUME_LABELS` di `backend/app/services/docx_generator.py` dan memilih label berdasarkan `resume.get("resumeLanguage", "id")`.
+6. **Pengujian Regresi:**
+   - Pengujian unit Vitest untuk memastikan render label bahasa Inggris (`en`) dan fallback bahasa Indonesia (`id`).
+   - Pengujian pytest di `backend/tests/test_export.py` memverifikasi heading DOCX berganti ke bahasa Inggris saat `resumeLanguage: "en"`.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Suite Vitest Frontend | `npm --prefix frontend test -- --run` | PASS | 80/80 tests passed (15 file) |
+| Suite Pytest Backend | `backend/.venv/Scripts/python.exe -m pytest backend/tests` | PASS | 66/66 tests passed (2 warning tool/deprecation existing) |
+| Backend Ruff | `backend/.venv/Scripts/python.exe -m ruff check backend/app backend/tests` | PASS | All checks passed |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | 0 error, 4 warning existing |
+| Frontend Build | `npm --prefix frontend run build` | PASS | `tsc -b` & Vite build sukses (749ms) |
+| Smoke Test Distribusi | `python scripts/verify_distribution.py` | PASS | 5/5 tahapan lulus |
+
+### Acceptance Criteria
+- [x] Opsi pemilihan bahasa (ID/EN) tersedia di topbar desktop dan toolbar mobile.
+- [x] Nilai bawaan adalah Indonesia (`id`) untuk draft baru maupun draft lama di IndexedDB.
+- [x] Pilihan bahasa memengaruhi label bawaan pada preview, cetak, DOCX, dan PDF.
+- [x] Judul dan isi bagian tambahan (`customSections`) tidak diubah otomatis.
+- [x] Teks input formulir editor pengguna tidak diubah.
+- [x] Seluruh test suite (80 Vitest, 66 Pytest, Ruff, build, dan verify_distribution) lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Hotfix: Parser Impor CV (PDF/DOCX) & Rendering Periode Pendidikan — 2026-10-22
+
+**Task:** HOTFIX-PARSER-001
+**Requirement:** BUS-001, FR-005, NFR-UX-001
+
+### Masalah
+1. Domain email (misal `gmail.com`) pada baris kontak diekstrak keliru menjadi `website`.
+2. Alamat/lokasi pada baris kontak majemuk berbasis delimiter `|` atau `•` tidak terambil.
+3. Karakter bullet privat Word/PDF (`□`, `\uf0b7`, `\u25a1`, dll) tidak dikenali, menyebabkan teks butir pengalaman kerja bocor dan diidentifikasi sebagai nama perusahaan/jabatan pekerjaan berikutnya.
+4. Header pengalaman majemuk seperti `Jabatan — Perusahaan | Periode` tercampur dengan antrean baris sebelumnya.
+5. Kelulusan tahun tunggal (`Lulus 2015`) salah menempatkan kata "Lulus" sebagai nama institusi sekolah, mengabaikan nama SMA/SMK di baris sebelumnya, dan menempatkan tahun pada `startDate` sehingga template merender tanda minus gantung (`2015 - `).
+
+### Solusi
+1. **Sanitasi Website & Deteksi Kontak:**
+   - Menambahkan `COMMON_EMAIL_DOMAINS` dan memeriksa domain email aktif agar tidak bocor menjadi `website`.
+   - Mengurai baris kontak berbasis delimiter `|` atau `•` untuk mengekstrak alamat/lokasi berbasis kata kunci kota/daerah Indonesia.
+2. **Pengenalan Bullet Lengkap:**
+   - Memperluas `BULLET_PREFIX_REGEX` untuk mencakup glyph kotak, privat PDF, dan bullet biner (`[•●▪▫◦*□■\uf0b7\uf0a7\u25a0\u25a1\u25aa\u25ab\u2022\u2023\u2043]` serta `[-–—]\s+`).
+   - Membersihkan karakter bullet dari teks butir agar tidak bocor ke editor atau judul pengalaman.
+3. **Pemisahan Header Pengalaman Majemuk:**
+   - Mengosongkan antrean `pending` ke deskripsi pekerjaan sebelumnya saat `residual` pada baris tanggal sudah memuat judul jabatan dan perusahaan (`Jabatan — Perusahaan`).
+4. **Parsing & Rendering Pendidikan Tahun Tunggal:**
+   - Mendeteksi kata kunci kelulusan (`lulus`, `graduated`, dll), membersihkannya dari nama sekolah, dan memetakan tahun tunggal ke `endDate`.
+   - Menambahkan kata kunci SMA/SMK/SMP/SD ke deteksi institusi dan inferensi jenjang (`degree`).
+   - Memperbarui 4 template pratinjau (`AtsClean`, `AtsModern`, `VisualExecutive`, `VisualMinimal`) dan `docx_generator.py` agar tidak merender pemisah `-` saat hanya satu tahun yang terisi.
+
+### File Diubah
+- `backend/app/services/resume_parser.py`
+- `backend/app/services/docx_generator.py`
+- `frontend/src/templates/AtsClean.tsx`
+- `frontend/src/templates/AtsModern.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/templates/VisualMinimal.tsx`
+- `backend/tests/test_import.py`
+- `frontend/src/templates/__tests__/templates.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `docs/conversations.json`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Suite Vitest Frontend | `npm --prefix frontend test -- --run` | PASS | 81/81 tests passed (15 file) |
+| Suite Pytest Backend | `backend/.venv/Scripts/python.exe -m pytest backend/tests` | PASS | 67/67 tests passed (2 warning tool/deprecation existing) |
+| Backend Ruff | `backend/.venv/Scripts/python.exe -m ruff check backend/app backend/tests` | PASS | All checks passed |
+| Frontend Build | `npm --prefix frontend run build` | PASS | `tsc -b` & Vite build sukses (284ms) |
+| Smoke Test Distribusi | `python scripts/verify_distribution.py` | PASS | 5/5 tahapan lulus |
+
+### Acceptance Criteria
+- [x] Website tidak mengambil domain dari email pengguna (`gmail.com`).
+- [x] Lokasi kontak pada baris majemuk terpetakan akurat.
+- [x] Bullet kotak/privat PDF (`□`, `\uf0b7`, dll) dibersihkan dan tidak bocor menjadi judul jabatan.
+- [x] Header pengalaman majemuk `Jabatan — Perusahaan` dipetakan presisi.
+- [x] Riwayat kelulusan tahun tunggal dipetakan ke institusi nyata dan `endDate`.
+- [x] Template dan DOCX tidak menampilkan minus gantung pada tanggal pendidikan tunggal.
+- [x] 67 Pytest dan 81 Vitest lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Feature: Foto Profil CV Adaptif & Toggle Pemakaian — 2026-10-22
+
+**Task:** FEAT-CV-PHOTO-001
+**Requirement:** FR-001, FR-006, NFR-UX-001, NFR-SEC-001
+
+### Ringkasan
+Menambahkan fitur foto profil pada CV dengan tata letak adaptif di seluruh 4 template (2 ATS + 2 Visual), kontrol toggle pakai/tidak pakai foto di formulir kontak, pemrosesan crop 1:1 dan EXIF stripping offline berbasis HTML5 Canvas di browser, sanitasi data foto dari payload evaluasi ATS, penyematan foto pada ekspor Word (.docx), serta validasi keamanan Base64 di backend dengan penanganan error HTTP 400.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `ContactInfoSchema` di `resume.ts`, kontrol upload/toggle/preview/remove di `ContactForm.tsx`, 4 template (`AtsClean`, `AtsModern`, `VisualExecutive`, `VisualMinimal`), sanitasi ATS di `ats.ts`, parser/validator foto dan generator DOCX di `docx_generator.py`, error handler HTTP 400 di `export.py`, serta unit/integration tests frontend dan backend.
+- Penyimpangan material: Tidak ada. Foto tetap tersimpan di draft saat toggle dinonaktifkan dan hanya disembunyikan dari preview/ekspor.
+- Perubahan lain di working tree pengguna tetap terjaga.
+
+### File Diubah
+- `frontend/src/types/resume.ts`
+- `frontend/src/components/builder/ContactForm.tsx`
+- `frontend/src/templates/AtsClean.tsx`
+- `frontend/src/templates/AtsModern.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/templates/VisualMinimal.tsx`
+- `frontend/src/services/ats.ts`
+- `backend/app/services/docx_generator.py`
+- `backend/app/api/export.py`
+- `backend/tests/test_export.py`
+- `frontend/src/components/builder/__tests__/builder.test.tsx`
+- `frontend/src/templates/__tests__/templates.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+1. **Schema & Model:**
+   - Menambahkan `usePhoto: z.boolean().optional()` dan `photoUrl: z.string().optional()` pada `ContactInfoSchema`.
+   - Menginisialisasi `usePhoto: false` dan `photoUrl: ''` pada `createEmptyResumeData()`.
+2. **Formulir Kontak (ContactForm):**
+   - Menambahkan switch toggle `Sertakan Foto Profil di CV` (`data-testid="toggle-use-photo"`).
+   - Menambahkan upload file gambar (JPG, PNG, WebP maks 5MB) dengan pemrosesan offline: HTML5 Canvas center crop 1:1, resize 512×512, dan kompresi JPEG data URL (EXIF dibersihkan otomatis).
+   - Menampilkan pratinjau thumbnail foto (`data-testid="photo-preview"`), tombol `Ganti Foto`, dan tombol `Hapus Foto` (`data-testid="btn-remove-photo"`).
+3. **Template Pratinjau Adaptif:**
+   - Menampilkan foto profil hanya jika `Boolean(contact.usePhoto && contact.photoUrl)` aktif.
+   - `AtsClean`: Foto berada di atas nama lengkap (tengah), rounded square, border halus.
+   - `AtsModern`: Foto berada di sisi kanan header sejajar dengan blok nama dan kontak.
+   - `VisualExecutive`: Foto bulat penuh (`rounded-full`) menggantikan avatar inisial pada sidebar atas.
+   - `VisualMinimal`: Foto rounded-xl berada di sisi kanan header minimalis.
+4. **Privasi & Efisiensi ATS:**
+   - Membersihkan `photoUrl` sebelum mengirim payload ke endpoint `/api/ats/analyze-structure`.
+5. **Backend DOCX & Validasi Keamanan:**
+   - Fungsi `parse_and_validate_photo` memvalidasi Base64 data URL, ukuran payload maks 5MB, format gambar yang diizinkan (JPEG, PNG, WEBP), serta batas piksel 10MP untuk mencegah bom dekompresi.
+   - Menyematkan gambar ke paragraf header dokumen DOCX saat `usePhoto` bernilai `True`.
+   - Menangani `ValueError` pada endpoint `/api/export/docx` dan `/api/export/pdf` sebagai respons HTTP 400 tanpa server crash.
+6. **Pengujian Regresi:**
+   - 4 test baru di `backend/tests/test_export.py`: valid photo embedding, ignore saat usePhoto False, penolakan gambar rusak, dan endpoint status 400.
+   - Test toggle dan hapus foto di `frontend/src/components/builder/__tests__/builder.test.tsx`.
+   - Test rendering foto adaptif di 4 template dan penolakan saat toggle nonaktif di `frontend/src/templates/__tests__/templates.test.tsx`.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Suite Vitest Frontend | `npm --prefix frontend test -- --run` | PASS | 85/85 tests passed (15 file) |
+| Suite Pytest Backend | `pytest backend/tests` | PASS | 71/71 tests passed |
+| Backend Ruff | `ruff check backend` | PASS | All checks passed |
+| Frontend Build | `npm --prefix frontend run build` | PASS | `tsc -b` & Vite build sukses (277ms) |
+
+### Acceptance Criteria
+- [x] Opsi toggle foto profil tersedia di formulir kontak CV.
+- [x] Tata letak foto disesuaikan otomatis per template (2 ATS + 2 Visual).
+- [x] Foto tetap disimpan di draf saat toggle dimatikan, namun disembunyikan dari preview dan ekspor.
+- [x] Ekspor DOCX dan PDF backend mengikuti status toggle foto.
+- [x] Pemrosesan gambar offline di browser (crop 1:1, resize 512×512, EXIF stripping via Canvas).
+- [x] Backend menolak gambar rusak dengan HTTP 400 tanpa crash server.
+- [x] Data foto tidak dikirim ke endpoint analisis ATS.
+- [x] Seluruh test suite (85 Vitest, 71 Pytest, Ruff, build) lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Improvement: Peningkatan PDF Tools (Merge DOCX, Split ZIP, Kontrol Urutan & Akses Workspace) — 2026-10-22
+
+**Task:** IMPROVEMENT-PDF-TOOLS-001
+**Requirement:** FR-013, FR-014, NFR-UX-001, NFR-SEC-001
+
+### Ringkasan
+Meningkatkan fitur PDF Tools lama tanpa membuat sistem paralel:
+1. Merge dokumen diperluas menerima berkas Word (.docx), PDF, dan gambar (JPG, PNG). Konversi DOCX dijalankan terisolasi melalui sandbox LibreOffice headless lokal. Jika LibreOffice tidak tersedia, seluruh proses ditolak fail-closed dengan respons HTTP 422 edukatif dan pesan panduan.
+2. Kontrol urutan berkas merge dapat dipindahkan naik dan turun dengan tombol ArrowUp dan ArrowDown yang accessible sebelum proses penggabungan.
+3. Split PDF rentang majemuk (contoh: `1-3, 5, 7-9`) menghasilkan beberapa berkas PDF terpisah yang dikemas rapi dalam arsip ZIP dengan penamaan deterministik (`01_pages_001-003.pdf`, `02_page_005.pdf`, dst.), dengan tetap mempertahankan mode kompatibilitas lama `output_mode=combined` (PDF tunggal).
+4. Workspace Alat Dokumen (`App.tsx`) memisahkan kartu akses menjadi 6 kartu: "DOCX ke PDF", "PDF ke DOCX", "Merge Dokumen", "Split PDF", "PDF & Gambar", dan "Resize Gambar" dengan prop `initialTab` sinkron ke modal PDF Tools.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior tepat sesuai code plan yang disetujui.
+- Penyimpangan material: Tidak ada.
+- Command yang direncanakan dan aktual identik: `ruff check backend`, `pytest backend/tests`, `npm test -- --run`, `npm run build`, dan `python scripts/verify_distribution.py`.
+- Working tree pengguna tetap terjaga utuh.
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/components/pdf-tools/PdfToolsModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_tools.test.tsx`
+- `frontend/src/App.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+1. **Backend Service (`backend/app/services/pdf_tools.py`):**
+   - Mengintegrasikan `convert_docx_to_pdf_sandboxed` pada `merge_pdf_and_images` untuk file berekstensi `.docx`.
+   - Mengimplementasikan `parse_page_range_groups` untuk memvalidasi token rentang halaman (misal: `1-3, 5`) dan memetakan label output terformat (`pages_001-003`, `page_005`).
+   - Mengimplementasikan `split_pdf_ranges_zip` menggunakan `zipfile.ZipFile` bawaan stdlib dengan kompresi DEFLATED dan penamaan deterministik berkas PDF di dalam ZIP.
+2. **Backend API (`backend/app/api/pdf_tools.py`):**
+   - Menangani error `LIBREOFFICE_NOT_FOUND` pada endpoint `POST /api/pdf-tools/merge` dengan respons JSON 422 edukatif.
+   - Menambahkan parameter form `output_mode: Literal["combined", "ranges"] = "combined"` pada `POST /api/pdf-tools/split` yang mengalirkan `application/zip` saat mode ranges dipilih.
+3. **Frontend Service (`frontend/src/services/pdfTools.ts`):**
+   - Mengirim `output_mode: 'ranges'` pada `splitPdf` dan membaca nama berkas `.zip`.
+   - Menangkap pesan error dari field `message` maupun `detail`.
+4. **Frontend UI (`frontend/src/components/pdf-tools/PdfToolsModal.tsx`):**
+   - Menambahkan prop `initialTab?: ToolTab` dengan sinkronisasi `useEffect` saat modal dibuka.
+   - Mengizinkan input file `.docx` pada tab Merge.
+   - Menambahkan tombol reorder berkas `ArrowUp` dan `ArrowDown` di daftar berkas merge.
+   - Menyesuaikan teks panduan dan tombol submit split menjadi "Pisahkan PDF (Arsip ZIP)".
+5. **Workspace Dokumen (`frontend/src/App.tsx`):**
+   - Memetakan 6 kartu alat di workspace Alat Dokumen dengan aksi pembuka tab terkait.
+6. **Pengujian:**
+   - 6 test baru di `backend/tests/test_pdf_tools.py` mencakup parsing grup rentang, pembuatan ZIP multi-PDF, endpoint split mode ranges, validasi rentang ilegal, merge DOCX dengan mock LibreOffice, dan respon edukatif 422 saat LibreOffice tidak tersedia. Total 18/18 test PASS.
+   - 3 test baru di `frontend/src/components/pdf-tools/__tests__/pdf_tools.test.tsx` memvalidasi `initialTab="split"`, reorder berkas naik/turun, dan submit split ZIP. Total 88/88 test PASS.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Backend Ruff | `ruff check backend` | PASS | All checks passed (0 error) |
+| Backend Pytest | `pytest backend/tests` | PASS | 77/77 tests passed (18/18 test_pdf_tools.py) |
+| Frontend Vitest | `npm test -- --run` (di folder frontend) | PASS | 88/88 tests passed (15/15 files) |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite built dist bundle (490 KB JS / 44.6 KB CSS) |
+| Distribusi Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Merge PDF menerima berkas PDF, DOCX, dan gambar (JPG, PNG).
+- [x] Konversi DOCX berjalan aman sandboxed; tolak fail-closed 422 jika LibreOffice tidak ada.
+- [x] Urutan berkas merge dapat diatur naik/turun via UI sebelum proses.
+- [x] Split PDF rentang majemuk menghasilkan ZIP berisi berkas-berkas PDF terpisah.
+- [x] Kompatibilitas `output_mode=combined` tetap terjaga di API.
+- [x] Workspace Alat Dokumen menyediakan kartu terpisah untuk Merge Dokumen dan Split PDF dengan `initialTab`.
+- [x] Seluruh test suite (77 Pytest, 88 Vitest, Ruff, build, verify_distribution) lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Improvement: Fitur Kompresi PDF Lokal Cerdas (3 Tingkat, Proteksi Tanda Tangan, & Kartu Workspace) — 2026-10-22
+
+**Task:** IMPROVEMENT-PDF-COMPRESS-001
+**Requirement:** FR-013, NFR-PERF-001, NFR-SEC-001, NFR-UX-001
+
+### Ringkasan
+Menerapkan fitur kompresi PDF lokal cerdas dengan engine PyMuPDF bawaan:
+1. Tiga tingkat kompresi cerdas:
+   - **Ringan (Lossless):** deflating internal font/gambar, object stream, dan pembersihan sampah referensi PDF tanpa penurunan resolusi gambar.
+   - **Seimbang (Rekomendasi):** kombinasi recompress gambar moderat (144 DPI, JPEG Q75) dan optimasi struktur dokumen.
+   - **Maksimum (Terkecil):** kompresi gambar agresif (96 DPI, JPEG Q50) untuk kebutuhan kuota unggah ketat.
+2. Teks yang dapat dicari (searchable text), tautan, form, anotasi, dan layout halaman tetap dipertahankan penuh.
+3. Fail-closed penolakan PDF bertanda tangan digital (HTTP 422) demi menjaga keabsahan hukum dokumen bertanda tangan.
+4. Fallback edukatif jika hasil kompresi tidak lebih kecil dari berkas asli: berkas asli dikembalikan dengan header `X-Compression-Applied: false` dan pesan informatif bahwa PDF sudah optimal.
+5. Modal PDF Tools diperluas dengan tab ke-3 `compress` lengkap dengan pemilih tingkat kompresi, badge status, dan kalkulasi persentase hemat ukuran.
+6. Workspace Alat Dokumen (`App.tsx`) dilengkapi kartu ke-7 "Kompres PDF" yang langsung membuka tab kompresi modal secara presisi via prop `initialTab="compress"`.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior tepat sesuai code plan yang disetujui.
+- Tidak ada dependensi binary baru; memanfaatkan PyMuPDF yang sudah terpasang.
+- Perintah verifikasi sesuai rencana: `ruff check backend`, `pytest backend/tests`, `npm test -- --run`, `npm run build`, dan `python scripts/verify_distribution.py`.
+- Working tree pengguna tetap terjaga utuh.
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/app/main.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/components/pdf-tools/PdfToolsModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_tools.test.tsx`
+- `frontend/src/App.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+1. **Backend Service (`backend/app/services/pdf_tools.py`):**
+   - Implementasi `has_digital_signature(doc)` berbasis sigflags dan inspeksi widget PDF.
+   - Implementasi `compress_pdf(file_bytes, level)` dengan penanganan 3 tingkat kompresi, fail-closed pada dokumen bertanda tangan, dan fallback jika ukuran tidak berkurang.
+2. **Backend API & Middleware (`backend/app/api/pdf_tools.py`, `backend/app/main.py`):**
+   - Registrasi endpoint `POST /api/pdf-tools/compress` yang terhubung ke `conversion_job_manager`.
+   - Mengembalikan header `X-Compression-Applied`, `X-Original-Size`, dan `X-Output-Size`.
+   - Menambahkan header tersebut ke `expose_headers` CORS di `main.py`.
+3. **Frontend Service (`frontend/src/services/pdfTools.ts`):**
+   - Memperluas interface `PdfToolResult` dengan field `applied`, `originalSize`, dan `outputSize`.
+   - Implementasi fungsi `compressPdf(file, level)`.
+4. **Frontend UI & Workspace (`frontend/src/components/pdf-tools/PdfToolsModal.tsx`, `frontend/src/App.tsx`):**
+   - Menambahkan tab "Kompres PDF" pada `PdfToolsModal.tsx` dengan pilihan 3 tingkat kompresi (Ringan, Seimbang, Maksimum).
+   - Menampilkan statistik penghematan ukuran byte dan persentase atau pesan edukatif jika sudah optimal.
+   - Menambahkan kartu akses mandiri "Kompres PDF" di workspace Alat Dokumen (`#/tools`).
+5. **Pengujian:**
+   - 6 test baru di `backend/tests/test_pdf_tools.py`: 3 level kompresi, fallback ukuran optimal, penolakan PDF bertanda tangan di service, autentikasi endpoint, sukses endpoint kompresi, dan penolakan 422 PDF bertanda tangan di endpoint. Total 24/24 test PASS.
+   - 4 test baru di `frontend/src/components/pdf-tools/__tests__/pdf_tools.test.tsx`: render 5 tab, initialTab="compress", eksekusi kompresi level maksimum dengan hitung hemat %, pesan edukatif saat applied=false, dan penanganan error 422. Total 92/92 test PASS di frontend.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Backend Ruff | `ruff check backend` | PASS | All checks passed (0 error) |
+| Backend Pytest | `pytest backend/tests` | PASS | 83/83 tests passed (24/24 test_pdf_tools.py) |
+| Frontend Vitest | `npm test -- --run` (di folder frontend) | PASS | 92/92 tests passed (15/15 files) |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite built dist bundle (495 KB JS / 45.3 KB CSS) |
+| Distribusi Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Fitur kompresi PDF lokal menyediakan 3 tingkat: Ringan, Seimbang, dan Maksimum.
+- [x] Konten teks dapat dicari (searchable), link, form, dan tata letak dipertahankan.
+- [x] Berkas PDF bertanda tangan digital ditolak secara fail-closed (HTTP 422).
+- [x] Jika kompresi tidak memperkecil ukuran, berkas asli diunduh dengan pesan edukatif.
+- [x] Workspace Alat Dokumen menyediakan kartu mandiri "Kompres PDF" dengan navigasi `initialTab`.
+- [x] Seluruh test suite (83 Pytest, 92 Vitest, Ruff, build, verify_distribution) lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Feature: Konversi Dokumen Dua Arah PowerPoint & PDF serta Excel & PDF — 2026-10-22
+
+**Task:** FEATURE-OFFICE-CONVERSION-001
+**Requirement:** BUS-005, FR-012, NFR-SEC-001, NFR-SEC-004, NFR-UX-001
+
+### Ringkasan
+Menerapkan fitur konversi dokumen perkantoran dua arah secara lokal di dalam sandbox subprocess terisolasi:
+1. **PowerPoint & PDF:**
+   - Konversi PPT/PPTX ke PDF via LibreOffice headless lokal dengan isolasi memori 1000MB, timeout 300 detik, dan network egress blocking.
+   - Konversi PDF ke PowerPoint (.pptx) dengan rendering visual presisi 144 DPI per halaman, rasio aspek slide adaptif tanpa crop, menggunakan library `python-pptx` dan `pymupdf`.
+2. **Excel & PDF:**
+   - Konversi XLS/XLSX ke PDF via LibreOffice headless lokal mempertahankan tata letak print area.
+   - Konversi PDF ke Excel (.xlsx) dengan ekstraksi tabel terstruktur berbasis garis dan teks (`page.find_tables()`), pemetaan 1 sheet per halaman, pemisah baris antar tabel, dan proteksi formula injection (menambahkan prefix `'` jika string diawali `=`, `+`, `-`, `@`).
+   - Penolakan dokumen PDF scan tanpa tabel terstruktur secara fail-closed edukatif (HTTP 422 `NO_TABLES_FOUND`).
+3. **Penyelarasan Host Dependency:**
+   - Penanganan fail-closed HTTP 422 `LIBREOFFICE_NOT_FOUND` dengan dialog instruksi instalasi resmi gratis jika LibreOffice belum terpasang di komputer lokal.
+4. **Antarmuka & Aksesibilitas:**
+   - Menambahkan 2 kartu akses terpisah di workspace Alat Dokumen (`#/tools`): "PowerPoint & PDF" dan "Excel & PDF".
+   - Masing-masing modal memiliki navigasi tab 2 arah, dropzone terintegrasi batas 25 MB, indikator loading tahapan sandbox, dan notifikasi hasil unduhan otomatis.
+   - Bebas pelanggaran aksesibilitas WCAG 2.2 AA (teruji via `vitest-axe`).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior tepat sesuai code plan yang disetujui.
+- Dependensi baru `python-pptx` (>=1.0.2) dan `openpyxl` (>=3.1.5) dipasang di backend `.venv` dan terdaftar pada `backend/pyproject.toml`.
+- Perintah verifikasi sesuai rencana: `ruff check backend`, `pytest backend/tests`, `npm test -- --run`, `npm run build`, dan `python scripts/verify_distribution.py`.
+- Working tree pengguna tetap terjaga utuh.
+
+### File Dibuat
+- `backend/app/services/office_converter.py`
+- `backend/app/services/pdf_to_office_converter.py`
+- `backend/tests/test_office_converter.py`
+- `frontend/src/components/converter/PresentationConverterModal.tsx`
+- `frontend/src/components/converter/SpreadsheetConverterModal.tsx`
+- `frontend/src/components/converter/__tests__/office_converter.test.tsx`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `backend/app/api/converter.py`
+- `frontend/src/services/converter.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `scripts/verify_distribution.py`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+1. **Backend Service (`backend/app/services/office_converter.py`):**
+   - Implementasi `validate_presentation_magic_bytes` dan `validate_spreadsheet_magic_bytes` untuk PPT/PPTX dan XLS/XLSX.
+   - Implementasi `convert_presentation_to_pdf_sandboxed` dan `convert_spreadsheet_to_pdf_sandboxed`.
+2. **Backend Service (`backend/app/services/pdf_to_office_converter.py`):**
+   - Implementasi `convert_pdf_to_pptx_sandboxed` dengan rendering 144 DPI, centering aspect ratio, dan penulisan slide PPTX.
+   - Implementasi `convert_pdf_to_xlsx_sandboxed` dengan deteksi tabel PyMuPDF, pembuatan sheet berpenamaan aman, penulisan sel berproteksi formula injection, dan deteksi `NO_TABLES_FOUND`.
+3. **Backend API (`backend/app/api/converter.py`):**
+   - Registrasi endpoint:
+     - `POST /api/converter/presentation-to-pdf`
+     - `POST /api/converter/pdf-to-pptx`
+     - `POST /api/converter/spreadsheet-to-pdf`
+     - `POST /api/converter/pdf-to-xlsx`
+   - Terintegrasi dengan `conversion_job_manager` (antrean 1 job aktif, timeout 5m, dan batasan ukuran 25 MB).
+4. **Frontend Service (`frontend/src/services/converter.ts`):**
+   - Implementasi `convertPresentationToPdf`, `convertPdfToPptx`, `convertSpreadsheetToPdf`, dan `convertPdfToXlsx`.
+5. **Frontend UI & Workspace (`frontend/src/App.tsx`):**
+   - Menambahkan kartu "PowerPoint & PDF" dan "Excel & PDF" di `#/tools`.
+   - Wiring state modal `PresentationConverterModal` dan `SpreadsheetConverterModal`.
+6. **Pengujian:**
+   - 15 test baru di `backend/tests/test_office_converter.py`: validasi biner, autentikasi endpoint, penolakan ekstensi, penanganan LibreOffice absen, eksekusi sukses PDF ke PPTX 2 slide, dan PDF ke XLSX dengan proteksi formula injection. Total backend: 98/98 pytest PASS.
+   - 12 test baru di `frontend/src/components/converter/__tests__/office_converter.test.tsx`: render modal, tab switching, dropzone file filter, konversi sukses mock, dan aksesibilitas axe. Total frontend: 104/104 vitest PASS.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Backend Ruff | `ruff check backend` | PASS | All checks passed (0 error) |
+| Backend Pytest | `pytest backend/tests` | PASS | 98/98 tests passed (15/15 test_office_converter.py) |
+| Frontend Vitest | `npm test -- --run` (di folder frontend) | PASS | 104/104 tests passed (16/16 files) |
+| Frontend Lint | `npm run lint` (di folder frontend) | PASS | 0 error |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite built dist bundle (515 KB JS / 46.5 KB CSS) |
+| Aksesibilitas WCAG 2.2 AA | `npm test -- accessibility.test.tsx` | PASS | 0 violation pada seluruh modal converter |
+| Distribusi Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Konversi PPT/PPTX ke PDF dan XLS/XLSX ke PDF via LibreOffice headless lokal terisolasi di sandbox.
+- [x] Penanganan LibreOffice tidak terpasang mengembalikan HTTP 422 edukatif tanpa crash server.
+- [x] Konversi PDF ke PPTX menghasilkan slide visual 144 DPI tanpa crop.
+- [x] Konversi PDF ke XLSX mengekstrak tabel terstruktur dengan proteksi formula injection.
+- [x] Dokumen PDF tanpa tabel ditolak secara edukatif (HTTP 422 NO_TABLES_FOUND).
+- [x] Workspace Alat Dokumen menyediakan kartu mandiri untuk PowerPoint & PDF dan Excel & PDF.
+- [x] Batasan 25 MB dan 1 job konversi aktif ditegakkan.
+- [x] Seluruh test suite (98 Pytest, 104 Vitest, WCAG 2.2 AA, build, dan distribusi) lulus 100%.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Improvement: Redesign UI/UX Modal PDF Tools — 2026-10-22
+
+**Task:** IMPROVEMENT-PDF-TOOLS-UI-002
+**Requirement:** NFR-UX-001, NFR-ACC-001
+
+### Masalah
+Berdasarkan tangkapan layar pengguna:
+1. Modal `PdfToolsModal` (`max-w-xl`) terlalu sempit untuk memuat 5 tab navigasi dan 3 kartu opsi tingkat kompresi dalam layout 3 kolom.
+2. Badge pill "Rekomendasi" menabrak dan bertumpukan tidak rapi dengan teks judul "Seimbang" karena ketiadaan token ukuran font khusus di Tailwind v4.
+3. Konten modal melebihi tinggi layar memicu scrollbar default browser yang tebal dan memotong tombol aksi submit "Kompres PDF Sekarang" di bagian bawah.
+4. Kotak informasi catatan tanda tangan berupa blok abu-abu tanpa ikon penjelas.
+5. Tombol disabled memakai warna slate gelap yang kurang jelas membedakan status interaktivitas.
+
+### Solusi
+1. **Pelebaran & Tata Letak Modal:**
+   - Ubah lebar modal dari `max-w-xl` (576px) ke `max-w-2xl` (672px).
+2. **Segmented Tabs Control:**
+   - Ganti navigasi tab jadi segmented control pill (`bg-slate-100 p-1 rounded-xl`).
+3. **Perbaikan Badge & Tipografi:**
+   - Tambah token font `@theme` (`--font-size-2xs`, `--font-size-3xs`, `--shadow-2xs`) di `frontend/src/index.css`.
+   - Sesuaikan badge pill opsi kompresi jadi `text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 leading-none`.
+4. **Scrollbar Slim & Mencegah Clipping:**
+   - Tambah kelas `.custom-scrollbar` (6px rounded slim) di `index.css`.
+   - Optimalkan padding vertikal (`space-y-3 pb-1`) agar konten pas dan tombol submit tidak terpotong.
+5. **Polishing Elemen UI:**
+   - Kotak informasi tambah ikon `Info`.
+   - Dropzone tambah feedback visual saat berkas dipilih (`border-indigo-400 bg-indigo-50/20`).
+   - Tombol disabled diperjelas warnanya (`disabled:bg-slate-200 disabled:text-slate-400`).
+
+### File Diubah
+- `frontend/src/index.css`
+- `frontend/src/components/pdf-tools/PdfToolsModal.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Catatan |
+|---|---|---|---|
+| Frontend Vitest | `npm test -- --run` (di folder frontend) | PASS | 104/104 tests passed (16/16 files) |
+| Frontend Lint | `npm run lint` (di folder frontend) | PASS | 0 error |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite dist bundle siap |
+| Backend Pytest | `pytest backend/tests` | PASS | 98/98 tests passed |
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Feature: Editor PDF Visual Lokal — 2026-10-22
+
+**Task:** FEATURE-PDF-EDITOR-001
+**Requirement:** FR-013, FR-014, NFR-UX-001, NFR-SEC-001, NFR-PERF-001
+
+### Ringkasan
+Implementasi fitur Editor PDF Visual Lokal untuk mengatur urutan halaman, rotasi 90°, duplikasi halaman, penghapusan halaman, serta penambahan teks overlay dan tanda tangan visual di canvas.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur sesuai dengan rencana eksekusi kode yang disetujui.
+- Tidak ada dependensi npm atau pip baru (zero external dependencies).
+- Seluruh verifikasi berjalan sesuai rencana.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfEditorModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_editor.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Rincian Perubahan
+1. **Backend Service (`backend/app/services/pdf_tools.py`):**
+   - Menambahkan fungsi `get_pdf_editor_pages(file_bytes)` untuk menghasilkan thumbnail 240px lebar 72 DPI JPEG base64, rotasi, dimensi lebar/tinggi, dan nomor halaman.
+   - Menambahkan fungsi `apply_pdf_editor_changes(file_bytes, manifest)` untuk merakit ulang halaman (seleksi `source_index`, rotasi, `insert_textbox`, `insert_image`) dengan output stream PDF terkompresi `garbage=4, deflate=True`.
+   - Menambahkan fungsi pembantu `_parse_hex_color` untuk konversi warna hex ke komponen RGB (0.0-1.0).
+   - Mempertahankan penolakan fail-closed terhadap PDF terenkripsi dan bertanda tangan digital (HTTP 422).
+2. **Backend API (`backend/app/api/pdf_tools.py`):**
+   - Menambahkan route `POST /api/pdf-tools/editor/pages` di bawah proteksi sesi & `conversion_job_manager`.
+   - Menambahkan route `POST /api/pdf-tools/editor/apply` di bawah proteksi sesi & `conversion_job_manager`.
+3. **Frontend Service (`frontend/src/services/pdfTools.ts`):**
+   - Mendefinisikan tipe `PdfEditorPageInfo`, `PdfEditorTextOverlay`, `PdfEditorImageOverlay`, `PdfEditorPageSpec`, `PdfEditorManifest`, dan `PdfEditorPagesResult`.
+   - Mengimplementasikan `getPdfEditorPages` dan `applyPdfEditor`.
+4. **Frontend UI (`frontend/src/components/pdf-tools/PdfEditorModal.tsx`):**
+   - Modal responsif `max-w-4xl` dengan dropzone, toolbar pengubah urutan (geser kiri/kanan), putar 90°, duplikasi, dan hapus.
+   - Form penambahan teks overlay (posisi atas/tengah/bawah, warna, ukuran font).
+   - Canvas coret tanda tangan visual interaktif dan penempatan standar surat (kanan bawah, kiri bawah, tengah).
+   - Pratinjau panggung visual aktif dengan penampil overlay tag dan thumbnail filmstrip daftar seluruh halaman.
+   - Tombol "Terapkan & Unduh PDF" (`<nama>_edited.pdf`).
+5. **Frontend Workspace Integration (`frontend/src/App.tsx`):**
+   - Menambahkan kartu akses "Edit PDF" pada bagian workspace `#/tools`.
+   - Menghubungkan state dan rendering `PdfEditorModal`.
+6. **Pengujian:**
+   - 7 test case baru di `backend/tests/test_pdf_tools.py` (total 31 test di suite pdf_tools, 105 pytest lulus 100%).
+   - 9 test case baru di `frontend/src/components/pdf-tools/__tests__/pdf_editor.test.tsx` (total 113 test vitest lulus 100%).
+   - Audit WCAG 2.2 AA di `accessibility.test.tsx` dengan hasil 0 pelanggaran.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Ruff | `ruff check backend` | PASS | 0 error |
+| Backend Pytest | `pytest backend/tests` | PASS | 105/105 tests passed (31/31 test_pdf_tools) |
+| Frontend Vitest | `npm test -- --run` (di folder frontend) | PASS | 113/113 tests passed (17/17 files) |
+| Frontend Lint | `npm run lint` (di folder frontend) | PASS | 0 error |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite built dist bundle (537 KB JS / 51.7 KB CSS) |
+| Aksesibilitas WCAG 2.2 AA | `npm test -- accessibility.test.tsx` | PASS | 0 violation pada seluruh modal termasuk PdfEditorModal |
+| Distribusi Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Feature: Fitur Mandiri Sign PDF Visual — 2026-10-22
+
+**Task:** FEATURE-PDF-SIGN-001
+**Requirement:** FR-013, FR-014, NFR-UX-001, NFR-SEC-001, NFR-PERF-001
+
+### Ringkasan
+Implementasi fitur mandiri Sign PDF Visual lokal untuk membubuhkan tanda tangan, paraf, nama terang penanda tangan, dan tanggal penandatanganan dengan penempatan interaktif drag & resize, target halaman fleksibel, penamaan berkas `<nama>_signed.pdf`, dan aksesibilitas penuh WCAG 2.2 AA.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur sesuai dengan rencana eksekusi kode yang disetujui.
+- Tidak ada dependensi npm atau pip baru (zero external dependencies).
+- Backend memperluas endpoint `/api/pdf-tools/editor/apply` dengan parameter `output_mode: Literal["edited", "signed"]`, sanitasi rasio finite 0.0-1.0 via `_clean_ratio`, pembatasan maksimum 50 overlay per halaman, dan penolakan format non-PNG/JPEG.
+- Menggunakan HTML5 Canvas native untuk merender teks nama/inisial menjadi tulisan kursif dengan fallback transparent PNG data URL 1x1 pada runtime headless/jsdom testing.
+- Seluruh verifikasi berjalan sesuai rencana.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfSignModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_sign.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Rincian Perubahan
+1. **Backend Service (`backend/app/services/pdf_tools.py`):**
+   - Menambahkan pembantu `_clean_ratio(val, default)` untuk memastikan seluruh rasio koordinat/dimensi bertipe float berhingga (finite) dan dibatasi dalam rentang [0.0, 1.0].
+   - Menambahkan batas keamanan maksimum 50 elemen overlay per halaman untuk mencegah eksploitasi DoS resource exhaustion.
+   - Menambahkan validasi format gambar overlay via PIL (`pil_img.format in ("JPEG", "PNG")`) dan menolak format lain seperti GIF/TIFF dengan HTTP 422.
+2. **Backend API (`backend/app/api/pdf_tools.py`):**
+   - Menambahkan parameter `output_mode: Annotated[Literal["edited", "signed"], Form()] = "edited"` pada endpoint `POST /api/pdf-tools/editor/apply`.
+   - Mengatur header Content-Disposition dengan penamaan berkas `<nama>_signed.pdf` saat `output_mode="signed"`.
+3. **Frontend Service (`frontend/src/services/pdfTools.ts`):**
+   - Memperbarui fungsi `applyPdfEditor(file, manifest, outputMode = 'edited')` untuk menyertakan `output_mode` dalam payload multipart Form.
+4. **Frontend UI (`frontend/src/components/pdf-tools/PdfSignModal.tsx`):**
+   - Modal mandiri `max-w-4xl` dengan 3 tab aset: "Tanda Tangan", "Paraf", dan "Nama & Tanggal".
+   - Tiga metode input tanda tangan dan paraf: "Coret Kanvas", "Ketik Nama / Inisial" (render kursif real-time via canvas), dan "Unggah Gambar" (PNG transparan / JPEG).
+   - Form input nama terang dan tanggal penandatanganan (default hari ini).
+   - Pemilihan target halaman: Halaman Aktif, Rentang Halaman (`1-3, 5`), atau Semua Halaman.
+   - Panggung interaktif dengan Pointer Events: drag overlay bebas, resize sudut kanan-bawah dengan penguncian aspect ratio untuk tanda tangan/paraf.
+   - Navigasi keyboard aksesibel: tombol panah untuk memindahkan, Shift+panah untuk mengubah ukuran, Delete/Backspace untuk menghapus.
+   - Inspector numerik fallback: input angka persentase posisi X, Y, dan lebar.
+   - Filmstrip navigasi halaman dengan indikator titik biru pada halaman yang memuat tanda tangan.
+   - Banner edukatif keabsahan hukum lokal: tanda tangan visual bukan sertifikat digital p12/pfx.
+   - Tombol "Terapkan & Unduh PDF".
+5. **Frontend Workspace Integration (`frontend/src/App.tsx`):**
+   - Menambahkan kartu akses mandiri "Sign PDF" di workspace `#/tools`.
+   - Mengatur state dan rendering modal `PdfSignModal`.
+6. **Pengujian:**
+   - 2 unit test baru di `backend/tests/test_pdf_tools.py`: uji endpoint dengan `output_mode="signed"` dan penolakan format non-PNG/JPEG (33/33 test PASS, total 107 pytest PASS).
+   - 16 test unit & komponen di `frontend/src/components/pdf-tools/__tests__/pdf_sign.test.tsx` (129/129 vitest PASS).
+   - Uji aksesibilitas axe-core di `accessibility.test.tsx` dengan 0 pelanggaran.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Ruff | `ruff check backend` | PASS | All checks passed (0 error) |
+| Backend Pytest | `pytest backend/tests` | PASS | 107/107 tests passed (33/33 test_pdf_tools) |
+| Frontend Vitest | `npm test` (di folder frontend) | PASS | 129/129 tests passed (18/18 files) |
+| Frontend Lint | `npm run lint` (di folder frontend) | PASS | 0 error |
+| Frontend Build | `npm run build` (di folder frontend) | PASS | Vite built dist bundle (573 KB JS / 55.2 KB CSS) |
+| Aksesibilitas WCAG 2.2 AA | `npm test -- accessibility.test.tsx` | PASS | 0 violation (axe-core WCAG 2.2 AA) |
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## Task FEATURE-PDF-EDITOR-002 — Redesign Penuh UI/UX Editor PDF Layar Penuh (iLovePDF Style) — 2026-10-22
+
+**Task:** FEATURE-PDF-EDITOR-002
+**Requirement:** BUS-005, FR-013, FR-014, NFR-UX-001, NFR-ACC-001, NFR-PERF-001, NFR-SEC-001
+
+### Ringkasan
+Redesign antarmuka dan alur kerja fitur "Edit PDF" (`PdfEditorModal.tsx`) di Doc-builder agar menyerupai antarmuka kerja iLovePDF desktop layar penuh dengan tata letak 3-kolom responsif:
+1. Kolom Kiri: Sidebar daftar thumbnail halaman (filmstrip) vertikal dengan nomor halaman badge, indikator jumlah elemen, tombol reorder naik/turun, rotasi 90°, duplikasi, dan hapus halaman.
+2. Kolom Tengah: Kanvas pratinjau halaman PDF resolusi tajam (~960px lebar / 120 DPI) dengan pan/drag/resize elemen overlay langsung di panggung, indikator seleksi aktif, dan kontrol floating zoom (Fit Page, Zoom In/Out, indikator persentase 40%-200%).
+3. Kolom Kanan: Panel layer "Edit PDF" berisi daftar elemen aktif halaman (Text, Drawing, Image, Signature) dengan fitur reorder z-index (Move Forward/Backward), rename/edit teks langsung, hapus elemen, serta tombol "Hapus Semua" (Remove all).
+4. Toolbar Atas: Mode pemilihan (Select/Cursor), Tambah Teks, Unggah Gambar, Coret Bebas (Free Drawing), Tanda Tangan, serta tombol Undo/Redo riwayat aksi.
+5. Tombol Aksi Utama: Tombol "Terapkan & Unduh PDF" merah tebal di pojok kanan bawah seperti referensi iLovePDF.
+6. Peningkatan Backend: Penyediaan bidang `preview` resolusi tinggi di `/editor/pages` dan eksekusi sekuensial urutan z-index `overlays` di `/editor/apply` dengan backward compatibility penuh.
+7. Aksesibilitas: Keyboard navigation lengkap (Arrow, Shift+Arrow, Delete, Backspace, Escape, Ctrl+Z, Ctrl+Y) dan 0 pelanggaran axe-core WCAG 2.2 AA.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan: Ya. Layout 3-kolom layar penuh, toolbar terpadu, center stage zoom/pan, right layers panel, drawing, image, signature, dan undo/redo terimplementasi penuh.
+- Penyimpangan dan persetujuan ulang: Tidak ada.
+- Perbedaan command/expected result: Tidak ada perbedaan, seluruh tes backend (34/34), frontend (132/132), WCAG 2.2 AA, dan script distribusi lulus 100%.
+
+### File Dibuat / Diubah
+- `backend/app/services/pdf_tools.py`: Ditambahkan field `preview` beresolusi tinggi pada `get_pdf_editor_pages`, refactor helper overlay, dan penambahan penanganan list `overlays` sekuensial z-index pada `apply_pdf_editor_changes`.
+- `backend/tests/test_pdf_tools.py`: Ditambahkan assertion untuk field `preview` dan test case baru `test_apply_pdf_editor_changes_unified_overlays`.
+- `frontend/src/services/pdfTools.ts`: Diperbarui interface `PdfEditorPageInfo`, tipe `PdfEditorUnifiedOverlay`, dan `PdfEditorPageSpec`.
+- `frontend/src/components/pdf-tools/PdfEditorModal.tsx`: Redesign penuh komponen antarmuka Editor PDF 3-kolom layar penuh iLovePDF style.
+- `frontend/src/components/pdf-tools/__tests__/pdf_editor.test.tsx`: Diperbarui pengujian unit & interaksi komponen (12/12 tests PASS).
+- `frontend/src/components/__tests__/accessibility.test.tsx`: Verifikasi bebas pelanggaran aksesibilitas WCAG 2.2 AA (PASS).
+- `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`, `.agent/REPORT.md`: Pelacakan status dan dokumentasi diperbarui.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest Backend Tools | `pytest backend/tests/test_pdf_tools.py` | PASS | 34/34 tests passed |
+| Pytest Backend Full | `pytest backend/tests` | PASS | 108/108 tests passed |
+| Vitest Editor Suite | `npm --prefix frontend test -- pdf_editor.test.tsx` | PASS | 12/12 tests passed |
+| Vitest Accessibility | `npm --prefix frontend test -- accessibility.test.tsx` | PASS | 6/6 tests passed (0 axe violations) |
+| Vitest Frontend Full | `npm --prefix frontend test` | PASS | 132/132 tests passed (18 files) |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm --prefix frontend run build` | PASS | Vite built in 335ms |
+| Distribution Script | `python scripts/verify_distribution.py` | PASS | 5/5 distribution verification passed |
+
+### Acceptance Criteria
+- [x] Workspace layar penuh (`fixed inset-0`) responsif.
+- [x] Kolom kiri: filmstrip thumbnail vertikal dengan nomor halaman, navigasi, rotasi, duplikasi, dan hapus.
+- [x] Kolom tengah: kanvas interaktif resolusi tajam dengan zoom/fit floating bar, pan, drag & resize elemen.
+- [x] Kolom kanan: panel layer "Edit PDF" dengan reorder z-index, inline/inspector editing, hapus per elemen, dan hapus semua.
+- [x] Toolbar atas: mode select, teks, gambar, coretan bebas, tanda tangan, dan undo/redo.
+- [x] Tombol CTA utama "Terapkan & Unduh PDF" merah tebal di pojok kanan bawah.
+- [x] Aksesibilitas keyboard (Arrow, Shift+Arrow, Delete, Ctrl+Z, Ctrl+Y) dan 0 pelanggaran axe-core WCAG 2.2 AA.
+- [x] Backward compatibility skema overlay API lama & baru terjaga 100%.
+
+### Keputusan dan Technical Debt
+- Tidak ada penambahan dependensi pihak ketiga baru (0 npm, 0 pip).
+- Backward compatibility manifest PDF editor dijaga penuh di level backend service.
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru. Proteksi fail-closed terhadap PDF terenkripsi dan digital signature tetap aktif (HTTP 422).
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Task FEATURE-PDF-SIGN-002 — Redesign Dialog Pemilih Penandatangan & Multi-Signer Lokal Sign PDF (iLovePDF Style) — 2026-10-22
+
+**Task:** FEATURE-PDF-SIGN-002
+**Requirement:** BUS-005, FR-013, FR-014, NFR-UX-001, NFR-ACC-001, NFR-PERF-001, NFR-SEC-001
+
+### Ringkasan
+Redesign antarmuka dan alur interaksi fitur Sign PDF (`PdfSignModal.tsx`) di Doc-builder mengadopsi dialog pemilih penandatangan (*"Who will sign this document?"*) bergaya iLovePDF dan mendukung alur Multi-Signer Lokal secara offline:
+1. Dialog Pemilih Penandatangan Otomatis:
+   - Muncul otomatis seketika setelah berkas PDF diunggah dan halaman berhasil diekstrak.
+   - Judul jelas: *"Siapa yang akan menandatangani dokumen ini?"* dengan subjudul informatif.
+   - Dua kartu opsi visual responsif:
+     - Kartu *"Hanya saya / Only me"*: ikon profil, penjelasan penandatangan tunggal, dan tombol CTA *"Tandatangani Sendiri"* (merah tebal).
+     - Kartu *"Beberapa orang / Several people"*: ikon grup pengguna, penjelasan multi-pihak, dan tombol CTA *"Atur Penandatangan"* (merah tebal).
+   - Bottom Info Bar: menampilkan nama berkas, ukuran (KB), jumlah total halaman, tombol *"Ganti Berkas"*, serta tombol *"Buka Studio"*.
+2. Mode Multi-Signer Lokal (Offline-first):
+   - Alur penandatanganan multi-pihak terkelola di memori klien tanpa memerlukan akun cloud atau transmisi email eksternal (100% lokal & privat).
+   - Palet warna identitas 5 warna terstandar: Biru (`#2563eb`), Hijau (`#047857`), Ungu (`#6d28d9`), Jingga (`#b45309`), dan Merah Muda (`#be123c`).
+   - Selector pihak aktif di studio: radio pills dengan indikator warna dot dan background aktif sesuai warna pihak.
+   - Panel kelola pihak: penambahan hingga maksimal 5 penandatangan, pengubahan nama inline secara langsung, pemilihan warna identitas dari palet, serta penghapusan penandatangan (minimal 2 penandatangan untuk mode beberapa orang).
+   - Penambahan overlay otomatis mengikat identitas pihak aktif (`signer_id`, `signer_name`, `signer_color`) ke overlay.
+3. Visualisasi Panggung & Inspector Multi-Signer:
+   - Pada panggung interaktif, elemen overlay pihak penandatangan dilengkapi border warna khas pihak dan badge label nama pihak di pojok atas overlay.
+   - Inspector numerik & keyboard navigation menampilkan badge identitas penandatangan aktif.
+4. Kontrol Header & Navigasi Mode:
+   - Header studio menampilkan badge status mode penandatanganan (`Hanya saya` atau `Beberapa orang (N Pihak)`).
+   - Tombol *"Ganti Mode"* (`btn-switch-signing-mode`) di header untuk kembali ke dialog pemilih penandatangan sewaktu-waktu tanpa kehilangan berkas terunggah.
+5. Aksesibilitas WCAG 2.2 AA:
+   - Struktur ARIA lengkap: `role="dialog"`, `role="radiogroup"`, `role="radio"`, `aria-checked`, label form terikat eksplisit, kontras warna rasio tinggi pada tombol aksi merah (`bg-red-600` dengan teks putih).
+   - 0 pelanggaran axe-core di `accessibility.test.tsx`.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan: Ya. Dialog pemilih penandatangan, kartu opsi "Hanya saya" dan "Beberapa orang", panel multi-signer lokal, palette warna identitas, badge overlay panggung, serta tombol ganti mode terimplementasi penuh.
+- Penyimpangan dan persetujuan ulang: Tidak ada penyimpangan.
+- Perbedaan command/expected result: Tidak ada perbedaan, seluruh tes Vitest frontend (19/19 pdf_sign, total 135/135 tests), Pytest backend (108/108), dan pengujian aksesibilitas lulus 100%.
+
+### File Dibuat / Diubah
+- `frontend/src/components/pdf-tools/PdfSignModal.tsx`: Implementasi dialog pemilih penandatangan, pengelolaan state multi-signer (`signingMode`, `signers`, `activeSignerId`, `isManagingSigners`), palette warna identitas, rendering badge overlay panggung, dan tombol ganti mode header.
+- `frontend/src/components/pdf-tools/__tests__/pdf_sign.test.tsx`: Pembaruan helper `setupLoadedModal` dan penambahan 3 test case baru untuk alur dialog pemilih penandatangan, alur multi-signer lokal, dan alur tombol ganti mode (19/19 tests PASS).
+- `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`, `.agent/REPORT.md`: Pembaruan status pelacakan task dan laporan kemajuan proyek.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Sign Suite | `npm --prefix frontend test -- pdf_sign.test.tsx` | PASS | 19/19 tests passed |
+| Vitest Accessibility | `npm --prefix frontend test -- accessibility.test.tsx` | PASS | 6/6 tests passed (0 axe violations) |
+| Vitest Frontend Full | `npm --prefix frontend test` | PASS | 135/135 tests passed (18 files) |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm --prefix frontend run build` | PASS | Vite built in 341ms |
+| Pytest Backend Full | `pytest backend/tests` | PASS | 108/108 tests passed |
+| Distribution Script | `python scripts/verify_distribution.py` | PASS | 5/5 distribution verification passed |
+
+### Acceptance Criteria
+- [x] Dialog *"Siapa yang akan menandatangani dokumen ini?"* muncul otomatis pasca-unggah berkas PDF.
+- [x] Dua kartu visual responsif *"Hanya saya"* dan *"Beberapa orang"* dengan tombol merah tebal.
+- [x] Bottom info bar menampilkan nama berkas, ukuran, dan jumlah total halaman.
+- [x] Mode *"Beberapa orang"* mengaktifkan alur Multi-Signer Lokal (hingga 5 penandatangan) dengan palet warna terstandar.
+- [x] Overlay pada panggung menampilkan border dan badge warna pihak penandatangan terkait.
+- [x] Tombol *"Ganti Mode"* di header studio untuk kembali ke dialog pemilih tanpa unggah ulang.
+- [x] 0 pelanggaran aksesibilitas WCAG 2.2 AA (axe-core verified).
+- [x] Integrasi output signed PDF `/api/pdf-tools/editor/apply` tetap kompatibel 100%.
+
+### Keputusan dan Technical Debt
+- Penandatanganan multi-signer dieksekusi secara lokal di memori browser pengguna (client-side orchestration) menjaga kepatuhan privasi offline-first tanpa dependensi layanan eksternal.
+- Tidak ada dependensi npm atau pip baru yang ditambahkan (0 external dependencies added).
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Feature: Fitur Unlock PDF dan Protect PDF Berbasis AES-256 Lokal — 2026-10-22
+
+**Task:** FEATURE-PDF-SECURITY-001
+**Requirement:** BUS-011, FR-027, FR-028, NFR-SEC-001, NFR-UX-001
+
+### Ringkasan
+Implementasi fitur keamanan dokumen PDF lokal untuk Unlock PDF (menghapus enkripsi password dokumen berpassword sah) dan Protect PDF (mengenkripsi dokumen dengan standar AES-256 dan password kuat) secara 100% lokal dan offline di workspace Alat Dokumen (`#/tools`):
+1. **Backend Service (`backend/app/services/pdf_tools.py`):**
+   - `validate_protect_password(password)`: Validasi kekuatan password pengunci: 12–40 byte UTF-8 (sesuai batasan engine PyMuPDF AES-256), minimal 1 huruf besar (A-Z), 1 huruf kecil (a-z), 1 angka (0-9), dan 1 simbol/karakter khusus.
+   - `protect_pdf(file_bytes, password)`: Enkripsi berkas menggunakan native PyMuPDF `PDF_ENCRYPT_AES_256`, `permissions=4095`, pembersihan struktur objek `garbage=4, clean=True, use_objstms=1`. Menolak berkas kosong, melebihi 100 halaman, berkas yang sudah terenkripsi, dan berkas bertanda tangan digital (fail-closed HTTP 422).
+   - `unlock_pdf(file_bytes, password)`: Dekripsi berkas menggunakan native PyMuPDF `PDF_ENCRYPT_NONE`. Memvalidasi password sah (`doc.authenticate(password)`). Menolak berkas yang tidak terenkripsi, berkas dengan password salah (HTTP 422), dan berkas bertanda tangan digital (fail-closed HTTP 422). Menghasilkan berkas `<nama>_unlocked.pdf`.
+2. **Backend API (`backend/app/api/pdf_tools.py`):**
+   - Endpoint `POST /api/pdf-tools/protect`: Menerima berkas upload dan password via multipart/form-data di bawah `conversion_job_manager` (`pdf-protect`).
+   - Endpoint `POST /api/pdf-tools/unlock`: Menerima berkas upload terenkripsi dan password via multipart/form-data di bawah `conversion_job_manager` (`pdf-unlock`).
+3. **Frontend Client Service (`frontend/src/services/pdfTools.ts`):**
+   - `protectPdf(file, password)` dan `unlockPdf(file, password)` terhubung ke endpoint API dengan otomatisasi trigger unduhan Blob hasil.
+4. **Frontend UI Modal (`frontend/src/components/pdf-tools/PdfSecurityModal.tsx`):**
+   - Modal interaktif terpadu dengan 2 tab: "Unlock PDF" dan "Protect PDF".
+   - Dropzone unggah berkas PDF dengan validasi format (.pdf) dan batas ukuran (25 MB).
+   - Mode Unlock: Input password dengan toggle tampil/sembunyi, banner edukatif privasi lokal tanpa penyimpanan atau logging.
+   - Mode Protect: Input password baru dan konfirmasi password dengan toggle tampil/sembunyi, checklist indikator kekuatan password interaktif real-time (panjang 12-40 byte, huruf besar & kecil, angka, simbol, konfirmasi cocok), dan banner edukatif mengenai tidak adanya pemulihan darurat jika password hilang.
+   - Penanganan respons galat (error alert) dan sukses (success alert) yang jelas.
+   - Aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+5. **Frontend Workspace Integration (`frontend/src/App.tsx`):**
+   - Menambahkan dua kartu terpisah di workspace Alat Dokumen (`#/tools`): "Unlock PDF" dan "Protect PDF" yang membuka modal `PdfSecurityModal` dengan tab awal yang sesuai.
+6. **Pengujian:**
+   - 4 test baru di `backend/tests/test_pdf_tools.py`: uji validasi password, roundtrip protect & unlock, penolakan PDF bertanda tangan, dan pengujian API endpoint protect & unlock (38/38 test pdf_tools PASS, 112/112 full backend PASS).
+   - 15 test baru di `frontend/src/components/pdf-tools/__tests__/pdf_security.test.tsx`: modal lifecycle, switching tab, validasi berkas, toggle visibility password, validasi checklist kekuatan password, submit unlock sukses/gagal, dan submit protect sukses/gagal.
+   - Uji aksesibilitas axe-core di `accessibility.test.tsx` (0 pelanggaran WCAG 2.2 AA).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan: Ya, seluruh fitur Protect PDF dan Unlock PDF selesai sesuai spesifikasi dan code plan yang disetujui.
+- Penyimpangan dan persetujuan ulang: Tidak ada penyimpangan material.
+- Perbedaan command/expected result: Tidak ada perbedaan, seluruh verifikasi lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfSecurityModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_security.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Unit & API | `pytest backend/tests/test_pdf_tools.py` | PASS | 38/38 tests passed in 10.55s |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 112/112 tests passed in 30.48s |
+| Backend Code Quality | `ruff check backend` | PASS | All checks passed (0 error) |
+| Frontend Vitest Security Suite | `npm test -- src/components/pdf-tools/__tests__/pdf_security.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 21/21 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 150/150 tests passed (19 files) |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm run build` | PASS | Vite built dist bundle (625 KB JS / 69.5 KB CSS) |
+| Distribution Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Dua kartu terpisah "Unlock PDF" dan "Protect PDF" tersedia di workspace Alat Dokumen (`#/tools`).
+- [x] Membuka modal `PdfSecurityModal.tsx` dengan tab aktif sesuai kartu yang diklik.
+- [x] Mode Protect mengaktifkan enkripsi AES-256 dengan password buka tunggal (permissions=4095).
+- [x] Password Protect divalidasi kuat: 12-40 byte UTF-8, huruf besar, huruf kecil, angka, simbol, serta konfirmasi cocok.
+- [x] Mode Unlock membuka PDF terenkripsi berpassword sah dan menghasilkan `<nama>_unlocked.pdf`.
+- [x] Berkas PDF bertanda tangan digital ditolak fail-closed pada kedua mode.
+- [x] Tersedia toggle tampil/sembunyi password pada seluruh field password.
+- [x] Pemrosesan 100% offline lokal; password tidak pernah disimpan di disk atau dicatat ke log sistem.
+- [x] Aksesibilitas WCAG 2.2 AA terverifikasi (0 pelanggaran axe-core).
+
+### Keputusan dan Technical Debt
+- Memanfaatkan native PyMuPDF (`PDF_ENCRYPT_AES_256`) tanpa dependensi tambahan di host.
+- Membatasi panjang maksimal password proteksi menjadi 40 byte UTF-8 sesuai limitasi internal implementasi AES-256 PyMuPDF.
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Feature: Fitur Repair PDF dan OCR PDF Lokal — 2026-10-22
+
+**Task:** FEATURE-PDF-REPAIR-OCR-001
+**Requirement:** BUS-012, FR-029, FR-030, NFR-SEC-001, NFR-UX-001
+
+### Ringkasan
+Implementasi dua fitur utilitas pemulihan dokumen rusak (*Repair PDF*) dan pengenalan karakter dokumen pindaian (*OCR PDF*) pada workspace Alat Dokumen (`#/tools`):
+1. **Fitur Repair PDF:**
+   - Rekonstruksi struktur xref yang rusak, perbaikan trailer terputus, dan penyelamatan stream halaman menggunakan PyMuPDF native (`garbage=4, clean=True, deflate=True, use_objstms=1`).
+   - Penolakan berkas terenkripsi password (edukatif) dan berkas kosong.
+   - Endpoint `POST /api/pdf-tools/repair` menghasilkan `<nama>_repaired.pdf` beserta header `X-Pages-Recovered`, `X-Original-Size`, dan `X-Output-Size`.
+   - Modal `PdfRepairModal.tsx` dengan kartu akses mandiri tema lime (`bg-lime-50 text-lime-700`).
+2. **Fitur OCR PDF:**
+   - Deteksi otomatis ketersediaan Tesseract OCR lokal via helper `pymupdf.get_tessdata()`.
+   - Endpoint `GET /api/pdf-tools/ocr/status` menyajikan status kesiapan dan daftar bahasa yang terpasang.
+   - Endpoint `POST /api/pdf-tools/ocr` menerapkan OCR per halaman via `pix.pdfocr_tobytes()` menghasilkan berkas `<nama>_searchable.pdf`. Fail-closed HTTP 422 jika Tesseract belum terpasang.
+   - Modal `PdfOcrModal.tsx` menampilkan kartu panduan instalasi Tesseract resmi (UB-Mannheim installer untuk Windows dan `apt install` untuk Linux) dengan tombol periksa ulang jika engine belum ada, atau pemilih bahasa (ind, eng, ind+eng) saat engine siap.
+3. **Integrasi & Aksesibilitas:**
+   - Dua kartu mandiri di workspace Alat Dokumen (`#/tools`): "Repair PDF" dan "OCR PDF".
+   - Aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+   - Pengujian Vitest & Pytest lengkap.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai code plan yang disetujui.
+- Tidak ada dependensi npm atau pip baru (menggunakan PyMuPDF yang sudah terpasang).
+- Seluruh verifikasi lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfRepairModal.tsx`
+- `frontend/src/components/pdf-tools/PdfOcrModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_repair.test.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_ocr.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/app/main.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Unit & API | `pytest backend/tests/test_pdf_tools.py` | PASS | 41/41 tests passed (12.10s) |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 115/115 tests passed (36.12s) |
+| Backend Code Quality | `ruff check backend` | PASS | All checks passed (0 error) |
+| Frontend Vitest Repair & OCR | `npm test -- src/components/pdf-tools/__tests__/pdf_repair.test.tsx src/components/pdf-tools/__tests__/pdf_ocr.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 18/18 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 162/162 tests passed (21 files) |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm run build` | PASS | Vite built dist bundle in 460ms |
+| Distribution Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Dua kartu baru "Repair PDF" dan "OCR PDF" tampil di workspace Alat Dokumen (`#/tools`).
+- [x] Modal `PdfRepairModal.tsx` memulihkan berkas PDF rusak dan menghasilkan `<nama>_repaired.pdf`.
+- [x] Berkas terenkripsi password dan berkas kosong ditolak secara fail-closed informatif pada alur perbaikan.
+- [x] Modal `PdfOcrModal.tsx` mendeteksi ketersediaan Tesseract OCR lokal dan menampilkan panduan instalasi resmi jika belum terpasang.
+- [x] OCR menghasilkan berkas `<nama>_searchable.pdf` dengan teks yang dapat dicari dan disalin (Ctrl+F).
+- [x] Bebas pelanggaran aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+- [x] Seluruh pemrosesan berjalan offline dan lokal di mesin pengguna.
+
+### Keputusan dan Technical Debt
+- Memanfaatkan PyMuPDF built-in xref reconstruction tanpa dependensi biner pihak ketiga untuk perbaikan berkas.
+- Menggunakan deteksi Tesseract dinamis di host pengguna (seperti pola LibreOffice), menjaga distribusi Doc-builder tetap ringan tanpa membundel paket bahasa Tesseract berukuran ratusan megabyte.
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Feature: Fitur Watermark PDF dan Nomor Halaman PDF Lokal — 2026-10-22
+
+**Task:** FEATURE-PDF-WATERMARK-PAGENO-001
+**Requirement:** BUS-013, FR-031, FR-032, NFR-SEC-001, NFR-UX-001
+
+### Ringkasan
+Implementasi fitur stempel cap air dokumen (*Watermark PDF*) dan penomoran halaman otomatis (*Page Numbers PDF*) pada workspace Alat Dokumen (`#/tools`):
+1. **Fitur Watermark PDF:**
+   - Mode Teks: stempel teks kustom dengan opsi preset (`CONFIDENTIAL`, `DRAFT`, `SALINAN`, `RAHASIA`, `SAMPLE`), rotasi sudut arbitrary (-90° s/d 90° via `morph=pymupdf.Matrix`), slider opasitas (0.1–1.0), palet warna hex, ukuran font, dan tata letak 9 grid posisi (3x3) serta pola berulang (mosaic).
+   - Mode Gambar: stempel logo gambar PNG/JPG transparan dengan konversi channel alpha Pillow sesuai tingkat opasitas.
+   - Pilihan target halaman (semua halaman atau rentang kustom misal `1-3, 5`).
+   - Endpoint `POST /api/pdf-tools/watermark` menghasilkan `<nama>_watermarked.pdf` beserta header `X-Watermarked-Pages`.
+   - Modal `PdfWatermarkModal.tsx` dengan kartu akses mandiri bertema rose (`bg-rose-50 text-rose-600`).
+2. **Fitur Nomor Halaman (Page Numbers PDF):**
+   - 4 variasi format penomoran: `{n}` (hanya angka), `{n} / {total}` (nomor/total), `Halaman {n} dari {total}` (formal Indonesia), dan `Page {n} of {total}` (formal English).
+   - 6 titik posisi: Atas Kiri, Atas Tengah, Atas Kanan, Bawah Kiri, Bawah Tengah (default), Bawah Kanan.
+   - Opsi lewati sampul depan (*skip cover*): mulai penomoran dari halaman X dan mulai nomor dari Y.
+   - Kontrol margin jarak dari tepi dokumen (15–60 pt), ukuran font (8–14 pt), dan warna teks.
+   - Endpoint `POST /api/pdf-tools/page-numbers` menghasilkan `<nama>_numbered.pdf` beserta header `X-Numbered-Pages`.
+   - Modal `PdfPageNumbersModal.tsx` dengan kartu akses mandiri bertema blue (`bg-blue-50 text-blue-600`).
+3. **Integrasi & Aksesibilitas:**
+   - Dua kartu baru di workspace Alat Dokumen (`#/tools`): "Watermark PDF" dan "Nomor Halaman".
+   - Aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+   - Pengujian Vitest & Pytest lengkap.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai code plan yang disetujui.
+- Zero new pip/npm dependencies (menggunakan PyMuPDF dan Pillow yang telah tersedia).
+- Seluruh verifikasi lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfWatermarkModal.tsx`
+- `frontend/src/components/pdf-tools/PdfPageNumbersModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_watermark.test.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_page_numbers.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/app/main.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Unit & API | `pytest backend/tests/test_pdf_tools.py` | PASS | 44/44 tests passed (11.24s) |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 118/118 tests passed (27.45s) |
+| Backend Code Quality | `ruff check backend` | PASS | All checks passed (0 error) |
+| Frontend Vitest Watermark & Page Numbers | `npm test -- pdf_watermark.test.tsx pdf_page_numbers.test.tsx accessibility.test.tsx` | PASS | 17/17 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 173/173 tests passed (23 files) |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm run build` | PASS | Vite built dist bundle in 447ms |
+| Distribution Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Dua kartu baru "Watermark PDF" dan "Nomor Halaman" tampil di workspace Alat Dokumen (`#/tools`).
+- [x] Modal `PdfWatermarkModal.tsx` membubuhkan teks atau logo gambar dengan rotasi, opasitas, posisi 3x3/mosaic, dan menghasilkan `<nama>_watermarked.pdf`.
+- [x] Modal `PdfPageNumbersModal.tsx` menyisipkan nomor halaman otomatis dengan 4 pilihan format, 6 posisi, jarak margin tepi, lewati sampul depan, dan menghasilkan `<nama>_numbered.pdf`.
+- [x] Berkas terenkripsi password ditolak fail-closed informatif.
+- [x] Bebas pelanggaran aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+- [x] Seluruh pemrosesan berjalan offline dan lokal di komputer pengguna.
+
+### Keputusan dan Technical Debt
+- Memanfaatkan manipulasi rotasi PyMuPDF `morph=(Point, Matrix(angle))` dan alpha Pillow in-memory untuk stempel watermark tanpa dependensi baru.
+- Perhitungan koordinat penomoran halaman dilakukan secara dinamis per halaman mengikuti `page.rect` agar mendukung dokumen dengan campuran orientasi potret dan lanskap.
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Feature: Fitur PDF to Markdown Lokal Bergaya iLovePDF — 2026-10-22
+
+**Task:** FEATURE-PDF-TO-MARKDOWN-001
+**Requirement:** BUS-014, FR-033, NFR-SEC-001, NFR-UX-001
+
+### Ringkasan
+Implementasi fitur konversi dan ekstraksi dokumen PDF ke format Markdown (`.md`) terstruktur bergaya iLovePDF secara 100% lokal offline pada workspace Alat Dokumen (`#/tools`):
+1. **Fitur PDF to Markdown:**
+   - Ekstraksi struktur dokumen (headings `#`, paragraf, numbered/bullet list, link, dan tabel) murni offline di host pengguna via `pymupdf4llm`.
+   - Opsi filter target halaman dokumen (semua halaman atau rentang kustom misal `1-3, 5`).
+   - Penolakan berkas terenkripsi password secara fail-closed informatif.
+   - Deteksi konten kosong/hanya citra scan dengan panduan edukatif menuju fitur OCR PDF.
+   - Endpoint `POST /api/pdf-tools/pdf-to-markdown` menghasilkan berkas `<nama>.md` beserta header metadata `X-Total-Pages`, `X-Converted-Pages`, `X-Markdown-Length`, dan `X-Original-Size`.
+2. **Antarmuka Interaktif & Aksesibilitas:**
+   - Modal `PdfToMarkdownModal.tsx` dengan panggung pratinjau teks sintaks Markdown langsung.
+   - Tombol *Salin Teks* ke clipboard (dengan notifikasi visual *Tersalin!*) dan tombol *Unduh .md*.
+   - Kartu alat baru di workspace Alat Dokumen (`#/tools`) bertema purple dengan badge pill `New!` bernuansa sky blue sesuai referensi visual.
+   - Bebas pelanggaran aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai code plan yang disetujui.
+- Zero new pip/npm dependencies (memanfaatkan `pymupdf4llm` yang sudah tersedia di virtualenv).
+- Seluruh verifikasi pengujian lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/pdf-tools/PdfToMarkdownModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_to_markdown.test.tsx`
+
+### File Diubah
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/app/main.py`
+- `backend/tests/test_pdf_tools.py`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Unit & API | `pytest backend/tests/test_pdf_tools.py` | PASS | 45/45 tests passed (22.08s) |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 119/119 tests passed (35.17s) |
+| Backend Code Quality | `ruff check backend` | PASS | All checks passed (0 error) |
+| Frontend Vitest PDF to Markdown | `npm test -- pdf_to_markdown.test.tsx accessibility.test.tsx` | PASS | 12/12 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 179/179 tests passed (24 files) |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm run build` | PASS | Vite built dist bundle in 513ms |
+| Distribution Smoke Test | `python scripts/verify_distribution.py` | PASS | 5/5 verifikasi lulus (distribusi siap rilis) |
+
+### Acceptance Criteria
+- [x] Kartu baru "PDF to Markdown" dengan badge `New!` tampil di workspace Alat Dokumen (`#/tools`).
+- [x] Modal `PdfToMarkdownModal.tsx` mengekstrak dokumen PDF menjadi Markdown terstruktur dan menghasilkan berkas `<nama>.md`.
+- [x] Panggung pratinjau sintaks Markdown langsung aktif dengan opsi Salin Teks ke clipboard dan Unduh .md.
+- [x] Berkas terenkripsi password ditolak secara fail-closed informatif.
+- [x] Bebas pelanggaran aksesibilitas WCAG 2.2 AA (0 pelanggaran axe-core).
+- [x] Seluruh pemrosesan berjalan offline dan lokal di mesin pengguna.
+
+### Keputusan dan Technical Debt
+- Memanfaatkan parser layout `pymupdf4llm` yang sudah tersedia untuk mereduksi kompleksitas tanpa menambah pustaka runtime baru.
+- Menyediakan fallback penyalinan teks clipboard manual berbasis DOM bila permission API clipboard browser dibatasi sistem.
+
+### Risiko Tersisa
+- Tidak ada risiko terbuka baru.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+
+
 

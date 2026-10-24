@@ -1,9 +1,11 @@
-import { type CustomSection } from '../types/resume'
+import { type CustomSection, type ResumeLanguage } from '../types/resume'
+import { getResumeLabels } from './resumeLabels'
 
 interface CustomSectionsBlockProps {
   sections: CustomSection[]
   accentColor: string
   variant: 'ats-clean' | 'ats-modern' | 'visual-executive' | 'visual-minimal'
+  language?: ResumeLanguage
 }
 
 const hasItemContent = (item: CustomSection['items'][number]) =>
@@ -12,8 +14,10 @@ const hasItemContent = (item: CustomSection['items'][number]) =>
 export function CustomSectionsBlock({
   sections,
   accentColor,
-  variant
+  variant,
+  language
 }: CustomSectionsBlockProps) {
+  const labels = getResumeLabels(language)
   const visibleSections = sections
     .map(section => ({ ...section, items: section.items.filter(hasItemContent) }))
     .filter(section => section.sectionTitle.trim() || section.items.length > 0)
@@ -48,7 +52,7 @@ export function CustomSectionsBlock({
                   : { color: accentColor, borderColor: executive ? '#e2e8f0' : '#cbd5e1' }
             }
           >
-            {section.sectionTitle.trim() || 'Bagian Tambahan'}
+            {section.sectionTitle.trim() || labels.customDefault}
           </h2>
           {section.items.length > 0 && (
             <div className={minimal ? 'space-y-2' : 'space-y-2.5 pt-0.5'}>

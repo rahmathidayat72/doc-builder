@@ -9,6 +9,7 @@ describe('ProjectCryptoService (Web Crypto AES-GCM & Project Container)', () => 
     templateId: 'ats-modern',
     colorTheme: '#0f172a',
     fontFamily: 'serif',
+    resumeLanguage: 'id',
     data: {
       ...createEmptyResumeData(),
       contact: {

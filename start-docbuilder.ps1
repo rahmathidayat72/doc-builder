@@ -33,4 +33,5 @@ Start-Job -ScriptBlock {
 Write-Host "[INFO] Menjalankan server pada http://127.0.0.1:8000..." -ForegroundColor Green
 Write-Host "[INFO] Tekan CTRL+C untuk menghentikan server.`n" -ForegroundColor Gray
 
+$env:PYTHONPATH = "$ScriptDir\backend;" + $env:PYTHONPATH
 & $PythonExe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000

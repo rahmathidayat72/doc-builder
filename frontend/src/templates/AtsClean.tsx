@@ -2,6 +2,7 @@ import React from 'react'
 import { type ResumeDraft } from '../types/resume'
 import { Mail, Phone, MapPin, Link as LinkIcon, Globe } from 'lucide-react'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
+import { getResumeLabels } from './resumeLabels'
 
 interface TemplateProps {
   draft: ResumeDraft
@@ -10,17 +11,28 @@ interface TemplateProps {
 export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
+  const labels = getResumeLabels(draft.resumeLanguage)
 
   return (
     <div className="space-y-5 text-slate-800" data-testid="template-ats-clean">
       {/* Header Klasik Rata Tengah */}
       <header className="text-center border-b pb-3" style={{ borderColor: accentColor }}>
+        {contact.usePhoto && contact.photoUrl && (
+          <div className="mb-2 flex justify-center">
+            <img
+              src={contact.photoUrl}
+              alt={contact.fullName || labels.fullNameFallback}
+              className="w-20 h-20 rounded-lg object-cover border border-slate-300 shadow-xs"
+              data-testid="preview-photo"
+            />
+          </div>
+        )}
         <h1
           className="text-2xl font-bold tracking-tight uppercase"
           style={{ color: accentColor }}
           data-testid="preview-fullname"
         >
-          {contact.fullName || 'Nama Lengkap'}
+          {contact.fullName || labels.fullNameFallback}
         </h1>
         <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-xs text-slate-600 mt-1.5">
           {contact.email && (
@@ -63,7 +75,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
           >
-            Ringkasan Profesional
+            {labels.summary}
           </h2>
           <p className="text-xs text-slate-700 leading-relaxed text-justify pt-1">{summary}</p>
         </section>
@@ -76,7 +88,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
           >
-            Pengalaman Kerja
+            {labels.experience}
           </h2>
           <div className="space-y-2.5 pt-0.5">
             {experiences.map(exp => (
@@ -84,7 +96,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="flex items-baseline justify-between font-bold text-slate-900">
                   <span>{exp.jobTitle}</span>
                   <span className="text-2xs font-normal text-slate-500">
-                    {exp.startDate} - {exp.current ? 'Sekarang' : exp.endDate}
+                    {exp.startDate} - {exp.current ? labels.present : exp.endDate}
                   </span>
                 </div>
                 <div className="text-slate-600 font-medium italic">
@@ -108,7 +120,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
           >
-            Pendidikan
+            {labels.education}
           </h2>
           <div className="space-y-2 pt-0.5">
             {education.map(edu => (
@@ -116,12 +128,14 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="flex items-baseline justify-between font-bold text-slate-900">
                   <span>{edu.institution}</span>
                   <span className="text-2xs font-normal text-slate-500">
-                    {edu.startDate} - {edu.endDate}
+                    {edu.startDate && edu.endDate
+                      ? `${edu.startDate} - ${edu.endDate}`
+                      : edu.endDate || edu.startDate || ''}
                   </span>
                 </div>
                 <div className="text-slate-600">
-                  {edu.degree} {edu.fieldOfStudy && `dalam ${edu.fieldOfStudy}`}
-                  {edu.gpa && ` | IPK: ${edu.gpa}`}
+                  {edu.degree} {edu.fieldOfStudy && `${labels.inField} ${edu.fieldOfStudy}`}
+                  {edu.gpa && ` | ${labels.gpa}: ${edu.gpa}`}
                 </div>
               </div>
             ))}
@@ -136,7 +150,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
           >
-            Keahlian & Kompetensi
+            {labels.skills}
           </h2>
           <div className="text-xs text-slate-700 pt-0.5 leading-relaxed">
             {skills.map(s => s.name).join(' • ')}
@@ -151,7 +165,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
           >
-            Kemampuan Bahasa
+            {labels.languages}
           </h2>
           <div className="text-xs text-slate-700 pt-0.5 grid grid-cols-2 gap-2">
             {languages.map(l => (
@@ -167,6 +181,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
         sections={customSections}
         accentColor={accentColor}
         variant="ats-clean"
+        language={draft.resumeLanguage}
       />
     </div>
   )

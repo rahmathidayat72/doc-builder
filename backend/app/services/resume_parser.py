@@ -22,6 +22,22 @@ DATE_TOKEN_REGEX = (
     r"|sekarang|present|saat\s+ini|current"
 )
 
+COMMON_EMAIL_DOMAINS = {
+    "gmail.com",
+    "yahoo.com",
+    "yahoo.co.id",
+    "hotmail.com",
+    "outlook.com",
+    "icloud.com",
+    "mail.com",
+    "proton.me",
+    "protonmail.com",
+}
+
+BULLET_PREFIX_REGEX = (
+    r"^(?:[•●▪▫◦*□■\uf0b7\uf0a7\u25a0\u25a1\u25aa\u25ab\u2022\u2023\u2043]+\s*|[-–—]\s+)"
+)
+
 SECTION_HEADERS = {
     "summary": [
         r"ringkasan(?: profesional)?",
@@ -183,11 +199,21 @@ def extract_contact_info(
     if linkedin_match:
         contact["linkedin"] = linkedin_match.group(0).strip()
 
-    website_match = re.search(WEBSITE_REGEX, full_text, re.IGNORECASE)
-    if website_match:
-        found_web = website_match.group(0).strip()
-        if "linkedin.com" not in found_web.lower():
-            contact["website"] = found_web
+    email_domain = contact["email"].split("@")[-1].lower() if contact["email"] else ""
+    for web_match in re.finditer(WEBSITE_REGEX, full_text, re.IGNORECASE):
+        found_web = web_match.group(0).strip()
+        found_lower = found_web.lower()
+        start_idx = web_match.start()
+        if start_idx > 0 and full_text[start_idx - 1] == "@":
+            continue
+        if found_lower in COMMON_EMAIL_DOMAINS or found_lower == email_domain:
+            continue
+        if "linkedin.com" in found_lower:
+            continue
+        if email_domain and found_lower.endswith(email_domain):
+            continue
+        contact["website"] = found_web
+        break
 
     for line in lines[:8]:
         clean = line.strip()
@@ -211,12 +237,48 @@ def extract_contact_info(
         "bali",
         "indonesia",
         "remote",
+        "bogor",
+        "depok",
+        "tangerang",
+        "bekasi",
+        "jabodetabek",
+        "banten",
+        "jawa barat",
+        "jawa tengah",
+        "jawa timur",
+        "sumatera",
+        "kalimantan",
+        "sulawesi",
+        "papua",
+        "maluku",
+        "aceh",
+        "riau",
+        "lampung",
+        "cileungsi",
     ]
-    for line in lines[:10]:
-        if any(keyword in line.lower() for keyword in location_keywords):
-            contact["location"] = line.strip()
-            confidence["location"] = 0.70
-            break
+    for line in lines[:12]:
+        clean = line.strip()
+        if not clean:
+            continue
+        if ("|" in clean or "•" in clean) and (
+            re.search(EMAIL_REGEX, clean) or re.search(PHONE_REGEX, clean)
+        ):
+            parts = [p.strip() for p in re.split(r"\s*[|•]\s*", clean) if p.strip()]
+            for part in parts:
+                if re.search(EMAIL_REGEX, part) or re.search(PHONE_REGEX, part):
+                    continue
+                if any(w in part.lower() for w in ["linkedin.com", "http://", "https://"]):
+                    continue
+                if any(k in part.lower() for k in location_keywords) or len(part.split()) >= 2:
+                    if not contact["location"]:
+                        contact["location"] = part
+                        confidence["location"] = 0.85
+                        break
+        elif any(keyword in clean.lower() for keyword in location_keywords):
+            if not contact["location"]:
+                contact["location"] = clean
+                confidence["location"] = 0.70
+                break
 
     return contact, confidence
 
@@ -275,11 +337,13 @@ def identify_section_boundaries(lines: list[str]) -> dict[str, tuple[int, int]]:
 
 
 def _is_bullet(line: str) -> bool:
-    return bool(re.match(r"^[•●▪◦*-]\s*", line.strip()))
+    return bool(re.match(BULLET_PREFIX_REGEX, line.strip()))
 
 
 def _clean_bullet(line: str) -> str:
-    return re.sub(r"^[•●▪◦*-]\s*", "", line.strip()).strip()
+    clean = line.strip()
+    clean = re.sub(BULLET_PREFIX_REGEX, "", clean)
+    return clean.strip()
 
 
 def _extract_period(line: str) -> tuple[str, str, bool, str]:
@@ -302,7 +366,11 @@ def _extract_period(line: str) -> tuple[str, str, bool, str]:
 
 
 def _split_header_fields(value: str) -> list[str]:
-    return [part.strip() for part in re.split(r"\t|\s+[|•–—-]\s+", value) if part.strip()]
+    return [
+        part.strip()
+        for part in re.split(r"\t|\s+[|•–—]\s*|\s*[-]\s+|\s*—\s*", value)
+        if part.strip()
+    ]
 
 
 def parse_experience_section(lines: list[str]) -> tuple[list[dict[str, Any]], float]:
@@ -329,15 +397,25 @@ def parse_experience_section(lines: list[str]) -> tuple[list[dict[str, Any]], fl
         start_date, end_date, is_current, residual = _extract_period(clean)
 
         if start_date or end_date or is_current:
-            header_lines = pending[-2:]
-            if current and len(pending) > len(header_lines):
-                descriptions.extend(pending[: -len(header_lines)])
-            finish_current()
-            fields: list[str] = []
-            for header in header_lines:
-                fields.extend(_split_header_fields(header))
-            fields.extend(_split_header_fields(residual))
-            pending = []
+            residual_fields = _split_header_fields(residual) if residual else []
+            if len(residual_fields) >= 2 or (residual and not pending):
+                if current and pending:
+                    descriptions.extend(pending)
+                finish_current()
+                fields = residual_fields
+                pending = []
+            else:
+                header_lines = pending[-2:] if len(pending) >= 2 else pending[:]
+                if current and len(pending) > len(header_lines):
+                    descriptions.extend(pending[: -len(header_lines)])
+                finish_current()
+                fields = []
+                for header in header_lines:
+                    fields.extend(_split_header_fields(header))
+                if residual_fields:
+                    fields.extend(residual_fields)
+                pending = []
+
             current = {
                 "id": str(uuid.uuid4()),
                 "jobTitle": fields[0] if fields else "",
@@ -351,10 +429,11 @@ def parse_experience_section(lines: list[str]) -> tuple[list[dict[str, Any]], fl
             continue
 
         if _is_bullet(clean):
+            cleaned = _clean_bullet(clean)
             if current:
-                descriptions.append(_clean_bullet(clean))
+                descriptions.append(cleaned)
             else:
-                pending.append(_clean_bullet(clean))
+                pending.append(cleaned)
             continue
 
         if current and not current["company"] and not descriptions and len(clean) <= 100:
@@ -407,7 +486,7 @@ def _apply_education_details(education: dict[str, Any], lines: list[str]) -> Non
         parts = [part.strip() for part in re.split(r"\s+[|•]\s+", clean) if part.strip()]
         for part in parts:
             if re.search(
-                r"\b(SMA|SMK|D[1-4]|S[1-3]|bachelor|master|doktor|doctor|sarjana|diploma)\b",
+                r"\b(SMA|SMK|SMP|SD|D[1-4]|S[1-3]|bachelor|master|doktor|doctor|sarjana|diploma)\b",
                 part,
                 re.IGNORECASE,
             ):
@@ -415,6 +494,17 @@ def _apply_education_details(education: dict[str, Any], lines: list[str]) -> Non
             elif part.lower().startswith(("dalam ", "in ")):
                 education["fieldOfStudy"] = re.sub(
                     r"^(?:dalam|in)\s+", "", part, flags=re.IGNORECASE
+                )
+            elif re.search(
+                r"^(?:jurusan|program studi|prodi|major(?:ing in)?)\s*[: ]\s*",
+                part,
+                re.IGNORECASE,
+            ):
+                education["fieldOfStudy"] = re.sub(
+                    r"^(?:jurusan|program studi|prodi|major(?:ing in)?)\s*[: ]\s*",
+                    "",
+                    part,
+                    flags=re.IGNORECASE,
                 )
             elif not education["fieldOfStudy"]:
                 education["fieldOfStudy"] = part
@@ -436,6 +526,10 @@ def parse_education_section(lines: list[str]) -> tuple[list[dict[str, Any]], flo
         "college",
         "school",
         "academy",
+        "madrasah",
+        "pesantren",
+        "kursus",
+        "bootcamp",
     ]
 
     def new_item(institution: str, start: str = "", end: str = "") -> dict[str, Any]:
@@ -456,6 +550,11 @@ def parse_education_section(lines: list[str]) -> tuple[list[dict[str, Any]], flo
             return
         _apply_education_details(current, pending)
         if current["institution"]:
+            if not current["degree"]:
+                for deg in ["SMA", "SMK", "SMP", "SD"]:
+                    if re.search(rf"\b{deg}\b", current["institution"], re.IGNORECASE):
+                        current["degree"] = deg
+                        break
             education_items.append(current)
         current = None
         pending = []
@@ -465,18 +564,53 @@ def parse_education_section(lines: list[str]) -> tuple[list[dict[str, Any]], flo
         if not clean:
             continue
         start_date, end_date, _, residual = _extract_period(clean)
-        has_institution = any(keyword in clean.lower() for keyword in institution_keywords)
+        is_graduation = bool(
+            re.search(
+                r"\b(lulus(?:an)?|kelulusan|graduated|graduation|tamat)\b", clean, re.IGNORECASE
+            )
+        )
+        if is_graduation and start_date and not end_date:
+            end_date = start_date
+            start_date = ""
+
+        residual = re.sub(
+            r"\b(lulus(?:an)?|kelulusan|graduated|graduation|tamat)\b",
+            "",
+            residual,
+            flags=re.IGNORECASE,
+        )
+        residual = re.sub(r"^[\s|•–—,: -]+|[\s|•–—,: -]+$", "", residual).strip()
+
+        has_institution = any(
+            re.search(rf"\b{re.escape(k)}\b", clean, re.IGNORECASE)
+            if len(k) <= 4
+            else k in clean.lower()
+            for k in institution_keywords + ["sma", "smk", "smp", "sd"]
+        )
 
         if start_date or end_date:
-            if current and not current["startDate"] and not residual:
+            if current and not current["startDate"] and not current["endDate"] and not residual:
                 current["startDate"] = start_date
                 current["endDate"] = end_date
             else:
                 institution = residual
+                extra_parts: list[str] = []
+                if institution and any(sep in institution for sep in ["|", "•", "—"]):
+                    parts = [
+                        p.strip() for p in re.split(r"\s*[|•—–]\s*", institution) if p.strip()
+                    ]
+                    institution = parts[0]
+                    extra_parts = parts[1:]
                 if not institution and pending:
-                    institution = pending.pop(0)
+                    candidate = pending.pop(0)
+                    parts = [p.strip() for p in re.split(r"\s*[|•—–]\s*", candidate) if p.strip()]
+                    institution = parts[0]
+                    if len(parts) > 1:
+                        pending.extend(parts[1:])
                 finish_current()
                 current = new_item(institution, start_date, end_date)
+                if extra_parts:
+                    pending.extend(extra_parts)
         elif has_institution:
             finish_current()
             current = new_item(clean)
@@ -513,7 +647,7 @@ def parse_skills_section(lines: list[str]) -> tuple[list[dict[str, str]], float]
         key = clean.lower()
         if 2 <= len(clean) <= 50 and key not in seen:
             seen.add(key)
-            skills.append({"id": str(uuid.uuid4()), "name": clean, "category": "Technical"})
+            skills.append({"id": str(uuid.uuid4()), "name": clean, "category": "General"})
     confidence = 0.90 if len(skills) >= 3 else (0.60 if skills else 0.0)
     return skills, confidence
 

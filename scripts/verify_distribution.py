@@ -11,7 +11,17 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 def test_requirements():
     print("[1/5] Memeriksa dependensi backend...")
-    required_modules = ["fastapi", "uvicorn", "docx", "pypdf", "PIL", "anyio"]
+    required_modules = [
+        "fastapi",
+        "uvicorn",
+        "docx",
+        "pypdf",
+        "PIL",
+        "anyio",
+        "pptx",
+        "openpyxl",
+        "pymupdf",
+    ]
     for mod in required_modules:
         try:
             __import__(mod)

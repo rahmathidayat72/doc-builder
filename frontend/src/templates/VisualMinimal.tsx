@@ -1,6 +1,7 @@
 import React from 'react'
 import { type ResumeDraft } from '../types/resume'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
+import { getResumeLabels } from './resumeLabels'
 
 interface TemplateProps {
   draft: ResumeDraft
@@ -9,32 +10,43 @@ interface TemplateProps {
 export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
+  const labels = getResumeLabels(draft.resumeLanguage)
 
   return (
     <div className="space-y-6 text-slate-800" data-testid="template-visual-minimal">
       {/* Header Minimalis Terbuka */}
-      <header className="space-y-2">
-        <h1
-          className="text-3xl font-light tracking-wide uppercase"
-          style={{ color: accentColor }}
-          data-testid="preview-fullname"
-        >
-          {contact.fullName || 'Nama Lengkap'}
-        </h1>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-slate-500 font-medium">
-          {contact.email && <span>{contact.email}</span>}
-          {contact.phone && <span>• {contact.phone}</span>}
-          {contact.location && <span>• {contact.location}</span>}
-          {contact.linkedin && <span>• {contact.linkedin}</span>}
-          {contact.website && <span>• {contact.website}</span>}
+      <header className="flex items-center justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <h1
+            className="text-3xl font-light tracking-wide uppercase"
+            style={{ color: accentColor }}
+            data-testid="preview-fullname"
+          >
+            {contact.fullName || labels.fullNameFallback}
+          </h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-slate-500 font-medium">
+            {contact.email && <span>{contact.email}</span>}
+            {contact.phone && <span>• {contact.phone}</span>}
+            {contact.location && <span>• {contact.location}</span>}
+            {contact.linkedin && <span>• {contact.linkedin}</span>}
+            {contact.website && <span>• {contact.website}</span>}
+          </div>
         </div>
+        {contact.usePhoto && contact.photoUrl && (
+          <img
+            src={contact.photoUrl}
+            alt={contact.fullName || labels.fullNameFallback}
+            className="w-20 h-20 rounded-xl object-cover border border-slate-200 shadow-xs shrink-0"
+            data-testid="preview-photo"
+          />
+        )}
       </header>
 
       {/* Ringkasan */}
       {summary && (
         <section className="space-y-1.5 pt-2">
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
-            Tentang Saya
+            {labels.summaryAbout}
           </h2>
           <p className="text-xs text-slate-700 leading-relaxed text-justify font-light">{summary}</p>
         </section>
@@ -44,7 +56,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
       {experiences.length > 0 && (
         <section className="space-y-4 pt-2">
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
-            Pengalaman
+            {labels.experienceShort}
           </h2>
           <div className="space-y-3.5">
             {experiences.map(exp => (
@@ -52,7 +64,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="flex items-baseline justify-between font-medium">
                   <span className="font-semibold text-slate-900">{exp.jobTitle}</span>
                   <span className="text-3xs text-slate-400">
-                    {exp.startDate} — {exp.current ? 'Sekarang' : exp.endDate}
+                    {exp.startDate} — {exp.current ? labels.present : exp.endDate}
                   </span>
                 </div>
                 <div className="text-slate-500 text-2xs">
@@ -73,7 +85,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
       {education.length > 0 && (
         <section className="space-y-3 pt-2">
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
-            Pendidikan
+            {labels.education}
           </h2>
           <div className="space-y-2">
             {education.map(edu => (
@@ -81,12 +93,14 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="flex items-baseline justify-between">
                   <span className="font-semibold text-slate-900">{edu.institution}</span>
                   <span className="text-3xs text-slate-400">
-                    {edu.startDate} — {edu.endDate}
+                    {edu.startDate && edu.endDate
+                      ? `${edu.startDate} — ${edu.endDate}`
+                      : edu.endDate || edu.startDate || ''}
                   </span>
                 </div>
                 <div className="text-slate-500 text-2xs">
-                  {edu.degree} {edu.fieldOfStudy && `dalam ${edu.fieldOfStudy}`}
-                  {edu.gpa && ` (IPK: ${edu.gpa})`}
+                  {edu.degree} {edu.fieldOfStudy && `${labels.inField} ${edu.fieldOfStudy}`}
+                  {edu.gpa && ` (${labels.gpa}: ${edu.gpa})`}
                 </div>
               </div>
             ))}
@@ -98,7 +112,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
       {skills.length > 0 && (
         <section className="space-y-2 pt-2">
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
-            Keahlian
+            {labels.skillsShort}
           </h2>
           <div className="flex flex-wrap gap-2 text-2xs text-slate-700">
             {skills.map(s => (
@@ -114,7 +128,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
       {languages.length > 0 && (
         <section className="space-y-1.5 pt-2">
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
-            Bahasa
+            {labels.languagesShort}
           </h2>
           <div className="text-2xs text-slate-600 flex gap-4">
             {languages.map(l => (
@@ -130,6 +144,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
         sections={customSections}
         accentColor={accentColor}
         variant="visual-minimal"
+        language={draft.resumeLanguage}
       />
     </div>
   )

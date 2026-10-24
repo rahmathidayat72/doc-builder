@@ -14,7 +14,6 @@ const COMMON_PRESETS = [
 
 export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
   const [inputVal, setInputVal] = useState('')
-  const [category, setCategory] = useState('Technical')
 
   const handleAdd = (nameToAdd?: string) => {
     const text = (nameToAdd || inputVal).trim()
@@ -29,7 +28,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
     const newSkill: SkillItem = {
       id: crypto.randomUUID(),
       name: text,
-      category
+      category: 'General'
     }
 
     onChange([...skills, newSkill])
@@ -59,7 +58,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
         </p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="flex gap-2">
         <div className="relative flex-1">
           <Tag className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           <input
@@ -73,18 +72,6 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
             data-testid="input-skill"
           />
         </div>
-
-        <select
-          value={category}
-          aria-label="Kategori Keahlian"
-          onChange={e => setCategory(e.target.value)}
-          className="px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
-        >
-          <option value="Technical">Teknis / Programming</option>
-          <option value="Design">Desain / UI-UX</option>
-          <option value="Tools">Tools & Software</option>
-          <option value="Soft Skills">Soft Skills</option>
-        </select>
 
         <button
           type="button"

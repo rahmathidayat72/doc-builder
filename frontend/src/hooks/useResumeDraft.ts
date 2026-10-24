@@ -102,6 +102,7 @@ export function useResumeDraft(initialDraftId?: string) {
       templateId,
       colorTheme: '#1e293b',
       fontFamily: 'sans',
+      resumeLanguage: 'id',
       data: createEmptyResumeData(),
       createdAt: now,
       updatedAt: now,
@@ -133,8 +134,8 @@ export function useResumeDraft(initialDraftId?: string) {
     scheduleAutosave(updatedDraft)
   }, [draft, scheduleAutosave])
 
-  // 7. Mutasi metadata draft (title, template, warna)
-  const updateMeta = useCallback((meta: Partial<Pick<ResumeDraft, 'title' | 'templateId' | 'colorTheme' | 'fontFamily'>>) => {
+  // 7. Mutasi metadata draft (title, template, warna, bahasa)
+  const updateMeta = useCallback((meta: Partial<Pick<ResumeDraft, 'title' | 'templateId' | 'colorTheme' | 'fontFamily' | 'resumeLanguage'>>) => {
     if (!draft) return
     const updatedDraft: ResumeDraft = {
       ...draft,

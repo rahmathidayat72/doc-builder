@@ -112,3 +112,191 @@ export async function convertPdfToDocx(file: File): Promise<ConversionResult> {
     }
   }
 }
+
+/**
+ * Mengonversi berkas PowerPoint (.pptx / .ppt) ke PDF via backend lokal
+ */
+export async function convertPresentationToPdf(file: File): Promise<ConversionResult> {
+  const outputFilename = `${file.name.replace(/\.[^/.]+$/, '')}.pdf`
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiFetch('/api/converter/presentation-to-pdf', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      downloadBlob(blob, outputFilename)
+      return {
+        success: true,
+        blob,
+        filename: outputFilename
+      }
+    }
+
+    if (response.status === 422) {
+      const errData = await response.json().catch(() => ({}))
+      if (errData.error_code === 'LIBREOFFICE_NOT_FOUND') {
+        return {
+          success: false,
+          libreofficeMissing: true,
+          message: errData.message || 'LibreOffice belum terpasang di komputer lokal Anda.'
+        }
+      }
+      return {
+        success: false,
+        message: errData.detail || errData.message || 'Format berkas tidak valid.'
+      }
+    }
+
+    const errText = await response.text()
+    return {
+      success: false,
+      message: `Gagal memproses konversi (${response.status}): ${errText}`
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+    }
+  }
+}
+
+/**
+ * Mengonversi dokumen PDF menjadi PowerPoint (.pptx) visual-presisi
+ */
+export async function convertPdfToPptx(file: File): Promise<ConversionResult> {
+  const outputFilename = `${file.name.replace(/\.[^/.]+$/, '')}.pptx`
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiFetch('/api/converter/pdf-to-pptx', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      downloadBlob(blob, outputFilename)
+      return {
+        success: true,
+        blob,
+        filename: outputFilename
+      }
+    }
+
+    const errorData = await response.json().catch(() => ({}))
+    return {
+      success: false,
+      message:
+        errorData.detail ||
+        errorData.message ||
+        `Gagal mengonversi PDF ke PPTX (${response.status}).`
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+    }
+  }
+}
+
+/**
+ * Mengonversi berkas spreadsheet Excel (.xlsx / .xls) ke PDF via backend lokal
+ */
+export async function convertSpreadsheetToPdf(file: File): Promise<ConversionResult> {
+  const outputFilename = `${file.name.replace(/\.[^/.]+$/, '')}.pdf`
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiFetch('/api/converter/spreadsheet-to-pdf', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      downloadBlob(blob, outputFilename)
+      return {
+        success: true,
+        blob,
+        filename: outputFilename
+      }
+    }
+
+    if (response.status === 422) {
+      const errData = await response.json().catch(() => ({}))
+      if (errData.error_code === 'LIBREOFFICE_NOT_FOUND') {
+        return {
+          success: false,
+          libreofficeMissing: true,
+          message: errData.message || 'LibreOffice belum terpasang di komputer lokal Anda.'
+        }
+      }
+      return {
+        success: false,
+        message: errData.detail || errData.message || 'Format berkas tidak valid.'
+      }
+    }
+
+    const errText = await response.text()
+    return {
+      success: false,
+      message: `Gagal memproses konversi (${response.status}): ${errText}`
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+    }
+  }
+}
+
+/**
+ * Mengonversi tabel dokumen PDF menjadi berkas Excel (.xlsx)
+ */
+export async function convertPdfToXlsx(file: File): Promise<ConversionResult> {
+  const outputFilename = `${file.name.replace(/\.[^/.]+$/, '')}.xlsx`
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await apiFetch('/api/converter/pdf-to-xlsx', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (response.ok) {
+      const blob = await response.blob()
+      downloadBlob(blob, outputFilename)
+      return {
+        success: true,
+        blob,
+        filename: outputFilename
+      }
+    }
+
+    const errorData = await response.json().catch(() => ({}))
+    return {
+      success: false,
+      message:
+        errorData.detail ||
+        errorData.message ||
+        `Gagal mengekstrak tabel PDF ke Excel (${response.status}).`
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+    }
+  }
+}

@@ -25,6 +25,8 @@ def export_docx(payload: dict[str, Any]):
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengekspor DOCX: {e}") from e
 
@@ -64,5 +66,7 @@ def export_pdf(payload: dict[str, Any]):
         )
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengekspor PDF: {e}") from e

@@ -52,3 +52,43 @@
   - SAST: Ruff PASS, Oxlint PASS, TypeScript typecheck PASS.
   - Regression Test: 7/7 uji keamanan di `test_security.py` lulus (Origin, CSRF, Session, Rejection).
 - **Residual Risk:** LOW (Terkendali pada lingkungan eksekusi desktop lokal).
+
+## 7. Kontrol Keamanan Fitur Protect & Unlock PDF
+1. **Enkripsi Standar Industri:** Menggunakan native PyMuPDF AES-256 (`PDF_ENCRYPT_AES_256`) dengan hak akses penuh (`permissions=4095`) dan pembersihan struktur berkas (`garbage=4, clean=True, use_objstms=1`).
+2. **Penegakan Kompleksitas Password:**
+   - Panjang minimum 12 karakter dan maksimum 40 byte UTF-8 (sesuai batasan engine PyMuPDF AES-256).
+   - Memuat minimal 1 huruf besar (A-Z), 1 huruf kecil (a-z), 1 angka (0-9), dan 1 simbol khusus.
+   - Konfirmasi password wajib cocok sebelum tombol enkripsi diizinkan aktif di UI dan diverifikasi ketat di backend (`validate_protect_password`).
+3. **Proteksi Integritas Tanda Tangan Digital:**
+   - Pemeriksaan sertifikat/tanda tangan digital (`has_digital_signature`) secara fail-closed pada kedua mode.
+   - Jika berkas memuat tanda tangan digital, proses proteksi atau buka proteksi langsung dibatalkan (HTTP 422) untuk mencegah perusakan status keabsahan tanda tangan kriptografis.
+4. **Pencegahan Kebocoran Kredensial:**
+   - Password hanya berada di memori sesaat (in-memory) selama pemrosesan request HTTP POST lokal.
+   - Password tidak pernah ditulis ke disk, tidak disimpan di IndexedDB/database, dan dilarang dicatat ke dalam file log sistem backend.
+   - Seluruh pemrosesan berlangsung 100% offline di localhost tanpa transmisi ke jaringan luar.
+
+## 8. Kontrol Keamanan Fitur Repair PDF & OCR PDF
+1. **Sanitasi Biner pada Pemulihan Berkas Rusak (Repair):**
+   - Penolakan berkas korup tanpa objek visual dengan fail-closed exception agar tidak memicu memory exhaustion.
+   - Pembersihan objek terlantar via `garbage=4, clean=True` dan penataan ulang struktur xref.
+   - Penolakan berkas terenkripsi password pada alur perbaikan untuk mencegah bypass kata sandi.
+2. **Isolasi Pemrosesan OCR Lokal:**
+   - Deteksi Tesseract berbasis path lokal aman tanpa mengunduh binary tidak terverifikasi secara runtime.
+   - Proses OCR berjalan murni di lingkungan host lokal tanpa mengirim citra pindaian dokumen ke API pihak ketiga atau cloud AI.
+   - Pembersihan dokumen perantara di memori sesaat dengan pembebasan objek doc otomatis (`finally: doc.close()`).
+
+## 9. Kontrol Keamanan Fitur Watermark PDF & Page Numbers PDF
+1. **Perlindungan Dokumen Terenkripsi:**
+   - Penolakan berkas berpassword secara fail-closed pada watermark dan penomoran halaman untuk mencegah manipulasi dokumen berhak cipta/berproteksi tanpa otorisasi sah.
+2. **Sanitasi Gambar & Teks Watermark:**
+   - Validasi format dan ukuran gambar watermark (maksimal 10 MB, hanya PNG/JPG) dengan isolasi konversi Pillow RGBA di memori sesaat.
+   - Sanitasi teks watermark dan pembatasan panjang teks serta ukuran font aman (8–120 pt) untuk mencegah buffer overflow atau Denial-of-Service.
+   - Seluruh proses berjalan di memori lokal tanpa penulisan berkas watermark atau citra masukan ke disk permanen.
+
+## 10. Kontrol Keamanan Fitur PDF to Markdown
+1. **Isolasi Ekstraksi Teks Offline:**
+   - Ekstraksi dijalankan 100% lokal via library `pymupdf4llm` tanpa menghubungi model API AI eksternal atau layanan pihak ketiga.
+2. **Penolakan Dokumen Terproteksi:**
+   - Berkas PDF berpassword ditolak secara fail-closed informatif sebelum didekode untuk mencegah bypass enkripsi dokumen.
+3. **Penyajian Konten Aman:**
+   - Output sintaks Markdown disajikan murni sebagai teks mentah (`text/markdown; charset=utf-8`) dengan isolasi pratinjau teks pre-formatted di frontend tanpa eksekusi skrip HTML aktif.

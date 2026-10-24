@@ -2,6 +2,7 @@ import React from 'react'
 import { type ResumeDraft } from '../types/resume'
 import { Mail, Phone, MapPin, Link as LinkIcon, Globe } from 'lucide-react'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
+import { getResumeLabels } from './resumeLabels'
 
 interface TemplateProps {
   draft: ResumeDraft
@@ -10,6 +11,7 @@ interface TemplateProps {
 export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
+  const labels = getResumeLabels(draft.resumeLanguage)
 
   return (
     <div className="flex h-full min-h-[297mm] text-slate-800 -m-10" data-testid="template-visual-executive">
@@ -21,19 +23,29 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
         <div className="space-y-6">
           {/* Avatar / Inisial */}
           <div className="text-center pt-2">
-            <div
-              className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-white font-bold text-xl shadow-md"
-              style={{ backgroundColor: accentColor }}
-            >
-              {contact.fullName
-                ? contact.fullName
-                    .split(' ')
-                    .map(w => w[0])
-                    .slice(0, 2)
-                    .join('')
-                    .toUpperCase()
-                : 'CV'}
-            </div>
+            {contact.usePhoto && contact.photoUrl ? (
+              <img
+                src={contact.photoUrl}
+                alt={contact.fullName || labels.fullNameFallback}
+                className="w-20 h-20 rounded-full mx-auto object-cover shadow-md border-2"
+                style={{ borderColor: accentColor }}
+                data-testid="preview-photo"
+              />
+            ) : (
+              <div
+                className="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-white font-bold text-xl shadow-md"
+                style={{ backgroundColor: accentColor }}
+              >
+                {contact.fullName
+                  ? contact.fullName
+                      .split(' ')
+                      .map(w => w[0])
+                      .slice(0, 2)
+                      .join('')
+                      .toUpperCase()
+                  : 'CV'}
+              </div>
+            )}
           </div>
 
           {/* Kontak */}
@@ -42,7 +54,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
               className="text-xs font-bold uppercase tracking-wider border-b pb-1"
               style={{ color: accentColor, borderColor: `${accentColor}40` }}
             >
-              Kontak
+              {labels.contact}
             </h3>
             <div className="space-y-1.5 text-2xs text-slate-700">
               {contact.email && (
@@ -85,7 +97,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
               >
-                Pendidikan
+                {labels.education}
               </h3>
               <div className="space-y-2 text-2xs">
                 {education.map(edu => (
@@ -93,7 +105,10 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                     <div className="font-bold text-slate-900">{edu.degree || edu.institution}</div>
                     <div className="text-slate-600">{edu.institution}</div>
                     <div className="text-3xs text-slate-500 font-medium">
-                      {edu.startDate} - {edu.endDate} {edu.gpa && `(IPK: ${edu.gpa})`}
+                      {edu.startDate && edu.endDate
+                        ? `${edu.startDate} - ${edu.endDate}`
+                        : edu.endDate || edu.startDate || ''}{' '}
+                      {edu.gpa && `(${labels.gpa}: ${edu.gpa})`}
                     </div>
                   </div>
                 ))}
@@ -108,7 +123,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
               >
-                Keahlian
+                {labels.skillsShort}
               </h3>
               <div className="flex flex-wrap gap-1">
                 {skills.map(s => (
@@ -130,7 +145,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
               >
-                Bahasa
+                {labels.languagesShort}
               </h3>
               <div className="space-y-1 text-2xs text-slate-700">
                 {languages.map(l => (
@@ -157,7 +172,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
               style={{ color: accentColor }}
               data-testid="preview-fullname"
             >
-              {contact.fullName || 'Nama Lengkap'}
+              {contact.fullName || labels.fullNameFallback}
             </h1>
           </header>
 
@@ -168,7 +183,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: '#e2e8f0' }}
               >
-                Profil Profesional
+                {labels.summaryProfile}
               </h2>
               <p className="text-xs text-slate-700 leading-relaxed text-justify pt-0.5">{summary}</p>
             </section>
@@ -181,7 +196,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: '#e2e8f0' }}
               >
-                Pengalaman Kerja
+                {labels.experience}
               </h2>
               <div className="space-y-3.5">
                 {experiences.map(exp => (
@@ -189,7 +204,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                     <div className="flex items-baseline justify-between font-bold text-slate-900">
                       <span className="text-sm font-bold text-slate-900">{exp.jobTitle}</span>
                       <span className="text-2xs font-normal text-slate-500">
-                        {exp.startDate} - {exp.current ? 'Sekarang' : exp.endDate}
+                        {exp.startDate} - {exp.current ? labels.present : exp.endDate}
                       </span>
                     </div>
                     <div className="text-xs font-semibold text-slate-600">
@@ -210,6 +225,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
             sections={customSections}
             accentColor={accentColor}
             variant="visual-executive"
+            language={draft.resumeLanguage}
           />
         </div>
 

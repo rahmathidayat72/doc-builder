@@ -1,7 +1,7 @@
 {
   "project": "Doc-builder",
   "description": "Log riwayat percakapan interaktif pengguna dan AI",
-  "last_updated": "2026-10-21",
+  "last_updated": "2026-10-22",
   "conversations": [
     {
       "turn": 1,
@@ -822,6 +822,76 @@
       "turn": 82,
       "role": "assistant",
       "message": "Memperbaiki akar 401 akibat mismatch hostname localhost/127.0.0.1 pada cookie SameSite=Lax; menambahkan regression test resolver URL; memverifikasi 77/77 Vitest, 65/65 Pytest, Ruff PASS, build PASS, lint 0 error dengan 4 warning existing, secret scan 135 file tanpa temuan, dan distribusi 5/5 PASS; lalu menyiapkan seluruh perubahan Phase 7–9, UI, security, distribusi, impor, dan hotfix untuk satu commit serta push ke origin/main."
+    },
+    {
+      "turn": 83,
+      "role": "user",
+      "message": "perbaiaki kategori skillnya jangan di buat segmented buat general saja"
+    },
+    {
+      "turn": 83,
+      "role": "assistant",
+      "message": "Melakukan audit ketergantungan kategori skill pada form, schema draf, parser impor, renderer template, ATS, dan ekspor. Mengajukan rencana IMPROVEMENT-SKILLS-001 untuk menghapus dropdown segmentasi kategori dari UI, menetapkan default kategori ke General, mempertahankan field internal agar draf lama tetap kompatibel, dan memvalidasi regresi."
+    },
+    {
+      "turn": 84,
+      "role": "user",
+      "message": "eksekusi"
+    },
+    {
+      "turn": 84,
+      "role": "assistant",
+      "message": "Mengeksekusi IMPROVEMENT-SKILLS-001: menghapus dropdown kategori di SkillsForm.tsx; skill baru otomatis berkategori General; menyesuaikan default SkillItemSchema dan parser resume ke General; memperbarui unit test; serta memverifikasi 77/77 Vitest, 65/65 Pytest, Ruff PASS, lint 0 error dengan 4 warning existing, build produksi sukses, dan 5/5 verifikasi distribusi PASS."
+    },
+    {
+      "turn": 85,
+      "role": "user",
+      "message": "Menanyakan penyebab error 'Failed to fetch' pada modal impor CV."
+    },
+    {
+      "turn": 85,
+      "role": "assistant",
+      "message": "Menjelaskan akar penyebab error: port 8000 tidak aktif sehingga request ditolak di level browser. Menawarkan Opsi 1 (skrip peluncur 1-klik start-docbuilder.bat) dan Opsi 2 (terminal manual uvicorn)."
+    },
+    {
+      "turn": 86,
+      "role": "user",
+      "message": "Memilih opsi 1 dan meminta penanganan preventif agar tidak terjadi error serupa lagi."
+    },
+    {
+      "turn": 86,
+      "role": "assistant",
+      "message": "Mengeksekusi HOTFIX-LAUNCHER-001: memperbaiki ModuleNotFoundError pada launcher start-docbuilder (.bat, .ps1, .sh) dengan menyuntikkan PYTHONPATH dan sys.path backend; membungkus error network fetch di apiClient.ts dan ImportResumeModal.tsx menjadi pesan instruktif; menjalankan server backend di port 8000 (HTTP 200); dan memverifikasi 78/78 Vitest, 65/65 Pytest, Ruff PASS, lint 0 error, build produksi sukses, serta 5/5 verifikasi distribusi PASS."
+    },
+    {
+      "turn": 87,
+      "role": "user",
+      "message": "Meminta penambahan opsi dwibahasa (Indonesia dan English) pada CV agar pengguna dapat memilih bahasa label bawaan untuk pratinjau, cetak, DOCX, dan PDF tanpa mengubah isi teks yang diinputkan."
+    },
+    {
+      "turn": 87,
+      "role": "assistant",
+      "message": "Mengeksekusi IMPROVEMENT-CV-LANGUAGE-001: menambahkan ResumeLanguageSchema ('id' | 'en' default 'id') di resume.ts; membuat kamus getResumeLabels di frontend/src/templates/resumeLabels.ts; memperbarui 4 template (AtsClean, AtsModern, VisualExecutive, VisualMinimal) dan CustomSectionsBlock; menyematkan toggle ID/EN di Navbar desktop dan mobile; menyinkronkan RESUME_LABELS di backend docx_generator.py; memverifikasi seluruh test suite (80/80 Vitest, 66/66 Pytest, Ruff PASS, lint 0 error, build produksi PASS, dan verify_distribution 5/5 PASS)."
+    },
+    {
+      "turn": 88,
+      "role": "user",
+      "message": "Meminta perbaikan akurasi parser impor CV dan rendering template pratinjau: domain email (misal gmail.com) tidak boleh bocor menjadi website, alamat pada baris kontak majemuk harus diekstrak, bullet kotak/privat PDF harus dibersihkan dan tidak boleh menjadi jabatan/perusahaan berikutnya, header Jabatan — Perusahaan | Periode harus dipetakan presisi, serta kelulusan tahun tunggal (Lulus 2015) harus dipetakan ke endDate dan institusi nyata tanpa minus gantung di pratinjau."
+    },
+    {
+      "turn": 88,
+      "role": "assistant",
+      "message": "Menganalisis akar penyebab pada resume_parser.py, 4 template pratinjau, dan docx_generator.py; menyusun rencana eksekusi HOTFIX-PARSER-001; serta meminta persetujuan eksekusi."
+    },
+    {
+      "turn": 89,
+      "role": "user",
+      "message": "Oke eksekusi"
+    },
+    {
+      "turn": 89,
+      "role": "assistant",
+      "message": "Mengeksekusi HOTFIX-PARSER-001: memperbarui WEBSITE_REGEX dan menambahkan COMMON_EMAIL_DOMAINS; menambahkan pengurai alamat kontak berbasis delimiter | dan •; memperluas BULLET_PREFIX_REGEX untuk membersihkan bullet kotak dan privat PDF; mengosongkan antrean pending saat residual berisi Jabatan — Perusahaan; memetakan kelulusan tahun tunggal ke endDate dan membersihkan residual dari 'Lulus'; menambahkan inferensi jenjang SMA/SMK; memformat periode pendidikan tanpa minus gantung pada 4 template dan generator DOCX; serta memverifikasi 81/81 Vitest, 67/67 Pytest, Ruff PASS, build produksi PASS, dan 5/5 verifikasi rilis PASS."
     }
   ]
 }

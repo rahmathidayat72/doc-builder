@@ -9,7 +9,17 @@ import { LanguagesForm } from '../builder/LanguagesForm'
 import { ResumePreview } from '../preview/ResumePreview'
 import { DocxToPdfModal } from '../converter/DocxToPdfModal'
 import { PdfToDocxModal } from '../converter/PdfToDocxModal'
+import { PresentationConverterModal } from '../converter/PresentationConverterModal'
+import { SpreadsheetConverterModal } from '../converter/SpreadsheetConverterModal'
 import { PdfToolsModal } from '../pdf-tools/PdfToolsModal'
+import { PdfEditorModal } from '../pdf-tools/PdfEditorModal'
+import { PdfSignModal } from '../pdf-tools/PdfSignModal'
+import { PdfSecurityModal } from '../pdf-tools/PdfSecurityModal'
+import { PdfRepairModal } from '../pdf-tools/PdfRepairModal'
+import { PdfOcrModal } from '../pdf-tools/PdfOcrModal'
+import { PdfWatermarkModal } from '../pdf-tools/PdfWatermarkModal'
+import { PdfPageNumbersModal } from '../pdf-tools/PdfPageNumbersModal'
+import { PdfToMarkdownModal } from '../pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from '../image-tools/ImageResizeModal'
 import { type ResumeDraft, createEmptyResumeData } from '../../types/resume'
 
@@ -19,6 +29,7 @@ const dummyDraft: ResumeDraft = {
   templateId: 'ats-clean',
   colorTheme: '#4338ca',
   fontFamily: 'sans',
+  resumeLanguage: 'id',
   data: {
     ...createEmptyResumeData(),
     contact: {
@@ -97,16 +108,27 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
       <div>
         <DocxToPdfModal isOpen={true} onClose={vi.fn()} />
         <PdfToDocxModal isOpen={true} onClose={vi.fn()} />
+        <PresentationConverterModal isOpen={true} onClose={vi.fn()} />
+        <SpreadsheetConverterModal isOpen={true} onClose={vi.fn()} />
       </div>
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])
   })
 
-  it('PdfToolsModal & ImageResizeModal bebas pelanggaran aksesibilitas', async () => {
+  it('PdfToolsModal, PdfEditorModal, PdfSignModal, PdfSecurityModal, PdfRepairModal, PdfOcrModal, PdfWatermarkModal, PdfPageNumbersModal, PdfToMarkdownModal & ImageResizeModal bebas pelanggaran aksesibilitas', async () => {
     const { container } = render(
       <div>
         <PdfToolsModal isOpen={true} onClose={vi.fn()} />
+        <PdfEditorModal isOpen={true} onClose={vi.fn()} />
+        <PdfSignModal isOpen={true} onClose={vi.fn()} />
+        <PdfSecurityModal isOpen={true} onClose={vi.fn()} initialTab="unlock" />
+        <PdfSecurityModal isOpen={true} onClose={vi.fn()} initialTab="protect" />
+        <PdfRepairModal isOpen={true} onClose={vi.fn()} />
+        <PdfOcrModal isOpen={true} onClose={vi.fn()} />
+        <PdfWatermarkModal isOpen={true} onClose={vi.fn()} />
+        <PdfPageNumbersModal isOpen={true} onClose={vi.fn()} />
+        <PdfToMarkdownModal isOpen={true} onClose={vi.fn()} />
         <ImageResizeModal isOpen={true} onClose={vi.fn()} />
       </div>
     )

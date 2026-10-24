@@ -62,11 +62,21 @@ export async function apiFetch(
     headers.set('X-CSRF-Token', token)
   }
 
-  let res = await fetch(url, {
-    ...init,
-    headers,
-    credentials: 'include',
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...init,
+      headers,
+      credentials: 'include',
+    })
+  } catch (err: any) {
+    if (err instanceof TypeError || (err.message && err.message.toLowerCase().includes('fetch'))) {
+      throw new Error(
+        'Server backend lokal (port 8000) tidak terhubung. Jalankan start-docbuilder.bat untuk memulai server.'
+      )
+    }
+    throw err
+  }
 
   // ponytail: single retry on 401, add multi-stage refresh when session timeout policy added
   if (res.status === 401) {
@@ -81,8 +91,12 @@ export async function apiFetch(
         headers,
         credentials: 'include',
       })
-    } catch {
-      // fallback to original response
+    } catch (retryErr: any) {
+      if (retryErr instanceof TypeError || (retryErr.message && retryErr.message.toLowerCase().includes('fetch'))) {
+        throw new Error(
+          'Server backend lokal (port 8000) tidak terhubung. Jalankan start-docbuilder.bat untuk memulai server.'
+        )
+      }
     }
   }
 

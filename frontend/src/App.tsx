@@ -9,7 +9,23 @@ import { AtsScorePanel } from './components/ats/AtsScorePanel'
 import { JobMatchModal } from './components/ats/JobMatchModal'
 import { DocxToPdfModal } from './components/converter/DocxToPdfModal'
 import { PdfToDocxModal } from './components/converter/PdfToDocxModal'
+import {
+  PresentationConverterModal,
+  type PresentationTab
+} from './components/converter/PresentationConverterModal'
+import {
+  SpreadsheetConverterModal,
+  type SpreadsheetTab
+} from './components/converter/SpreadsheetConverterModal'
 import { PdfToolsModal } from './components/pdf-tools/PdfToolsModal'
+import { PdfEditorModal } from './components/pdf-tools/PdfEditorModal'
+import { PdfSignModal } from './components/pdf-tools/PdfSignModal'
+import { PdfSecurityModal, type SecurityTab } from './components/pdf-tools/PdfSecurityModal'
+import { PdfRepairModal } from './components/pdf-tools/PdfRepairModal'
+import { PdfOcrModal } from './components/pdf-tools/PdfOcrModal'
+import { PdfWatermarkModal } from './components/pdf-tools/PdfWatermarkModal'
+import { PdfPageNumbersModal } from './components/pdf-tools/PdfPageNumbersModal'
+import { PdfToMarkdownModal } from './components/pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from './components/image-tools/ImageResizeModal'
 import { ContactForm } from './components/builder/ContactForm'
 import { SummaryForm } from './components/builder/SummaryForm'
@@ -22,19 +38,30 @@ import { ResumePreview } from './components/preview/ResumePreview'
 import {
   User,
   FileText,
+  FileSpreadsheet,
+  Presentation,
   Briefcase,
   GraduationCap,
   Wrench,
   Languages,
   Eye,
   Edit3,
+  FileEdit,
+  PenTool,
   ShieldCheck,
   FileSearch,
   FileCode,
   Scissors,
+  Copy,
+  Archive,
+  Minimize2,
   Image as ImageIcon,
   ArrowRight,
-  Layers3
+  Layers3,
+  Unlock,
+  Shield,
+  Stamp,
+  Hash
 } from 'lucide-react'
 
 type ActiveSection =
@@ -77,7 +104,21 @@ export function App() {
   const [showJobMatchModal, setShowJobMatchModal] = useState(false)
   const [showConverterModal, setShowConverterModal] = useState(false)
   const [showPdfToDocxModal, setShowPdfToDocxModal] = useState(false)
+  const [showPresentationModal, setShowPresentationModal] = useState(false)
+  const [presentationTab, setPresentationTab] = useState<PresentationTab>('pptx2pdf')
+  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false)
+  const [spreadsheetTab, setSpreadsheetTab] = useState<SpreadsheetTab>('xlsx2pdf')
   const [showPdfToolsModal, setShowPdfToolsModal] = useState(false)
+  const [showPdfEditorModal, setShowPdfEditorModal] = useState(false)
+  const [showPdfSignModal, setShowPdfSignModal] = useState(false)
+  const [showPdfSecurityModal, setShowPdfSecurityModal] = useState(false)
+  const [showPdfRepairModal, setShowPdfRepairModal] = useState(false)
+  const [showPdfOcrModal, setShowPdfOcrModal] = useState(false)
+  const [showPdfWatermarkModal, setShowPdfWatermarkModal] = useState(false)
+  const [showPdfPageNumbersModal, setShowPdfPageNumbersModal] = useState(false)
+  const [showPdfToMarkdownModal, setShowPdfToMarkdownModal] = useState(false)
+  const [pdfSecurityTab, setPdfSecurityTab] = useState<SecurityTab>('unlock')
+  const [pdfToolsTab, setPdfToolsTab] = useState<'merge' | 'split' | 'compress' | 'img2pdf' | 'pdf2img'>('merge')
   const [showImageResizeModal, setShowImageResizeModal] = useState(false)
 
   // Inisialisasi sesi autentikasi lokal & CSRF token saat mount
@@ -162,6 +203,7 @@ export function App() {
         onUpdateTheme={colorTheme => updateMeta({ colorTheme })}
         onUpdateFont={fontFamily => updateMeta({ fontFamily })}
         onUpdateTemplate={templateId => updateMeta({ templateId })}
+        onUpdateLanguage={resumeLanguage => updateMeta({ resumeLanguage })}
         onExportDocx={handleExportDocx}
         onExportPdf={handleExportPdf}
         onOpenImportModal={() => setShowImportModal(true)}
@@ -374,12 +416,159 @@ export function App() {
               <p className="text-sm text-slate-500 mt-1">Konversi dan olah dokumen tanpa memenuhi layar editor CV.</p>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { title: 'DOCX ke PDF', desc: 'Konversi dokumen Word menjadi PDF.', icon: FileCode, iconClass: 'bg-indigo-50 text-indigo-600', action: () => setShowConverterModal(true) },
-                { title: 'PDF ke DOCX', desc: 'Rekonstruksi PDF menjadi dokumen Word.', icon: FileText, iconClass: 'bg-sky-50 text-sky-600', action: () => setShowPdfToDocxModal(true) },
-                { title: 'PDF Tools', desc: 'Gabung, pisah, dan konversi PDF/gambar.', icon: Scissors, iconClass: 'bg-violet-50 text-violet-600', action: () => setShowPdfToolsModal(true) },
-                { title: 'Resize Gambar', desc: 'Kompres gambar dan bersihkan metadata EXIF.', icon: ImageIcon, iconClass: 'bg-emerald-50 text-emerald-600', action: () => setShowImageResizeModal(true) },
+                {
+                  title: 'DOCX ke PDF',
+                  desc: 'Konversi dokumen Word menjadi PDF standar.',
+                  icon: FileCode,
+                  iconClass: 'bg-indigo-50 text-indigo-600',
+                  action: () => setShowConverterModal(true)
+                },
+                {
+                  title: 'PDF ke DOCX',
+                  desc: 'Rekonstruksi PDF menjadi dokumen Word yang dapat diedit.',
+                  icon: FileText,
+                  iconClass: 'bg-sky-50 text-sky-600',
+                  action: () => setShowPdfToDocxModal(true)
+                },
+                {
+                  title: 'PowerPoint & PDF',
+                  desc: 'Konversi PPTX/PPT ke PDF atau ubah PDF menjadi slide presentasi.',
+                  icon: Presentation,
+                  iconClass: 'bg-orange-50 text-orange-600',
+                  action: () => {
+                    setPresentationTab('pptx2pdf')
+                    setShowPresentationModal(true)
+                  }
+                },
+                {
+                  title: 'Excel & PDF',
+                  desc: 'Konversi XLSX/XLS ke PDF atau ekstrak tabel dokumen PDF ke Excel.',
+                  icon: FileSpreadsheet,
+                  iconClass: 'bg-emerald-50 text-emerald-600',
+                  action: () => {
+                    setSpreadsheetTab('xlsx2pdf')
+                    setShowSpreadsheetModal(true)
+                  }
+                },
+                {
+                  title: 'Merge Dokumen',
+                  desc: 'Gabungkan beberapa PDF, DOCX, dan gambar dengan urutan kustom.',
+                  icon: Copy,
+                  iconClass: 'bg-violet-50 text-violet-600',
+                  action: () => {
+                    setPdfToolsTab('merge')
+                    setShowPdfToolsModal(true)
+                  }
+                },
+                {
+                  title: 'Split PDF',
+                  desc: 'Ekstrak rentang halaman PDF menjadi beberapa PDF dalam arsip ZIP.',
+                  icon: Scissors,
+                  iconClass: 'bg-rose-50 text-rose-600',
+                  action: () => {
+                    setPdfToolsTab('split')
+                    setShowPdfToolsModal(true)
+                  }
+                },
+                {
+                  title: 'Kompres PDF',
+                  desc: 'Perkecil ukuran berkas PDF dengan 3 tingkat kompresi lokal aman.',
+                  icon: Minimize2,
+                  iconClass: 'bg-teal-50 text-teal-600',
+                  action: () => {
+                    setPdfToolsTab('compress')
+                    setShowPdfToolsModal(true)
+                  }
+                },
+                {
+                  title: 'PDF & Gambar',
+                  desc: 'Ubah gambar menjadi PDF atau ekstrak seluruh halaman PDF ke gambar.',
+                  icon: Archive,
+                  iconClass: 'bg-amber-50 text-amber-600',
+                  action: () => {
+                    setPdfToolsTab('img2pdf')
+                    setShowPdfToolsModal(true)
+                  }
+                },
+                {
+                  title: 'Resize Gambar',
+                  desc: 'Kompres ukuran gambar sesuai target KB/MB dan bersihkan metadata EXIF.',
+                  icon: ImageIcon,
+                  iconClass: 'bg-emerald-50 text-emerald-600',
+                  action: () => setShowImageResizeModal(true)
+                },
+                {
+                  title: 'Edit PDF',
+                  desc: 'Atur urutan, putar, hapus halaman, serta tambah teks & tanda tangan.',
+                  icon: FileEdit,
+                  iconClass: 'bg-indigo-50 text-indigo-600',
+                  action: () => setShowPdfEditorModal(true)
+                },
+                {
+                  title: 'Sign PDF',
+                  desc: 'Bubuhkan tanda tangan visual, paraf, nama, dan tanggal dengan drag & resize.',
+                  icon: PenTool,
+                  iconClass: 'bg-blue-50 text-blue-600',
+                  action: () => setShowPdfSignModal(true)
+                },
+                {
+                  title: 'Unlock PDF',
+                  desc: 'Hapus proteksi password pada dokumen PDF secara lokal, aman, dan tanpa batasan.',
+                  icon: Unlock,
+                  iconClass: 'bg-sky-50 text-sky-600',
+                  action: () => {
+                    setPdfSecurityTab('unlock')
+                    setShowPdfSecurityModal(true)
+                  }
+                },
+                {
+                  title: 'Protect PDF',
+                  desc: 'Enkripsi dokumen PDF dengan password AES-256 yang kuat sebelum dibagikan.',
+                  icon: Shield,
+                  iconClass: 'bg-indigo-50 text-indigo-600',
+                  action: () => {
+                    setPdfSecurityTab('protect')
+                    setShowPdfSecurityModal(true)
+                  }
+                },
+                {
+                  title: 'Repair PDF',
+                  desc: 'Pulihkan berkas PDF yang rusak dan selamatkan data di dalamnya secara lokal.',
+                  icon: Wrench,
+                  iconClass: 'bg-lime-50 text-lime-700',
+                  action: () => setShowPdfRepairModal(true)
+                },
+                {
+                  title: 'OCR PDF',
+                  desc: 'Ubah PDF hasil scan menjadi dokumen yang teksnya dapat dicari dan disalin.',
+                  icon: FileSearch,
+                  iconClass: 'bg-emerald-50 text-emerald-700',
+                  action: () => setShowPdfOcrModal(true)
+                },
+                {
+                  title: 'Watermark PDF',
+                  desc: 'Bubuhkan stempel teks atau logo transparan pada halaman dengan posisi dan rotasi kustom.',
+                  icon: Stamp,
+                  iconClass: 'bg-rose-50 text-rose-600',
+                  action: () => setShowPdfWatermarkModal(true)
+                },
+                {
+                  title: 'Nomor Halaman',
+                  desc: 'Sisipkan penomoran halaman otomatis dengan format angka, letak posisi, dan margin fleksibel.',
+                  icon: Hash,
+                  iconClass: 'bg-blue-50 text-blue-600',
+                  action: () => setShowPdfPageNumbersModal(true)
+                },
+                {
+                  title: 'PDF to Markdown',
+                  desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) lokal dengan mempertahankan heading, tabel, list & tautan.',
+                  icon: FileCode,
+                  iconClass: 'bg-purple-50 text-purple-600',
+                  isNew: true,
+                  action: () => setShowPdfToMarkdownModal(true)
+                },
               ].map(tool => {
                 const Icon = tool.icon
                 return (
@@ -387,9 +576,16 @@ export function App() {
                     key={tool.title}
                     type="button"
                     onClick={tool.action}
-                    className="group text-left p-5 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-indigo-300 hover:shadow-md transition min-h-48 flex flex-col"
+                    className="group text-left p-5 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-indigo-300 hover:shadow-md transition min-h-48 flex flex-col relative"
                   >
-                    <span className={`p-3 rounded-xl self-start ${tool.iconClass}`}><Icon className="w-6 h-6" /></span>
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`p-3 rounded-xl self-start ${tool.iconClass}`}><Icon className="w-6 h-6" /></span>
+                      {tool.isNew && (
+                        <span className="text-3xs font-extrabold uppercase px-2 py-0.5 bg-sky-100 text-sky-700 rounded-full border border-sky-200 tracking-wide">
+                          New!
+                        </span>
+                      )}
+                    </div>
                     <h2 className="text-base font-bold text-slate-900 mt-5">{tool.title}</h2>
                     <p className="text-xs leading-relaxed text-slate-500 mt-2 flex-1">{tool.desc}</p>
                     <span className="mt-4 text-xs font-bold text-indigo-600 flex items-center gap-1">Buka alat <ArrowRight className="w-4 h-4" /></span>
@@ -444,16 +640,80 @@ export function App() {
         onClose={() => setShowPdfToDocxModal(false)}
       />
 
+      {/* Modal Konversi PowerPoint & PDF */}
+      <PresentationConverterModal
+        isOpen={showPresentationModal}
+        onClose={() => setShowPresentationModal(false)}
+        initialTab={presentationTab}
+      />
+
+      {/* Modal Konversi Excel & PDF */}
+      <SpreadsheetConverterModal
+        isOpen={showSpreadsheetModal}
+        onClose={() => setShowSpreadsheetModal(false)}
+        initialTab={spreadsheetTab}
+      />
+
       {/* Modal PDF Tools */}
       <PdfToolsModal
         isOpen={showPdfToolsModal}
         onClose={() => setShowPdfToolsModal(false)}
+        initialTab={pdfToolsTab}
+      />
+
+      {/* Modal Editor PDF */}
+      <PdfEditorModal
+        isOpen={showPdfEditorModal}
+        onClose={() => setShowPdfEditorModal(false)}
+      />
+
+      {/* Modal Sign PDF */}
+      <PdfSignModal
+        isOpen={showPdfSignModal}
+        onClose={() => setShowPdfSignModal(false)}
       />
 
       {/* Modal Resize Gambar */}
       <ImageResizeModal
         isOpen={showImageResizeModal}
         onClose={() => setShowImageResizeModal(false)}
+      />
+
+      {/* Modal Keamanan PDF (Unlock & Protect) */}
+      <PdfSecurityModal
+        isOpen={showPdfSecurityModal}
+        onClose={() => setShowPdfSecurityModal(false)}
+        initialTab={pdfSecurityTab}
+      />
+
+      {/* Modal Repair PDF */}
+      <PdfRepairModal
+        isOpen={showPdfRepairModal}
+        onClose={() => setShowPdfRepairModal(false)}
+      />
+
+      {/* Modal OCR PDF */}
+      <PdfOcrModal
+        isOpen={showPdfOcrModal}
+        onClose={() => setShowPdfOcrModal(false)}
+      />
+
+      {/* Modal Watermark PDF */}
+      <PdfWatermarkModal
+        isOpen={showPdfWatermarkModal}
+        onClose={() => setShowPdfWatermarkModal(false)}
+      />
+
+      {/* Modal Nomor Halaman PDF */}
+      <PdfPageNumbersModal
+        isOpen={showPdfPageNumbersModal}
+        onClose={() => setShowPdfPageNumbersModal(false)}
+      />
+
+      {/* Modal PDF to Markdown */}
+      <PdfToMarkdownModal
+        isOpen={showPdfToMarkdownModal}
+        onClose={() => setShowPdfToMarkdownModal(false)}
       />
     </div>
   )

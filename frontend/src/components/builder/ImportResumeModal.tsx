@@ -99,7 +99,14 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       }
       setParsedResult(await response.json())
     } catch (error: any) {
-      setErrorMessage(error.message || 'Gagal mem-parsing berkas CV.')
+      const msg = error?.message || ''
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
+        setErrorMessage(
+          'Server backend lokal (port 8000) tidak terhubung. Jalankan start-docbuilder.bat lalu coba lagi.'
+        )
+      } else {
+        setErrorMessage(msg || 'Gagal mem-parsing berkas CV.')
+      }
     } finally {
       setIsLoading(false)
     }

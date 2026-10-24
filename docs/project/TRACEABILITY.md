@@ -22,6 +22,10 @@
 | NFR-SEC-001 | NFR-SEC-001 | DEC-005 (Auth/Origin) | Phase 02 / TASK-2.2 | Security regression test | Loopback & CSRF test PASS |
 | NFR-COMP-002 | NFR-COMP-002 | ARCH-03 | Phase 08 / TASK-8.1 | Playwright multi-browser | 4 Browser matrix PASS |
 | OBJ-005 | KPI-005 | ARCH-All | Phase 09 / TASK-9.1 | UAT 10 pengguna uji | UAT sign-off sheet |
+| BUS-011 | FR-027, FR-028 | DEC-007 (PyMuPDF AES-256) | post-release / FEATURE-PDF-SECURITY-001 | Unit & Integration Test (protect & unlock roundtrip, signature reject, password validation) | Pytest 38/38 & Vitest 150/150 PASS |
+| BUS-012 | FR-029, FR-030 | DEC-008 (PyMuPDF Repair & OCR) | post-release / FEATURE-PDF-REPAIR-OCR-001 | Unit & Integration Test (reconstruct xref, corrupt salvage, OCR status & searchable generation) | Pytest 41/41 & Vitest 162/162 PASS |
+| BUS-013 | FR-031, FR-032 | DEC-009 (Watermark & Page Numbers) | post-release / FEATURE-PDF-WATERMARK-PAGENO-001 | Unit & Integration Test (text/image watermark, 3x3/mosaic grid, numbering formats, skip cover) | Pytest 44/44 & Vitest 173/173 PASS |
+| BUS-014 | FR-033 | DEC-010 (PDF to Markdown) | post-release / FEATURE-PDF-TO-MARKDOWN-001 | Unit & Integration Test (markdown extraction, headings/lists/tables, target pages, copy & download) | Pytest 45/45 & Vitest 179/179 PASS |
 
 ## 2. Security Threat & Control Traceability
 

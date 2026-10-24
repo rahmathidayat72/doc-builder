@@ -11,6 +11,7 @@ describe('JobMatchModal & Client-Side Job Matching Suite', () => {
     templateId: 'ats-clean',
     colorTheme: '#1e293b',
     fontFamily: 'sans',
+    resumeLanguage: 'id',
     data: {
       ...createEmptyResumeData(),
       contact: {

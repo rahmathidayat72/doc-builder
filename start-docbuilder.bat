@@ -34,5 +34,6 @@ start "" cmd /c "timeout /t 2 /nobreak >nul && start http://127.0.0.1:8000"
 echo [INFO] Menjalankan backend server pada http://127.0.0.1:8000...
 echo [INFO] Tekan CTRL+C untuk menghentikan server.
 echo.
+set "PYTHONPATH=%~dp0backend;%PYTHONPATH%"
 "%PYTHON_EXE%" -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 pause

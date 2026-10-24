@@ -315,12 +315,23 @@ export function evaluateAtsClientFallback(draft: ResumeDraft): AtsAnalysisResult
  */
 export async function analyzeAtsStructure(draft: ResumeDraft): Promise<AtsAnalysisResult> {
   try {
+    const sanitizedDraft = {
+      ...draft,
+      data: {
+        ...draft.data,
+        contact: {
+          ...draft.data.contact,
+          photoUrl: undefined
+        }
+      }
+    }
+
     const response = await apiFetch('/api/ats/analyze-structure', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(draft)
+      body: JSON.stringify(sanitizedDraft)
     })
 
     if (response.ok) {

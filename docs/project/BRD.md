@@ -65,13 +65,17 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 - **BUS-008:** Kepemilikan dan kendali data dokumen sepenuhnya berada di tangan pengguna tanpa transfer data eksternal.
 - **BUS-009:** Sistem berjalan pada arsitektur web lokal yang diaktifkan dengan script start sederhana tanpa konfigurasi manual rumit.
 - **BUS-010:** Antarmuka responsif untuk desktop dan mobile web, dengan pemrosesan dokumen dioptimalkan pada desktop.
+- **BUS-011:** Sistem menyediakan utilitas keamanan dokumen PDF lokal untuk memproteksi (enkripsi AES-256 dengan password kuat) dan membuka proteksi (dekripsi dengan password yang sah) secara privat tanpa server pihak ketiga.
+- **BUS-012:** Sistem menyediakan utilitas pemulihan dokumen PDF rusak (reconstruct xref, perbaikan trailer, dan penyelamatan stream halaman) serta pengenalan karakter dokumen hasil scan (OCR PDF) secara lokal dengan deteksi otomatis ketersediaan Tesseract OCR di host.
+- **BUS-013:** Sistem menyediakan utilitas pembubuhan stempel cap air (Watermark teks & logo gambar transparan dengan kontrol rotasi dan posisi 3x3/mosaic) serta penomoran halaman otomatis (Page Numbers dengan format kustom, posisi 6 titik, margin, dan pengecualian sampul) secara lokal offline.
+- **BUS-014:** Sistem menyediakan utilitas konversi berkas PDF menjadi format Markdown (.md) terstruktur secara lokal offline dengan mempertahankan struktur heading, list, tabel, dan tautan untuk integrasi LLM dan catatan digital.
 
 ## 9. Business Rules (BRULE)
 - **BRULE-001:** Batas ukuran file maksimum yang diizinkan untuk diproses adalah 25 MB per berkas.
 - **BRULE-002:** Sistem hanya memproses satu pekerjaan konversi aktif pada satu waktu (concurrency limit = 1).
 - **BRULE-003:** Seluruh berkas temporer pada backend lokal wajib dihapus segera setelah diserahkan atau maksimal TTL 5 menit.
 - **BRULE-004:** Draft lokal disimpan di perangkat pengguna sampai dihapus secara eksplisit atau melalui mode privat.
-- **BRULE-005:** Sistem wajib menolak dokumen yang dilindungi password/enkripsi pada rilis MVP.
+- **BRULE-005:** Sistem mendukung pembukaan proteksi PDF berpassword yang sah dan pemproteksian berkas PDF via enkripsi AES-256 lokal; berkas terenkripsi tetap ditolak pada modul konversi format hingga dibuka terlebih dahulu. Berkas bertanda tangan digital ditolak pada modul proteksi & buka proteksi untuk mencegah perusakan keabsahan tanda tangan.
 - **BRULE-006:** Rekomendasi ATS tidak boleh mengubah data CV secara otomatis dan wajib menampilkan disclaimer bahwa skor bukan jaminan lolos seleksi.
 - **BRULE-007:** Input lowongan kerja hanya diizinkan melalui penempelan teks langsung atau pengunggahan file dokumen (PDF/DOCX).
 - **BRULE-008:** Hak cipta template dimiliki aplikasi, sedangkan isi dan hak cipta dokumen output sepenuhnya milik pengguna.

@@ -1,9 +1,89 @@
+import base64
 import io
+import re
 from typing import Any
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
+from PIL import Image
+
+MAX_PHOTO_BASE64_BYTES = 5 * 1024 * 1024  # 5 MB
+ALLOWED_PHOTO_FORMATS = {"JPEG", "PNG", "WEBP"}
+MAX_PHOTO_PIXELS = 10_000_000  # decompression bomb defense
+
+
+def parse_and_validate_photo(photo_url: str) -> io.BytesIO:
+    """Memvalidasi dan mengonversi Base64 Data URL foto menjadi stream JPEG aman."""
+    if not isinstance(photo_url, str) or not photo_url.strip():
+        raise ValueError("URL foto profil kosong.")
+
+    pattern = r"^data:image/(jpeg|jpg|png|webp);base64,(.+)$"
+    match = re.match(pattern, photo_url, re.IGNORECASE | re.DOTALL)
+    if not match:
+        raise ValueError("Format URL foto profil tidak valid. Harus data URL base64.")
+
+    b64_data = match.group(2)
+    if len(b64_data) > MAX_PHOTO_BASE64_BYTES:
+        raise ValueError("Ukuran data foto profil melebihi batas maksimal.")
+
+    try:
+        raw_bytes = base64.b64decode(b64_data, validate=True)
+    except Exception as e:
+        raise ValueError("Gagal membaca enkoding Base64 foto.") from e
+
+    try:
+        stream = io.BytesIO(raw_bytes)
+        img = Image.open(stream)
+        img.load()
+
+        if img.format not in ALLOWED_PHOTO_FORMATS and img.format != "MPO":
+            raise ValueError(f"Format gambar {img.format} tidak didukung.")
+
+        w, h = img.size
+        if w * h > MAX_PHOTO_PIXELS:
+            raise ValueError("Dimensi gambar foto profil melebihi batas keselamatan.")
+
+        rgb_img = img.convert("RGB")
+        out_stream = io.BytesIO()
+        rgb_img.save(out_stream, format="JPEG", quality=90)
+        out_stream.seek(0)
+        return out_stream
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Gambar foto profil tidak dapat diproses: {e}") from e
+
+RESUME_LABELS = {
+    "id": {
+        "full_name": "Nama Lengkap",
+        "summary": "Ringkasan Profesional",
+        "experience": "Pengalaman Kerja",
+        "job_title": "Jabatan",
+        "present": "Sekarang",
+        "education": "Pendidikan",
+        "institution": "Universitas",
+        "in_field": "dalam",
+        "gpa": "IPK",
+        "skills": "Keahlian & Kompetensi",
+        "languages": "Kemampuan Bahasa",
+        "custom_default": "Bagian Tambahan",
+    },
+    "en": {
+        "full_name": "Full Name",
+        "summary": "Professional Summary",
+        "experience": "Work Experience",
+        "job_title": "Position",
+        "present": "Present",
+        "education": "Education",
+        "institution": "University",
+        "in_field": "in",
+        "gpa": "GPA",
+        "skills": "Skills & Competencies",
+        "languages": "Language Proficiency",
+        "custom_default": "Additional Section",
+    },
+}
 
 
 def parse_color_hex(hex_str: str) -> RGBColor:
@@ -46,6 +126,8 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
     color_theme = resume.get("colorTheme", "#1e293b")
     accent_rgb = parse_color_hex(color_theme)
     font_family = resume.get("fontFamily", "sans")
+    lang = resume.get("resumeLanguage", "id")
+    labels = RESUME_LABELS.get(lang, RESUME_LABELS["id"])
 
     primary_font = "Calibri"
     if font_family == "serif":
@@ -60,10 +142,21 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
     font_normal.size = Pt(10)
     font_normal.color.rgb = RGBColor(51, 65, 85)
 
-    # 1. HEADER NAMA LENGKAP
+    # 1. HEADER NAMA LENGKAP & FOTO PROFIL
+    use_photo = bool(contact.get("usePhoto"))
+    photo_url = contact.get("photoUrl")
+    if use_photo and photo_url and photo_url.strip():
+        photo_stream = parse_and_validate_photo(photo_url)
+        p_photo = doc.add_paragraph()
+        p_photo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_photo.paragraph_format.space_before = Pt(0)
+        p_photo.paragraph_format.space_after = Pt(4)
+        run_photo = p_photo.add_run()
+        run_photo.add_picture(photo_stream, width=Inches(1.1))
+
     p_name = doc.add_paragraph()
     p_name.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_name = p_name.add_run(contact.get("fullName", "Nama Lengkap").upper())
+    run_name = p_name.add_run(contact.get("fullName", labels["full_name"]).upper())
     run_name.bold = True
     run_name.font.size = Pt(20)
     run_name.font.color.rgb = accent_rgb
@@ -103,7 +196,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
 
     # 2. RINGKASAN PROFESIONAL
     if summary and summary.strip():
-        add_section_heading("Ringkasan Profesional")
+        add_section_heading(labels["summary"])
         p_sum = doc.add_paragraph()
         run_sum = p_sum.add_run(summary.strip())
         run_sum.font.size = Pt(9.5)
@@ -111,18 +204,18 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
 
     # 3. PENGALAMAN KERJA
     if experiences:
-        add_section_heading("Pengalaman Kerja")
+        add_section_heading(labels["experience"])
         for exp in experiences:
             p_job = doc.add_paragraph()
             p_job.paragraph_format.space_before = Pt(4)
             p_job.paragraph_format.space_after = Pt(1)
 
             # Posisi & Periode
-            run_title = p_job.add_run(exp.get("jobTitle", "Jabatan"))
+            run_title = p_job.add_run(exp.get("jobTitle", labels["job_title"]))
             run_title.bold = True
             run_title.font.size = Pt(10)
 
-            end_date = "Sekarang" if exp.get("current") else exp.get("endDate", "")
+            end_date = labels["present"] if exp.get("current") else exp.get("endDate", "")
             period = f"{exp.get('startDate', '')} - {end_date}"
             if period.strip() != "-":
                 run_period = p_job.add_run(f"\t{period}")
@@ -156,18 +249,28 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
 
     # 4. PENDIDIKAN
     if education:
-        add_section_heading("Pendidikan")
+        add_section_heading(labels["education"])
         for edu in education:
             p_edu = doc.add_paragraph()
             p_edu.paragraph_format.space_before = Pt(4)
             p_edu.paragraph_format.space_after = Pt(1)
 
-            run_school = p_edu.add_run(edu.get("institution", "Universitas"))
+            run_school = p_edu.add_run(edu.get("institution", labels["institution"]))
             run_school.bold = True
             run_school.font.size = Pt(10)
 
-            edu_period = f"{edu.get('startDate', '')} - {edu.get('endDate', '')}"
-            if edu_period.strip() != "-":
+            start_date = edu.get("startDate", "").strip()
+            end_date = edu.get("endDate", "").strip()
+            if start_date and end_date:
+                edu_period = f"{start_date} - {end_date}"
+            elif end_date:
+                edu_period = end_date
+            elif start_date:
+                edu_period = start_date
+            else:
+                edu_period = ""
+
+            if edu_period:
                 run_edu_period = p_edu.add_run(f"\t{edu_period}")
                 run_edu_period.font.size = Pt(9)
                 run_edu_period.font.color.rgb = RGBColor(100, 116, 139)
@@ -176,9 +279,9 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
             if edu.get("degree"):
                 details.append(edu.get("degree"))
             if edu.get("fieldOfStudy"):
-                details.append(f"dalam {edu.get('fieldOfStudy')}")
+                details.append(f"{labels['in_field']} {edu.get('fieldOfStudy')}")
             if edu.get("gpa"):
-                details.append(f"IPK: {edu.get('gpa')}")
+                details.append(f"{labels['gpa']}: {edu.get('gpa')}")
 
             if details:
                 p_deg = doc.add_paragraph()
@@ -189,7 +292,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
 
     # 5. KEAHLIAN TEKNIS
     if skills:
-        add_section_heading("Keahlian & Kompetensi")
+        add_section_heading(labels["skills"])
         p_sk = doc.add_paragraph()
         p_sk.paragraph_format.space_after = Pt(4)
         skill_names = [s.get("name", "") for s in skills if s.get("name")]
@@ -198,7 +301,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
 
     # 6. KEMAMPUAN BAHASA
     if languages:
-        add_section_heading("Kemampuan Bahasa")
+        add_section_heading(labels["languages"])
         p_lang = doc.add_paragraph()
         p_lang.paragraph_format.space_after = Pt(4)
         lang_strings = [
@@ -223,7 +326,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
         if not section_title and not visible_items:
             continue
 
-        add_section_heading(section_title or "Bagian Tambahan")
+        add_section_heading(section_title or labels["custom_default"])
         for item in visible_items:
             title = item.get("title", "").strip()
             subtitle = item.get("subtitle", "").strip()

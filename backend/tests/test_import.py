@@ -93,6 +93,7 @@ def test_parse_resume_document_from_docx():
     assert "siti.nurhaliza@example.id" in data["contact"]["email"]
     assert len(data["experiences"]) >= 1
     assert len(data["skills"]) >= 1
+    assert data["skills"][0]["category"] == "General"
 
 
 def test_parse_docx_preserves_table_order_and_extra_sections():
@@ -162,6 +163,63 @@ def test_parse_multiline_experience_and_education():
     assert education["endDate"] == "2019"
     assert "S1" in education["degree"]
     assert education["gpa"] == "3.75 / 4.00"
+
+
+def test_parse_resume_with_glyph_bullets_and_graduation_single_year():
+    """Parser mengenali bullet kotak/PDF privat, header majemuk, dan tahun kelulusan tunggal."""
+    doc = Document()
+    doc.add_paragraph("Rasindu Pratama")
+    doc.add_paragraph("081234567890 • rasindu@gmail.com • Cileungsi, Bogor")
+    doc.add_paragraph("PENGALAMAN KERJA")
+    doc.add_paragraph(
+        "Staf Administrasi Gudang — PT Sumber Alfaria Trijaya Tbk | Mei 2021 - Sekarang"
+    )
+    doc.add_paragraph("□ Mengelola data stok barang gudang masuk dan keluar secara sistematis")
+    doc.add_paragraph("\uf0b7 Membuat laporan rekonsiliasi stok harian dan bulanan")
+    doc.add_paragraph("Kasir — PT Indomarco Prismatama | Jan 2019 - Apr 2021")
+    doc.add_paragraph("- Melayani transaksi pembayaran pelanggan dengan cepat dan ramah")
+    doc.add_paragraph("PENDIDIKAN")
+    doc.add_paragraph("SMA Negeri 1 Cileungsi")
+    doc.add_paragraph("Jurusan IPA")
+    doc.add_paragraph("Lulus 2015")
+
+    output = io.BytesIO()
+    doc.save(output)
+    result = parse_resume_document(output.getvalue(), "resume_rasindu.docx")
+    assert result["success"] is True
+
+    contact = result["data"]["contact"]
+    assert contact["fullName"] == "Rasindu Pratama"
+    assert contact["email"] == "rasindu@gmail.com"
+    assert contact["phone"] == "081234567890"
+    assert "Cileungsi" in contact["location"]
+    # Email domain tidak boleh bocor menjadi website
+    assert contact["website"] == ""
+
+    experiences = result["data"]["experiences"]
+    assert len(experiences) == 2
+    assert experiences[0]["jobTitle"] == "Staf Administrasi Gudang"
+    assert experiences[0]["company"] == "PT Sumber Alfaria Trijaya Tbk"
+    assert experiences[0]["current"] is True
+    assert experiences[0]["startDate"].lower() == "mei 2021"
+    assert "Mengelola data stok barang" in experiences[0]["description"]
+    assert "Membuat laporan rekonsiliasi" in experiences[0]["description"]
+    assert "□" not in experiences[0]["description"]
+    assert "\uf0b7" not in experiences[0]["description"]
+
+    assert experiences[1]["jobTitle"] == "Kasir"
+    assert experiences[1]["company"] == "PT Indomarco Prismatama"
+    assert experiences[1]["startDate"].lower() == "jan 2019"
+    assert experiences[1]["endDate"].lower() == "apr 2021"
+    assert "Melayani transaksi" in experiences[1]["description"]
+
+    education = result["data"]["education"]
+    assert len(education) == 1
+    assert education[0]["institution"] == "SMA Negeri 1 Cileungsi"
+    assert education[0]["degree"] == "SMA"
+    assert education[0]["fieldOfStudy"] == "IPA"
+    assert education[0]["startDate"] == ""
+    assert education[0]["endDate"] == "2015"
 
 
 def test_import_resume_endpoint_requires_auth():

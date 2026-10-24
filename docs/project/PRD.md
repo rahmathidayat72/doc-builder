@@ -33,11 +33,18 @@
 - **FR-010:** Pengguna dapat memasukkan deskripsi lowongan melalui penempelan teks atau pengunggahan file (PDF/DOCX).
 - **FR-011:** Sistem dapat mengekspor ringkasan laporan analisis ATS dan rekomendasi perbaikan ke dalam format PDF.
 
-### 4.3 Modul Konversi Dokumen
+### 4.3 Modul Konversi Dokumen & Keamanan PDF
 - **FR-012:** Sistem menyediakan konversi dua arah DOCX ke PDF dan PDF ke DOCX untuk file berukuran hingga 25 MB dengan indikator progress dan tombol pembatalan.
 - **FR-013:** Sistem menyediakan fitur PDF Tools: Merge (menggabungkan file PDF dan gambar) serta Split (memisahkan PDF berdasarkan nomor/rentang halaman).
 - **FR-014:** Sistem menyediakan fitur konversi PDF ke gambar (JPG/PNG) dengan resolusi DPI yang dapat dikonfigurasi.
 - **FR-015:** Sistem menyediakan fitur konversi gambar ke PDF dengan pengaturan ukuran halaman (A4, Letter) dan orientasi (Portrait, Landscape).
+- **FR-027:** Sistem menyediakan fitur Protect PDF berbasis enkripsi AES-256 lokal menggunakan satu password buka dokumen yang kuat (12-40 byte UTF-8, huruf besar, kecil, angka, simbol), menolak berkas bertanda tangan digital dan berkas yang sudah terenkripsi, menghasilkan berkas `<nama>_protected.pdf`.
+- **FR-028:** Sistem menyediakan fitur Unlock PDF berbasis dekripsi lokal menggunakan password yang sah, menolak berkas yang tidak terenkripsi atau berkas bertanda tangan digital, menghasilkan salinan bebas proteksi `<nama>_unlocked.pdf`.
+- **FR-029:** Sistem menyediakan fitur Repair PDF untuk merekonstruksi tabel xref rusak, menambal trailer cacat, menyelamatkan stream objek/halaman yang terputus, dan membuang elemen korup via sanitasi PyMuPDF, menghasilkan berkas `<nama>_repaired.pdf`.
+- **FR-030:** Sistem menyediakan fitur OCR PDF untuk menyisipkan lapisan teks transparan (searchable layer) di bawah gambar pindaian menggunakan engine Tesseract lokal (pilihan bahasa ind, eng, ind+eng) dengan deteksi status ketersediaan dan panduan instalasi edukatif, menghasilkan berkas `<nama>_searchable.pdf`.
+- **FR-031:** Sistem menyediakan fitur Watermark PDF untuk membubuhkan stempel teks atau logo gambar dengan opasitas (0.1–1.0), rotasi sudut arbitrary (-90° s/d 90°), grid posisi 3x3 dan pola berulang (mosaic), serta seleksi target halaman kustom, menghasilkan berkas `<nama>_watermarked.pdf`.
+- **FR-032:** Sistem menyediakan fitur Page Numbers PDF untuk menyisipkan penomoran halaman otomatis dengan variasi format (`{n}`, `{n}/{total}`, `Halaman {n} dari {total}`, `Page {n} of {total}`), letak posisi 6 titik, jarak margin tepi dinamis, pengecualian halaman sampul (mulai dari halaman X), dan penomoran awal Y, menghasilkan berkas `<nama>_numbered.pdf`.
+- **FR-033:** Sistem menyediakan fitur PDF to Markdown untuk mengekstrak dokumen PDF menjadi berkas Markdown (.md) lokal dengan mempertahankan heading, tabel, list, dan link, dilengkapi panggung pratinjau teks Markdown langsung, tombol salin ke clipboard, dan opsi rentang halaman kustom.
 
 ### 4.4 Modul Utilitas Gambar
 - **FR-016:** Sistem menyediakan fitur resize foto yang dapat mengoptimalkan ukuran berkas JPG/PNG menuju target spesifik (KB/MB) secara otomatis dan menghapus metadata EXIF/GPS secara default.

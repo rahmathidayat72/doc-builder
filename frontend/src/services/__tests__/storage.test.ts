@@ -14,6 +14,7 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
     templateId: 'ats-clean',
     colorTheme: '#1e293b',
     fontFamily: 'sans',
+    resumeLanguage: 'id',
     data: {
       ...createEmptyResumeData(),
       contact: {
@@ -124,6 +125,7 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
       templateId: 'ats-clean',
       colorTheme: '#1e293b',
       fontFamily: 'sans',
+      resumeLanguage: 'id',
       data: createEmptyResumeData(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -143,6 +145,7 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
       templateId: 'ats-clean',
       colorTheme: '#1e293b',
       fontFamily: 'sans',
+      resumeLanguage: 'id',
       data: {
         ...createEmptyResumeData(),
         experiences: [

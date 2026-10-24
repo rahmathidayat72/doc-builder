@@ -49,6 +49,7 @@ describe('CV Builder Form Components & Live Preview', () => {
     render(<SkillsForm skills={skills} onChange={mockChange} />)
 
     expect(screen.getByText('TypeScript')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Kategori Keahlian')).not.toBeInTheDocument()
 
     const inputSkill = screen.getByTestId('input-skill')
     fireEvent.change(inputSkill, { target: { value: 'FastAPI' } })
@@ -58,7 +59,7 @@ describe('CV Builder Form Components & Live Preview', () => {
 
     expect(mockChange).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'FastAPI', category: 'Technical' })
+        expect.objectContaining({ name: 'FastAPI', category: 'General' })
       ])
     )
   })
@@ -70,6 +71,7 @@ describe('CV Builder Form Components & Live Preview', () => {
       templateId: 'ats-clean',
       colorTheme: '#4338ca',
       fontFamily: 'sans',
+      resumeLanguage: 'id',
       data: {
         ...createEmptyResumeData(),
         contact: {
@@ -92,5 +94,54 @@ describe('CV Builder Form Components & Live Preview', () => {
     expect(screen.getByTestId('preview-fullname')).toHaveTextContent('Kartini Pertiwi')
     expect(screen.getByText('kartini@example.com')).toBeInTheDocument()
     expect(screen.getByText('Pendidik dan aktivis literasi digital.')).toBeInTheDocument()
+  })
+
+  it('ContactForm mengaktifkan toggle foto dan memicu onChange', () => {
+    const mockChange = vi.fn()
+    const contact = {
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      phone: '',
+      location: '',
+      linkedin: '',
+      website: '',
+      usePhoto: false,
+      photoUrl: ''
+    }
+
+    render(<ContactForm contact={contact} onChange={mockChange} />)
+
+    const toggle = screen.getByTestId('toggle-use-photo') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+    expect(screen.queryByTestId('btn-upload-photo')).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+    expect(mockChange).toHaveBeenCalledWith(
+      expect.objectContaining({ usePhoto: true })
+    )
+  })
+
+  it('ContactForm menampilkan pratinjau foto dan dapat menghapusnya', () => {
+    const mockChange = vi.fn()
+    const contact = {
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      phone: '',
+      location: '',
+      linkedin: '',
+      website: '',
+      usePhoto: true,
+      photoUrl: 'data:image/jpeg;base64,samplephotodata'
+    }
+
+    render(<ContactForm contact={contact} onChange={mockChange} />)
+
+    expect(screen.getByTestId('photo-preview')).toBeInTheDocument()
+    const btnRemove = screen.getByTestId('btn-remove-photo')
+
+    fireEvent.click(btnRemove)
+    expect(mockChange).toHaveBeenCalledWith(
+      expect.objectContaining({ usePhoto: false, photoUrl: '' })
+    )
   })
 })

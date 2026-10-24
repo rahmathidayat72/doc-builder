@@ -32,6 +32,20 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["*"],
+        expose_headers=[
+            "Content-Disposition",
+            "X-Job-ID",
+            "X-Compression-Applied",
+            "X-Original-Size",
+            "X-Output-Size",
+            "X-Pages-Recovered",
+            "X-OCR-Pages",
+            "X-Watermarked-Pages",
+            "X-Numbered-Pages",
+            "X-Total-Pages",
+            "X-Converted-Pages",
+            "X-Markdown-Length",
+        ],
     )
 
     app.include_router(health_router, prefix="/api")

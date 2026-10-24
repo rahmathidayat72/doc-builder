@@ -11,6 +11,7 @@ describe('AtsReport Export Functionality Suite', () => {
     templateId: 'ats-clean',
     colorTheme: '#1e293b',
     fontFamily: 'sans',
+    resumeLanguage: 'id',
     data: createEmptyResumeData(),
     createdAt: Date.now(),
     updatedAt: Date.now(),

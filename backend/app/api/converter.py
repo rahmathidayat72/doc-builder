@@ -6,7 +6,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.core.jobs import conversion_job_manager
 from app.services.converter import convert_docx_to_pdf_sandboxed
 from app.services.job_manager import JobBusyError
+from app.services.office_converter import (
+    convert_presentation_to_pdf_sandboxed,
+    convert_spreadsheet_to_pdf_sandboxed,
+)
 from app.services.pdf2docx_converter import convert_pdf_to_docx_sandboxed
+from app.services.pdf_to_office_converter import (
+    convert_pdf_to_pptx_sandboxed,
+    convert_pdf_to_xlsx_sandboxed,
+)
 
 router = APIRouter(prefix="/converter", tags=["Converter"])
 
@@ -132,4 +140,246 @@ async def convert_pdf_to_docx(file: Annotated[UploadFile, File()]):
     except Exception as exc:
         raise HTTPException(
             status_code=500, detail=f"Gagal merekonstruksi dokumen PDF ke DOCX: {exc}"
+        ) from exc
+
+
+@router.post("/presentation-to-pdf")
+async def convert_presentation_to_pdf(file: Annotated[UploadFile, File()]):
+    """Mengonversi berkas presentasi PowerPoint (.pptx / .ppt) menjadi PDF."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nama berkas tidak valid.")
+
+    filename_lower = file.filename.lower()
+    if not (filename_lower.endswith(".pptx") or filename_lower.endswith(".ppt")):
+        raise HTTPException(
+            status_code=400,
+            detail="Format berkas tidak didukung. Harap unggah berkas .pptx atau .ppt.",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_CONVERSION_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Ukuran berkas melebihi batas maksimum 25 MB ({len(file_bytes)} bytes).",
+        )
+
+    try:
+        with conversion_job_manager.run_job("presentation-to-pdf") as job:
+            pdf_io, err_code = convert_presentation_to_pdf_sandboxed(file_bytes, file.filename)
+
+            if err_code == "LIBREOFFICE_NOT_FOUND":
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "success": False,
+                        "job_id": job.id,
+                        "error_code": "LIBREOFFICE_NOT_FOUND",
+                        "message": (
+                            "LibreOffice belum terpasang di komputer lokal. "
+                            "Silakan instal LibreOffice gratis untuk mengaktifkan konversi."
+                        ),
+                    },
+                )
+
+            if not pdf_io or err_code:
+                raise HTTPException(
+                    status_code=500, detail=err_code or "Gagal mengonversi presentasi ke PDF."
+                )
+
+            output_filename = f"{file.filename.rsplit('.', 1)[0]}.pdf"
+            return StreamingResponse(
+                pdf_io,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output_filename}"',
+                    "X-Job-ID": job.id,
+                },
+            )
+    except JobBusyError as busy:
+        raise HTTPException(status_code=429, detail=str(busy)) from busy
+    except ValueError as value_error:
+        raise HTTPException(status_code=422, detail=str(value_error)) from value_error
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Gagal memproses konversi presentasi: {exc}"
+        ) from exc
+
+
+@router.post("/pdf-to-pptx")
+async def convert_pdf_to_pptx(file: Annotated[UploadFile, File()]):
+    """Mengonversi dokumen PDF menjadi presentasi PowerPoint (.pptx) visual-presisi."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nama berkas tidak valid.")
+
+    filename_lower = file.filename.lower()
+    if not filename_lower.endswith(".pdf"):
+        raise HTTPException(
+            status_code=400, detail="Format berkas tidak didukung. Harap unggah berkas .pdf."
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_CONVERSION_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Ukuran berkas melebihi batas maksimum 25 MB ({len(file_bytes)} bytes).",
+        )
+
+    try:
+        with conversion_job_manager.run_job("pdf-to-pptx") as job:
+            pptx_io, err_code = convert_pdf_to_pptx_sandboxed(file_bytes, file.filename)
+
+            if not pptx_io or err_code:
+                raise HTTPException(
+                    status_code=500,
+                    detail=err_code or "Gagal mengonversi dokumen PDF ke PPTX.",
+                )
+
+            output_filename = f"{file.filename.rsplit('.', 1)[0]}.pptx"
+            return StreamingResponse(
+                pptx_io,
+                media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output_filename}"',
+                    "X-Job-ID": job.id,
+                },
+            )
+    except JobBusyError as busy:
+        raise HTTPException(status_code=429, detail=str(busy)) from busy
+    except ValueError as value_error:
+        raise HTTPException(status_code=422, detail=str(value_error)) from value_error
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Gagal mengonversi dokumen PDF ke PPTX: {exc}"
+        ) from exc
+
+
+@router.post("/spreadsheet-to-pdf")
+async def convert_spreadsheet_to_pdf(file: Annotated[UploadFile, File()]):
+    """Mengonversi berkas lembar kerja Excel (.xlsx / .xls) menjadi PDF."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nama berkas tidak valid.")
+
+    filename_lower = file.filename.lower()
+    if not (filename_lower.endswith(".xlsx") or filename_lower.endswith(".xls")):
+        raise HTTPException(
+            status_code=400,
+            detail="Format berkas tidak didukung. Harap unggah berkas .xlsx atau .xls.",
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_CONVERSION_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Ukuran berkas melebihi batas maksimum 25 MB ({len(file_bytes)} bytes).",
+        )
+
+    try:
+        with conversion_job_manager.run_job("spreadsheet-to-pdf") as job:
+            pdf_io, err_code = convert_spreadsheet_to_pdf_sandboxed(file_bytes, file.filename)
+
+            if err_code == "LIBREOFFICE_NOT_FOUND":
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "success": False,
+                        "job_id": job.id,
+                        "error_code": "LIBREOFFICE_NOT_FOUND",
+                        "message": (
+                            "LibreOffice belum terpasang di komputer lokal. "
+                            "Silakan instal LibreOffice gratis untuk mengaktifkan konversi."
+                        ),
+                    },
+                )
+
+            if not pdf_io or err_code:
+                raise HTTPException(
+                    status_code=500, detail=err_code or "Gagal mengonversi spreadsheet ke PDF."
+                )
+
+            output_filename = f"{file.filename.rsplit('.', 1)[0]}.pdf"
+            return StreamingResponse(
+                pdf_io,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output_filename}"',
+                    "X-Job-ID": job.id,
+                },
+            )
+    except JobBusyError as busy:
+        raise HTTPException(status_code=429, detail=str(busy)) from busy
+    except ValueError as value_error:
+        raise HTTPException(status_code=422, detail=str(value_error)) from value_error
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Gagal memproses konversi spreadsheet: {exc}"
+        ) from exc
+
+
+@router.post("/pdf-to-xlsx")
+async def convert_pdf_to_xlsx(file: Annotated[UploadFile, File()]):
+    """Mengonversi tabel-tabel dari dokumen PDF menjadi buku kerja Excel (.xlsx)."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nama berkas tidak valid.")
+
+    filename_lower = file.filename.lower()
+    if not filename_lower.endswith(".pdf"):
+        raise HTTPException(
+            status_code=400, detail="Format berkas tidak didukung. Harap unggah berkas .pdf."
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_CONVERSION_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Ukuran berkas melebihi batas maksimum 25 MB ({len(file_bytes)} bytes).",
+        )
+
+    try:
+        with conversion_job_manager.run_job("pdf-to-xlsx") as job:
+            xlsx_io, err_code = convert_pdf_to_xlsx_sandboxed(file_bytes, file.filename)
+
+            if err_code == "NO_TABLES_FOUND":
+                return JSONResponse(
+                    status_code=422,
+                    content={
+                        "success": False,
+                        "job_id": job.id,
+                        "error_code": "NO_TABLES_FOUND",
+                        "message": (
+                            "Tidak ditemukan tabel terstruktur berbasis teks di dalam berkas PDF. "
+                            "Dokumen hasil scan atau tanpa tabel tidak dapat diekstrak ke Excel."
+                        ),
+                    },
+                )
+
+            if not xlsx_io or err_code:
+                raise HTTPException(
+                    status_code=500,
+                    detail=err_code or "Gagal mengekstrak tabel PDF ke Excel.",
+                )
+
+            output_filename = f"{file.filename.rsplit('.', 1)[0]}.xlsx"
+            return StreamingResponse(
+                xlsx_io,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output_filename}"',
+                    "X-Job-ID": job.id,
+                },
+            )
+    except JobBusyError as busy:
+        raise HTTPException(status_code=429, detail=str(busy)) from busy
+    except ValueError as value_error:
+        raise HTTPException(status_code=422, detail=str(value_error)) from value_error
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"Gagal mengekstrak tabel PDF ke Excel: {exc}"
         ) from exc

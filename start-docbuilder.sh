@@ -42,4 +42,5 @@ fi
 echo "[INFO] Menjalankan server pada http://127.0.0.1:8000..."
 echo "[INFO] Tekan CTRL+C untuk menghentikan server."
 echo ""
+export PYTHONPATH="$DIR/backend:${PYTHONPATH:-}"
 "$PYTHON_EXE" -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000

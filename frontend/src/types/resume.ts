@@ -7,6 +7,7 @@ export const ContactInfoSchema = z.object({
   location: z.string().default(''),
   linkedin: z.string().default(''),
   website: z.string().default(''),
+  usePhoto: z.boolean().optional(),
   photoUrl: z.string().optional()
 })
 
@@ -35,7 +36,7 @@ export const EducationSchema = z.object({
 export const SkillItemSchema = z.object({
   id: z.string(),
   name: z.string().default(''),
-  category: z.string().default('Technical')
+  category: z.string().default('General')
 })
 
 export const LanguageItemSchema = z.object({
@@ -68,18 +69,22 @@ export const ResumeDataSchema = z.object({
   customSections: z.array(CustomSectionSchema).default([])
 })
 
+export const ResumeLanguageSchema = z.enum(['id', 'en']).default('id')
+
 export const ResumeDraftSchema = z.object({
   id: z.string().uuid(),
   title: z.string().default('CV Tanpa Judul'),
   templateId: z.string().default('ats-clean'),
   colorTheme: z.string().default('#1e293b'),
   fontFamily: z.string().default('sans'),
+  resumeLanguage: ResumeLanguageSchema,
   data: ResumeDataSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
   version: z.number().default(1)
 })
 
+export type ResumeLanguage = z.infer<typeof ResumeLanguageSchema>
 export type ContactInfo = z.infer<typeof ContactInfoSchema>
 export type WorkExperience = z.infer<typeof WorkExperienceSchema>
 export type Education = z.infer<typeof EducationSchema>
@@ -105,7 +110,9 @@ export const createEmptyResumeData = (): ResumeData => ({
     phone: '',
     location: '',
     linkedin: '',
-    website: ''
+    website: '',
+    usePhoto: false,
+    photoUrl: ''
   },
   summary: '',
   experiences: [],

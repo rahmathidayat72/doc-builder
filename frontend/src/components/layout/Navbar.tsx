@@ -19,7 +19,7 @@ import {
   X,
   RotateCcw,
 } from 'lucide-react'
-import { type ResumeDraft, type ResumeDraftSummary } from '../../types/resume'
+import { type ResumeDraft, type ResumeDraftSummary, type ResumeLanguage } from '../../types/resume'
 import { type PendingDelete } from '../../hooks/useResumeDraft'
 import { TEMPLATES } from '../../templates/registry'
 
@@ -40,6 +40,7 @@ interface NavbarProps {
   onUpdateTheme: (color: string) => void
   onUpdateFont: (font: string) => void
   onUpdateTemplate: (templateId: string) => void
+  onUpdateLanguage?: (language: ResumeLanguage) => void
   onExportDocx: () => void
   onExportPdf: () => void
   onOpenImportModal: () => void
@@ -80,6 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onUpdateTheme,
   onUpdateFont,
   onUpdateTemplate,
+  onUpdateLanguage,
   onExportDocx,
   onExportPdf,
   onOpenImportModal,
@@ -270,6 +272,41 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     )}
                   </div>
+
+                  <div
+                    className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 ml-1"
+                    role="group"
+                    aria-label="Pilih bahasa CV"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onUpdateLanguage?.('id')}
+                      className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
+                        (draft.resumeLanguage || 'id') === 'id'
+                          ? 'bg-white text-indigo-700 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      aria-pressed={(draft.resumeLanguage || 'id') === 'id'}
+                      data-testid="btn-lang-id"
+                      title="Bahasa CV: Indonesia"
+                    >
+                      ID
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateLanguage?.('en')}
+                      className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
+                        draft.resumeLanguage === 'en'
+                          ? 'bg-white text-indigo-700 shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      aria-pressed={draft.resumeLanguage === 'en'}
+                      data-testid="btn-lang-en"
+                      title="Bahasa CV: English"
+                    >
+                      EN
+                    </button>
+                  </div>
                 </div>
 
                 {atsScore !== undefined && (
@@ -361,6 +398,40 @@ export const Navbar: React.FC<NavbarProps> = ({
               aria-label="Judul Resume"
               className="min-w-36 flex-1 text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none"
             />
+            <div
+              className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200 shrink-0"
+              role="group"
+              aria-label="Pilih bahasa CV (mobile)"
+            >
+              <button
+                type="button"
+                onClick={() => onUpdateLanguage?.('id')}
+                className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
+                  (draft.resumeLanguage || 'id') === 'id'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                aria-pressed={(draft.resumeLanguage || 'id') === 'id'}
+                data-testid="btn-lang-id-mobile"
+                title="Bahasa CV: Indonesia"
+              >
+                ID
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateLanguage?.('en')}
+                className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
+                  draft.resumeLanguage === 'en'
+                    ? 'bg-white text-indigo-700 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                aria-pressed={draft.resumeLanguage === 'en'}
+                data-testid="btn-lang-en-mobile"
+                title="Bahasa CV: English"
+              >
+                EN
+              </button>
+            </div>
             <button type="button" onClick={() => onTogglePrivateMode(!privateMode)} className="p-2 border border-slate-200 rounded-lg" title="Mode privasi">
               {privateMode ? <Lock className="w-4 h-4 text-amber-600" /> : <Unlock className="w-4 h-4 text-slate-500" />}
             </button>

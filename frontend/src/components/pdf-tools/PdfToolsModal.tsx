@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   FileText,
   Copy,
@@ -11,24 +11,34 @@ import {
   X,
   Loader2,
   Trash2,
+  ArrowUp,
+  ArrowDown,
+  Minimize2,
+  Info,
 } from 'lucide-react'
 import {
   mergePdfAndImages,
   splitPdf,
+  compressPdf,
   imagesToPdf,
   pdfToImages,
   type PdfToolResult,
 } from '../../services/pdfTools'
 
+export type ToolTab = 'merge' | 'split' | 'compress' | 'img2pdf' | 'pdf2img'
+
 interface PdfToolsModalProps {
   isOpen: boolean
   onClose: () => void
+  initialTab?: ToolTab
 }
 
-type ToolTab = 'merge' | 'split' | 'img2pdf' | 'pdf2img'
-
-export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<ToolTab>('merge')
+export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({
+  isOpen,
+  onClose,
+  initialTab = 'merge',
+}) => {
+  const [activeTab, setActiveTab] = useState<ToolTab>(initialTab)
 
   // State untuk Merge
   const [mergeFiles, setMergeFiles] = useState<File[]>([])
@@ -36,6 +46,10 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
   // State untuk Split
   const [splitFile, setSplitFile] = useState<File | null>(null)
   const [pageRange, setPageRange] = useState<string>('1')
+
+  // State untuk Compress
+  const [compressFile, setCompressFile] = useState<File | null>(null)
+  const [compressLevel, setCompressLevel] = useState<'light' | 'balanced' | 'maximum'>('balanced')
 
   // State untuk Img2Pdf
   const [imgFiles, setImgFiles] = useState<File[]>([])
@@ -52,7 +66,23 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab)
+      setErrorMessage(null)
+      setSuccessMessage(null)
+    }
+  }, [isOpen, initialTab])
+
   if (!isOpen) return null
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 1)} ${sizes[i]}`
+  }
 
   const resetStatus = () => {
     setErrorMessage(null)
@@ -62,6 +92,18 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
   const handleTabChange = (tab: ToolTab) => {
     setActiveTab(tab)
     resetStatus()
+  }
+
+  const moveMergeFile = (index: number, direction: 'up' | 'down') => {
+    setMergeFiles(prev => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev
+      const next = [...prev]
+      const temp = next[index]
+      next[index] = next[targetIndex]
+      next[targetIndex] = temp
+      return next
+    })
   }
 
   // --- Handlers ---
@@ -102,6 +144,34 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
     }
   }
 
+  const handleCompressSubmit = async () => {
+    if (!compressFile) {
+      setErrorMessage('Pilih berkas PDF terlebih dahulu.')
+      return
+    }
+    setIsLoading(true)
+    resetStatus()
+    const res: PdfToolResult = await compressPdf(compressFile, compressLevel)
+    setIsLoading(false)
+    if (res.success) {
+      if (res.applied && res.originalSize && res.outputSize) {
+        const savedPct = Math.max(
+          0,
+          ((res.originalSize - res.outputSize) / res.originalSize) * 100
+        ).toFixed(1)
+        setSuccessMessage(
+          `Berhasil mengompres PDF: ${res.filename} (${formatBytes(res.originalSize)} -> ${formatBytes(res.outputSize)}, hemat ${savedPct}%)`
+        )
+      } else {
+        setSuccessMessage(
+          `PDF sudah optimal: ${res.filename} (${formatBytes(res.originalSize || compressFile.size)}). Berkas asli diunduh tanpa penurunan kualitas.`
+        )
+      }
+    } else {
+      setErrorMessage(res.message || 'Gagal mengompres PDF.')
+    }
+  }
+
   const handleImg2PdfSubmit = async () => {
     if (imgFiles.length === 0) {
       setErrorMessage('Pilih minimal satu gambar.')
@@ -136,11 +206,11 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
               <FileText className="w-5 h-5" />
             </div>
             <div>
@@ -154,7 +224,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
             type="button"
             onClick={onClose}
             aria-label="Tutup modal PDF Tools"
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
+            className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-lg transition"
             data-testid="btn-close-pdf-tools"
           >
             <X className="w-5 h-5" />
@@ -162,62 +232,33 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 gap-1 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => handleTabChange('merge')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition ${
-              activeTab === 'merge'
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-            data-testid="tab-merge"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            Gabung File
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('split')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition ${
-              activeTab === 'split'
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-            data-testid="tab-split"
-          >
-            <Scissors className="w-3.5 h-3.5" />
-            Pisah PDF
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('img2pdf')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition ${
-              activeTab === 'img2pdf'
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-            data-testid="tab-img2pdf"
-          >
-            <ImageIcon className="w-3.5 h-3.5" />
-            Gambar ke PDF
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('pdf2img')}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg transition ${
-              activeTab === 'pdf2img'
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-            data-testid="tab-pdf2img"
-          >
-            <Archive className="w-3.5 h-3.5" />
-            PDF ke Gambar
-          </button>
+        <div className="flex bg-slate-100/90 p-1 rounded-xl gap-1 overflow-x-auto border border-slate-200/50">
+          {[
+            { id: 'merge', label: 'Gabung File', icon: Copy },
+            { id: 'split', label: 'Pisah PDF', icon: Scissors },
+            { id: 'compress', label: 'Kompres PDF', icon: Minimize2 },
+            { id: 'img2pdf', label: 'Gambar ke PDF', icon: ImageIcon },
+            { id: 'pdf2img', label: 'PDF ke Gambar', icon: Archive },
+          ].map(t => {
+            const Icon = t.icon
+            const isActive = activeTab === t.id
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => handleTabChange(t.id as ToolTab)}
+                className={`flex-1 min-w-max flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  isActive
+                    ? 'bg-white text-indigo-600 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                }`}
+                data-testid={`tab-${t.id}`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{t.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Alerts */}
@@ -236,24 +277,24 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
         )}
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto space-y-4 py-2">
+        <div className="flex-1 overflow-y-auto space-y-4 py-1 pr-1 custom-scrollbar">
           {/* TAB 1: MERGE */}
           {activeTab === 'merge' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Gabungkan beberapa dokumen PDF dan berkas gambar (JPG, PNG) menjadi satu PDF terpadu.
+            <div className="space-y-3 pb-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Gabungkan beberapa dokumen PDF, Word (.docx), dan berkas gambar (JPG, PNG) menjadi satu PDF terpadu. Urutkan berkas dengan tombol panah sebelum menggabungkan.
               </p>
 
-              <label className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
+              <label className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-50/60 hover:bg-indigo-50/20">
                 <Upload className="w-6 h-6 text-indigo-500" />
                 <span className="text-xs font-semibold text-slate-700">
-                  Pilih atau seret berkas PDF / Gambar
+                  Pilih atau seret berkas PDF / Word / Gambar
                 </span>
-                <span className="text-2xs text-slate-400">PDF, JPG, PNG (maks 25 MB total)</span>
+                <span className="text-2xs text-slate-400">PDF, DOCX, JPG, PNG (maks 25 MB total)</span>
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf,.jpg,.jpeg,.png,.docx"
                   aria-label="Pilih berkas PDF atau gambar untuk digabungkan"
                   className="hidden"
                   onChange={e => {
@@ -267,27 +308,52 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
               </label>
 
               {mergeFiles.length > 0 && (
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                  <div className="text-2xs font-bold uppercase text-slate-400">
-                    Daftar Berkas ({mergeFiles.length})
+                <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+                  <div className="text-2xs font-bold uppercase tracking-wider text-slate-400">
+                    Daftar Berkas & Urutan Penggabungan ({mergeFiles.length})
                   </div>
                   {mergeFiles.map((f, i) => (
                     <div
                       key={`${f.name}-${i}`}
-                      className="flex items-center justify-between p-2 bg-slate-50 rounded-lg text-xs border border-slate-200"
+                      className="flex items-center justify-between p-2 bg-slate-50/80 rounded-xl text-xs border border-slate-200/80"
                     >
-                      <span className="truncate max-w-[340px] text-slate-700">
+                      <span className="truncate max-w-[280px] sm:max-w-[380px] text-slate-700 font-medium">
                         {i + 1}. {f.name}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setMergeFiles(prev => prev.filter((_, idx) => idx !== i))}
-                        aria-label={`Hapus ${f.name} dari daftar`}
-                        className="text-slate-400 hover:text-rose-600 p-1 rounded"
-                        title="Hapus"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => moveMergeFile(i, 'up')}
+                          disabled={i === 0}
+                          aria-label={`Pindahkan ${f.name} ke atas`}
+                          className="text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 p-1 rounded-lg transition"
+                          title="Pindahkan ke atas"
+                          data-testid={`btn-move-up-${i}`}
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveMergeFile(i, 'down')}
+                          disabled={i === mergeFiles.length - 1}
+                          aria-label={`Pindahkan ${f.name} ke bawah`}
+                          className="text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 p-1 rounded-lg transition"
+                          title="Pindahkan ke bawah"
+                          data-testid={`btn-move-down-${i}`}
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setMergeFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          aria-label={`Hapus ${f.name} dari daftar`}
+                          className="text-slate-400 hover:text-rose-600 p-1 rounded-lg transition"
+                          title="Hapus"
+                          data-testid={`btn-remove-${i}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -297,7 +363,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 type="button"
                 onClick={handleMergeSubmit}
                 disabled={isLoading || mergeFiles.length === 0}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 mt-2"
                 data-testid="btn-submit-merge"
               >
                 {isLoading ? (
@@ -314,17 +380,23 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
 
           {/* TAB 2: SPLIT */}
           {activeTab === 'split' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Ekstrak halaman tertentu dari PDF menjadi dokumen PDF baru.
+            <div className="space-y-3 pb-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Ekstrak halaman tertentu dari PDF menjadi beberapa berkas PDF terpisah yang dikemas dalam arsip ZIP.
               </p>
 
-              <label className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
+              <label className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition ${
+                splitFile
+                  ? 'border-indigo-400 bg-indigo-50/20'
+                  : 'border-slate-300 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/20'
+              }`}>
                 <Upload className="w-6 h-6 text-indigo-500" />
-                <span className="text-xs font-semibold text-slate-700">
+                <span className="text-xs font-semibold text-slate-700 text-center truncate max-w-full px-2">
                   {splitFile ? splitFile.name : 'Pilih berkas PDF utama'}
                 </span>
-                <span className="text-2xs text-slate-400">Berkas PDF (maks 25 MB)</span>
+                <span className="text-2xs text-slate-400">
+                  {splitFile ? `${formatBytes(splitFile.size)} • Klik untuk ganti berkas` : 'Berkas PDF (maks 25 MB)'}
+                </span>
                 <input
                   type="file"
                   accept=".pdf"
@@ -341,7 +413,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
               </label>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Rentang Halaman
                 </label>
                 <input
@@ -350,11 +422,11 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                   onChange={e => setPageRange(e.target.value)}
                   placeholder="Contoh: 1-3, 5, 7-10"
                   aria-label="Rentang Halaman PDF"
-                  className="w-full text-xs p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full text-xs p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   data-testid="input-page-range"
                 />
-                <p className="text-2xs text-slate-400 mt-1">
-                  Format: nomor dipisah koma (misal: 1, 3) atau tanda strip (misal: 1-5).
+                <p className="text-2xs text-slate-400 mt-1.5 leading-relaxed">
+                  Format: nomor atau rentang dipisah koma (misal: 1-3, 5, 7-10). Setiap rentang akan menjadi 1 berkas PDF terpisah di dalam ZIP.
                 </p>
               </div>
 
@@ -362,7 +434,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 type="button"
                 onClick={handleSplitSubmit}
                 disabled={isLoading || !splitFile}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 mt-2"
                 data-testid="btn-submit-split"
               >
                 {isLoading ? (
@@ -371,22 +443,146 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                     <span>Memisahkan PDF...</span>
                   </>
                 ) : (
-                  <span>Pisahkan PDF</span>
+                  <span>Pisahkan PDF (Arsip ZIP)</span>
                 )}
               </button>
             </div>
           )}
 
-          {/* TAB 3: IMAGE TO PDF */}
+          {/* TAB 3: COMPRESS */}
+          {activeTab === 'compress' && (
+            <div className="space-y-3 pb-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Perkecil ukuran dokumen PDF secara lokal dengan 3 tingkat kompresi cerdas. Teks, tautan, dan tata letak tetap dipertahankan.
+              </p>
+
+              <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition ${
+                compressFile
+                  ? 'border-indigo-400 bg-indigo-50/20'
+                  : 'border-slate-300 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/20'
+              }`}>
+                <Upload className="w-6 h-6 text-indigo-500" />
+                <span className="text-xs font-semibold text-slate-700 text-center truncate max-w-full px-2">
+                  {compressFile ? compressFile.name : 'Pilih berkas PDF utama'}
+                </span>
+                <span className="text-2xs text-slate-400">
+                  {compressFile ? `${formatBytes(compressFile.size)} • Klik untuk ganti berkas` : 'Berkas PDF (maks 25 MB)'}
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  aria-label="Pilih berkas PDF utama untuk dikompres"
+                  className="hidden"
+                  onChange={e => {
+                    if (e.target.files && e.target.files[0]) {
+                      setCompressFile(e.target.files[0])
+                      resetStatus()
+                    }
+                  }}
+                  data-testid="input-compress-file"
+                />
+              </label>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Tingkat Kompresi
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {[
+                    {
+                      id: 'light',
+                      name: 'Ringan',
+                      badge: 'Lossless',
+                      desc: 'Optimasi struktur internal tanpa mengurangi ketajaman gambar.',
+                    },
+                    {
+                      id: 'balanced',
+                      name: 'Seimbang',
+                      badge: 'Rekomendasi',
+                      desc: 'Keseimbangan ideal ukuran & ketajaman (150 DPI, Q75).',
+                    },
+                    {
+                      id: 'maximum',
+                      name: 'Maksimum',
+                      badge: 'Terkecil',
+                      desc: 'Kompresi agresif untuk unggahan berkuota ketat (96 DPI, Q50).',
+                    },
+                  ].map(lvl => {
+                    const isSelected = compressLevel === lvl.id
+                    return (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        onClick={() => {
+                          setCompressLevel(lvl.id as 'light' | 'balanced' | 'maximum')
+                          resetStatus()
+                        }}
+                        data-testid={`btn-compress-level-${lvl.id}`}
+                        className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/80 ring-1 ring-indigo-500 shadow-xs'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 w-full mb-1">
+                          <span className="text-xs font-bold text-slate-800">{lvl.name}</span>
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 tracking-tight leading-none ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {lvl.badge}
+                          </span>
+                        </div>
+                        <p className="text-2xs text-slate-500 leading-relaxed mt-1">{lvl.desc}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2 text-xs text-slate-600">
+                <Info className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                <span className="text-2xs leading-relaxed">
+                  Dokumen bertanda tangan digital ditolak demi menjaga keabsahan tanda tangan. Jika berkas sudah optimal, berkas asli diunduh tanpa penurunan kualitas.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCompressSubmit}
+                disabled={isLoading || !compressFile}
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 mt-2"
+                data-testid="btn-submit-compress"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Mengompres PDF...</span>
+                  </>
+                ) : (
+                  <span>Kompres PDF Sekarang</span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* TAB 4: IMAGE TO PDF */}
           {activeTab === 'img2pdf' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
+            <div className="space-y-3 pb-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Ubah kumpulan gambar menjadi berkas PDF standar dengan ukuran dan orientasi pilihan.
               </p>
 
-              <label className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
+              <label className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition ${
+                imgFiles.length > 0
+                  ? 'border-indigo-400 bg-indigo-50/20'
+                  : 'border-slate-300 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/20'
+              }`}>
                 <Upload className="w-6 h-6 text-indigo-500" />
-                <span className="text-xs font-semibold text-slate-700">
+                <span className="text-xs font-semibold text-slate-700 text-center truncate max-w-full px-2">
                   {imgFiles.length > 0 ? `${imgFiles.length} gambar dipilih` : 'Pilih berkas gambar'}
                 </span>
                 <span className="text-2xs text-slate-400">JPG, JPEG, PNG</span>
@@ -408,14 +604,14 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-2xs font-bold uppercase text-slate-500 mb-1">
+                  <label className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     Ukuran Kertas
                   </label>
                   <select
                     value={pageSize}
                     aria-label="Ukuran Kertas PDF"
                     onChange={e => setPageSize(e.target.value as 'A4' | 'LETTER')}
-                    className="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none bg-white"
+                    className="w-full text-xs p-2.5 border border-slate-300 rounded-xl outline-none bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   >
                     <option value="A4">A4 (210 x 297 mm)</option>
                     <option value="LETTER">US Letter</option>
@@ -423,14 +619,14 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 </div>
 
                 <div>
-                  <label className="block text-2xs font-bold uppercase text-slate-500 mb-1">
+                  <label className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     Orientasi
                   </label>
                   <select
                     value={orientation}
                     aria-label="Orientasi Kertas PDF"
                     onChange={e => setOrientation(e.target.value as 'portrait' | 'landscape')}
-                    className="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none bg-white"
+                    className="w-full text-xs p-2.5 border border-slate-300 rounded-xl outline-none bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   >
                     <option value="portrait">Tegak (Portrait)</option>
                     <option value="landscape">Mendatar (Landscape)</option>
@@ -442,7 +638,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 type="button"
                 onClick={handleImg2PdfSubmit}
                 disabled={isLoading || imgFiles.length === 0}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 mt-2"
                 data-testid="btn-submit-img2pdf"
               >
                 {isLoading ? (
@@ -457,19 +653,25 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* TAB 4: PDF TO IMAGE */}
+          {/* TAB 5: PDF TO IMAGE */}
           {activeTab === 'pdf2img' && (
-            <div className="space-y-3">
-              <p className="text-xs text-slate-600 leading-relaxed">
+            <div className="space-y-3 pb-1">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Ekstrak setiap halaman berkas PDF ke dalam arsip ZIP berisi berkas gambar (JPG atau PNG).
               </p>
 
-              <label className="border-2 border-dashed border-slate-300 hover:border-indigo-400 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
+              <label className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition ${
+                pdfFile
+                  ? 'border-indigo-400 bg-indigo-50/20'
+                  : 'border-slate-300 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/20'
+              }`}>
                 <Upload className="w-6 h-6 text-indigo-500" />
-                <span className="text-xs font-semibold text-slate-700">
+                <span className="text-xs font-semibold text-slate-700 text-center truncate max-w-full px-2">
                   {pdfFile ? pdfFile.name : 'Pilih berkas PDF'}
                 </span>
-                <span className="text-2xs text-slate-400">Berkas PDF (maks 25 MB)</span>
+                <span className="text-2xs text-slate-400">
+                  {pdfFile ? `${formatBytes(pdfFile.size)} • Klik untuk ganti berkas` : 'Berkas PDF (maks 25 MB)'}
+                </span>
                 <input
                   type="file"
                   accept=".pdf"
@@ -487,14 +689,14 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-2xs font-bold uppercase text-slate-500 mb-1">
+                  <label className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     Format Gambar
                   </label>
                   <select
                     value={imgFormat}
                     aria-label="Format Gambar Output"
                     onChange={e => setImgFormat(e.target.value as 'png' | 'jpeg')}
-                    className="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none bg-white"
+                    className="w-full text-xs p-2.5 border border-slate-300 rounded-xl outline-none bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   >
                     <option value="png">PNG (Berkualitas Tinggi)</option>
                     <option value="jpeg">JPEG (Ukuran Ringkas)</option>
@@ -502,14 +704,14 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 </div>
 
                 <div>
-                  <label className="block text-2xs font-bold uppercase text-slate-500 mb-1">
+                  <label className="block text-2xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
                     Resolusi (DPI)
                   </label>
                   <select
                     value={dpi}
                     aria-label="Resolusi DPI Gambar"
                     onChange={e => setDpi(Number(e.target.value))}
-                    className="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none bg-white"
+                    className="w-full text-xs p-2.5 border border-slate-300 rounded-xl outline-none bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   >
                     <option value={72}>72 DPI (Layar / Cepat)</option>
                     <option value={150}>150 DPI (Standar Rekomendasi)</option>
@@ -522,7 +724,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({ isOpen, onClose })
                 type="button"
                 onClick={handlePdf2ImgSubmit}
                 disabled={isLoading || !pdfFile}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2"
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-xl shadow-xs transition flex items-center justify-center gap-2 mt-2"
                 data-testid="btn-submit-pdf2img"
               >
                 {isLoading ? (
