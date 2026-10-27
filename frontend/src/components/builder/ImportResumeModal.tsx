@@ -12,6 +12,11 @@ import {
   X
 } from 'lucide-react'
 import { type ResumeData } from '../../types/resume'
+import {
+  DEFAULT_IMPORT_SECTIONS,
+  type ImportMode,
+  type ImportSectionId
+} from '../../services/importMerge'
 import { apiFetch } from '../../services/apiClient'
 
 interface ConfidenceMap {
@@ -48,7 +53,11 @@ interface ParsedResumeResponse {
 interface ImportResumeModalProps {
   isOpen: boolean
   onClose: () => void
-  onApply: (extractedData: ResumeData) => void
+  onApply: (
+    extractedData: ResumeData,
+    selectedSections: ImportSectionId[],
+    mode: ImportMode
+  ) => void
 }
 
 export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
@@ -60,14 +69,29 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [parsedResult, setParsedResult] = useState<ParsedResumeResponse | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [confirmReplace, setConfirmReplace] = useState(false)
+  const [confirmApply, setConfirmApply] = useState(false)
+  const [selectedSections, setSelectedSections] = useState<ImportSectionId[]>([
+    ...DEFAULT_IMPORT_SECTIONS
+  ])
+  const [importMode, setImportMode] = useState<ImportMode>('merge')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!isOpen) return null
 
   const resetResult = () => {
     setParsedResult(null)
-    setConfirmReplace(false)
+    setConfirmApply(false)
+    setSelectedSections([...DEFAULT_IMPORT_SECTIONS])
+    setImportMode('merge')
+  }
+
+  const toggleSection = (section: ImportSectionId) => {
+    setSelectedSections(current =>
+      current.includes(section)
+        ? current.filter(item => item !== section)
+        : [...current, section]
+    )
+    setConfirmApply(false)
   }
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -113,8 +137,8 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   }
 
   const handleConfirmApply = () => {
-    if (!parsedResult || !confirmReplace) return
-    onApply(parsedResult.data)
+    if (!parsedResult || !confirmApply || selectedSections.length === 0) return
+    onApply(parsedResult.data, selectedSections, importMode)
     onClose()
   }
 
@@ -129,14 +153,22 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
     return <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">Rendah {percent}%</span>
   }
 
-  const previewSections = parsedResult ? [
+  const previewSections: {
+    id: ImportSectionId
+    title: string
+    count: string
+    confidence: number
+    content: string
+  }[] = parsedResult ? [
     {
+      id: 'summary',
       title: 'Ringkasan',
       count: parsedResult.data.summary ? 'Terdeteksi' : 'Kosong',
       confidence: parsedResult.confidence.summary,
       content: parsedResult.data.summary || 'Tidak terdeteksi.'
     },
     {
+      id: 'experiences',
       title: 'Pengalaman Kerja',
       count: `${parsedResult.data.experiences.length} posisi`,
       confidence: parsedResult.confidence.experiences,
@@ -145,6 +177,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       ).join('\n') || 'Tidak terdeteksi.'
     },
     {
+      id: 'education',
       title: 'Pendidikan',
       count: `${parsedResult.data.education.length} institusi`,
       confidence: parsedResult.confidence.education,
@@ -153,18 +186,21 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       ).join('\n') || 'Tidak terdeteksi.'
     },
     {
+      id: 'skills',
       title: 'Keahlian',
       count: `${parsedResult.data.skills.length} item`,
       confidence: parsedResult.confidence.skills,
       content: parsedResult.data.skills.map(item => item.name).join(', ') || 'Tidak terdeteksi.'
     },
     {
+      id: 'languages',
       title: 'Bahasa',
       count: `${parsedResult.data.languages.length} bahasa`,
       confidence: parsedResult.confidence.languages,
       content: parsedResult.data.languages.map(item => `${item.language} (${item.proficiency})`).join(', ') || 'Tidak terdeteksi.'
     },
     {
+      id: 'customSections',
       title: 'Bagian Lain',
       count: `${parsedResult.data.customSections.length} bagian`,
       confidence: parsedResult.confidence.customSections,
@@ -179,7 +215,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
   ] : []
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4 animate-overlay-in">
       <div
         role="dialog"
         aria-modal="true"
@@ -248,37 +284,88 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               <section aria-labelledby="import-contact-title">
                 <div className="flex items-center justify-between gap-3">
                   <h3 id="import-contact-title" className="text-xs font-bold uppercase tracking-wider text-slate-700">Kontak Terdeteksi</h3>
-                  {getConfidenceBadge(parsedResult.confidence.fullName)}
+                  <div className="flex items-center gap-2">
+                    {getConfidenceBadge(parsedResult.confidence.fullName)}
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-2xs font-semibold text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.includes('contact')}
+                        onChange={() => toggleSection('contact')}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        data-testid="import-section-contact"
+                      />
+                      Impor
+                    </label>
+                  </div>
                 </div>
                 <div className="mt-3 grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs sm:grid-cols-2">
                   <p><span className="text-slate-500">Nama:</span> <strong>{parsedResult.data.contact.fullName || 'Tidak terdeteksi'}</strong></p>
+                  <p><span className="text-slate-500">Headline:</span> <strong>{parsedResult.data.contact.headline || 'Tidak terdeteksi'}</strong></p>
                   <p><span className="text-slate-500">Email:</span> <strong>{parsedResult.data.contact.email || 'Tidak terdeteksi'}</strong></p>
                   <p><span className="text-slate-500">Telepon:</span> <strong>{parsedResult.data.contact.phone || 'Tidak terdeteksi'}</strong></p>
                   <p><span className="text-slate-500">Lokasi:</span> <strong>{parsedResult.data.contact.location || 'Tidak terdeteksi'}</strong></p>
                 </div>
               </section>
 
+              <section className="rounded-xl border border-slate-200 bg-white p-3" aria-labelledby="import-mode-title">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 id="import-mode-title" className="text-xs font-bold uppercase tracking-wider text-slate-700">Cara menerapkan</h3>
+                  <div className="flex gap-2 text-2xs font-semibold">
+                    <button type="button" onClick={() => setSelectedSections([...DEFAULT_IMPORT_SECTIONS])} className="text-indigo-600 hover:text-indigo-800">Pilih semua</button>
+                    <span className="text-slate-300">•</span>
+                    <button type="button" onClick={() => setSelectedSections([])} className="text-slate-500 hover:text-slate-700">Kosongkan</button>
+                  </div>
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <label className={`cursor-pointer rounded-lg border p-2.5 text-xs ${importMode === 'merge' ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'}`}>
+                    <span className="flex items-start gap-2">
+                      <input type="radio" name="import-mode" checked={importMode === 'merge'} onChange={() => setImportMode('merge')} className="mt-0.5 h-3.5 w-3.5 text-indigo-600" data-testid="import-mode-merge" />
+                      <span><strong className="block text-slate-800">Gabungkan</strong><span className="text-slate-500">Tambah item baru, pertahankan isi CV saat ini.</span></span>
+                    </span>
+                  </label>
+                  <label className={`cursor-pointer rounded-lg border p-2.5 text-xs ${importMode === 'replace' ? 'border-amber-400 bg-amber-50' : 'border-slate-200'}`}>
+                    <span className="flex items-start gap-2">
+                      <input type="radio" name="import-mode" checked={importMode === 'replace'} onChange={() => setImportMode('replace')} className="mt-0.5 h-3.5 w-3.5 text-amber-600" data-testid="import-mode-replace" />
+                      <span><strong className="block text-slate-800">Timpa bagian terpilih</strong><span className="text-slate-500">Ganti bagian yang dicentang dengan hasil impor.</span></span>
+                    </span>
+                  </label>
+                </div>
+              </section>
+
               <section className="space-y-2" aria-labelledby="import-preview-title">
                 <div>
                   <h3 id="import-preview-title" className="text-xs font-bold uppercase tracking-wider text-slate-700">Tinjau Semua Bagian</h3>
-                  <p className="mt-1 text-xs text-slate-500">Buka setiap bagian dan periksa data sebelum mengganti editor.</p>
+                  <p className="mt-1 text-xs text-slate-500">Centang bagian yang ingin diterapkan, lalu buka untuk memeriksa datanya.</p>
                 </div>
                 {previewSections.map((section, index) => (
-                  <details key={section.title} open={index < 2} className="group rounded-xl border border-slate-200 bg-white">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
-                      <div>
-                        <span className="text-sm font-semibold text-slate-900">{section.title}</span>
-                        <span className="ml-2 text-xs text-slate-500">{section.count}</span>
+                  <div key={section.id} className="flex items-start gap-2">
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-3 text-2xs font-semibold text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.includes(section.id)}
+                        onChange={() => toggleSection(section.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        aria-label={`Impor bagian ${section.title}`}
+                        data-testid={`import-section-${section.id}`}
+                      />
+                      Impor
+                    </label>
+                    <details open={index < 2} className="group min-w-0 flex-1 rounded-xl border border-slate-200 bg-white">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                        <div>
+                          <span className="text-sm font-semibold text-slate-900">{section.title}</span>
+                          <span className="ml-2 text-xs text-slate-500">{section.count}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getConfidenceBadge(section.confidence)}
+                          <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
+                        </div>
+                      </summary>
+                      <div className="border-t border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
+                        {section.content}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {getConfidenceBadge(section.confidence)}
-                        <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
-                      </div>
-                    </summary>
-                    <div className="border-t border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
-                      {section.content}
-                    </div>
-                  </details>
+                    </details>
+                  </div>
                 ))}
               </section>
 
@@ -298,13 +385,13 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
                 <input
                   type="checkbox"
-                  checked={confirmReplace}
-                  onChange={event => setConfirmReplace(event.target.checked)}
+                  checked={confirmApply}
+                  onChange={event => setConfirmApply(event.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-rose-300 text-indigo-600 focus:ring-indigo-500"
                   data-testid="confirm-replace-import"
                 />
                 <span className="text-xs leading-relaxed text-rose-900">
-                  Saya sudah meninjau hasil. Terapkan data ini dan <strong>ganti seluruh isi CV pada editor saat ini</strong>.
+                  Saya sudah meninjau hasil. Terapkan <strong>{selectedSections.length} bagian terpilih</strong> dengan mode <strong>{importMode === 'merge' ? 'gabungkan' : 'timpa bagian terpilih'}</strong>. Perubahan dapat diurungkan setelah diterapkan.
                 </span>
               </label>
             </div>
@@ -331,7 +418,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               <button
                 type="button"
                 onClick={handleConfirmApply}
-                disabled={!confirmReplace}
+                disabled={!confirmApply || selectedSections.length === 0}
                 className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 data-testid="btn-confirm-apply"
               >

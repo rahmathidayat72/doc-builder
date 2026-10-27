@@ -8,15 +8,24 @@ import {
   ArrowRight,
   Loader2,
   FileSearch,
-  Check
+  Check,
+  CopyPlus
 } from 'lucide-react'
 import { type ResumeDraft } from '../../types/resume'
 import { matchResumeToJob, type JobMatchResult } from '../../services/ats'
+
+export interface TargetedDraftRequest {
+  title: string
+  company: string
+  description: string
+  matchedSkills: string[]
+}
 
 interface JobMatchModalProps {
   draft: ResumeDraft | null
   isOpen: boolean
   onClose: () => void
+  onCreateTargetedDraft?: (target: TargetedDraftRequest) => Promise<void>
 }
 
 const SAMPLE_JOB_DESC = `Dibutuhkan Senior Backend Engineer.
@@ -29,11 +38,16 @@ Kualifikasi:
 export const JobMatchModal: React.FC<JobMatchModalProps> = ({
   draft,
   isOpen,
-  onClose
+  onClose,
+  onCreateTargetedDraft
 }) => {
   const [jobText, setJobText] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [matchResult, setMatchResult] = useState<JobMatchResult | null>(null)
+  const [targetTitle, setTargetTitle] = useState('')
+  const [targetCompany, setTargetCompany] = useState('')
+  const [isCreatingTarget, setIsCreatingTarget] = useState(false)
+  const [targetError, setTargetError] = useState<string | null>(null)
 
   if (!isOpen || !draft) return null
 
@@ -41,13 +55,48 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
     if (!jobText.trim()) return
 
     setIsLoading(true)
+    setTargetError(null)
     try {
       const result = await matchResumeToJob(draft, jobText)
       setMatchResult(result)
+      if (!targetTitle.trim()) {
+        const firstLine = jobText
+          .split('\n')
+          .map(line => line.trim())
+          .find(line => line && !/^(kualifikasi|qualifications|tanggung jawab|responsibilities)/i.test(line))
+        if (firstLine) {
+          const suggested = firstLine
+            .replace(/^dibutuhkan\s+/i, '')
+            .replace(/[.:;]+$/, '')
+            .slice(0, 100)
+          setTargetTitle(suggested)
+        }
+      }
     } catch (err) {
       console.error('Gagal menjalankan komparasi lowongan:', err)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleCreateTargetedDraft = async () => {
+    if (!onCreateTargetedDraft || !matchResult || !targetTitle.trim()) return
+    setIsCreatingTarget(true)
+    setTargetError(null)
+    try {
+      await onCreateTargetedDraft({
+        title: targetTitle.trim(),
+        company: targetCompany.trim(),
+        description: jobText,
+        matchedSkills: matchResult.matched_skills
+      })
+      onClose()
+    } catch (err) {
+      setTargetError(
+        err instanceof Error ? err.message : 'Gagal membuat draft target.'
+      )
+    } finally {
+      setIsCreatingTarget(false)
     }
   }
 
@@ -58,7 +107,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b pb-3">
@@ -211,6 +260,60 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                       <li key={idx} className="leading-relaxed">{item}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {onCreateTargetedDraft && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-2.5" data-testid="target-draft-panel">
+                  <div>
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+                      <CopyPlus className="h-4 w-4 text-indigo-600" />
+                      Buat CV Target
+                    </span>
+                    <p className="mt-1 text-2xs leading-relaxed text-indigo-800">
+                      Salin CV ini menjadi draft terpisah, urutkan keahlian yang cocok di atas, dan simpan konteks lowongan. Draft asli tidak berubah.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="block text-2xs font-semibold text-slate-700">
+                      Posisi target <span className="text-rose-500">*</span>
+                      <input
+                        type="text"
+                        value={targetTitle}
+                        onChange={event => setTargetTitle(event.target.value)}
+                        placeholder="Contoh: Senior Backend Engineer"
+                        className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        data-testid="input-target-title"
+                      />
+                    </label>
+                    <label className="block text-2xs font-semibold text-slate-700">
+                      Perusahaan (opsional)
+                      <input
+                        type="text"
+                        value={targetCompany}
+                        onChange={event => setTargetCompany(event.target.value)}
+                        placeholder="Contoh: PT Maju Digital"
+                        className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        data-testid="input-target-company"
+                      />
+                    </label>
+                  </div>
+                  {matchResult.matched_skills.length > 0 && (
+                    <p className="text-2xs text-indigo-800">
+                      Keahlian cocok yang akan diprioritaskan: {matchResult.matched_skills.slice(0, 6).join(', ')}
+                    </p>
+                  )}
+                  {targetError && <p className="text-2xs font-medium text-rose-700" role="alert">{targetError}</p>}
+                  <button
+                    type="button"
+                    onClick={handleCreateTargetedDraft}
+                    disabled={!targetTitle.trim() || isCreatingTarget}
+                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid="btn-create-targeted-draft"
+                  >
+                    {isCreatingTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CopyPlus className="h-3.5 w-3.5" />}
+                    {isCreatingTarget ? 'Membuat draft...' : 'Buat Draft Target'}
+                  </button>
                 </div>
               )}
             </div>

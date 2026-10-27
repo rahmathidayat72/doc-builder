@@ -151,7 +151,7 @@ export const PdfToMarkdownModal: React.FC<PdfToMarkdownModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Modal PDF to Markdown"
-      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-overlay-in"
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-4 sm:p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[92vh] flex flex-col">
         {/* Header */}

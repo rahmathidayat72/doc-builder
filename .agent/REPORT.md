@@ -2801,3 +2801,367 @@ Implementasi fitur konversi dan ekstraksi dokumen PDF ke format Markdown (`.md`)
 
 
 
+
+---
+
+## Hotfix Packaging Backend — 2026-10-24
+
+**Task:** HOTFIX-PACKAGING-001 — Perbaiki setuptools package discovery
+**Requirement:** BUS-009, NFR-REL-003
+
+### Ringkasan
+Editable install backend gagal setelah folder runtime `backend/temp_workspace` dibuat karena setuptools flat-layout mendeteksi dua top-level package (`app` dan `temp_workspace`). Ditambahkan konfigurasi build-system dan package discovery yang hanya mencakup `app*`.
+
+### Perubahan
+- `backend/pyproject.toml`: menambahkan `[build-system]` (setuptools>=68, wheel) dan `[tool.setuptools.packages.find]` dengan `include = ["app*"]`.
+- `.gitignore`: menambahkan `*.egg-info/`.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Editable install saat temp_workspace ada | `backend/.venv/bin/pip install -e "./backend[dev]"` | PASS | Wheel editable berhasil dibangun |
+| Import paket terpasang dari luar repo | `python -c "import app, app.api, app.services"` | PASS | OK |
+| Import launcher | `python -c "from backend.app.main import app"` | PASS | OK |
+| Backend test suite | `pytest backend/tests -q` | PASS | 119/119 passed, 1 warning |
+| temp_workspace tetap ada | `test -d backend/temp_workspace` | PASS | Folder runtime tidak terhapus |
+
+### Acceptance Criteria
+- [x] `pip install -e "./backend[dev]"` berhasil meski `backend/temp_workspace` ada.
+- [x] `temp_workspace` tidak dianggap package.
+- [x] Import `app.*` dan `backend.app.main` tetap berfungsi.
+- [x] 119 test backend lulus.
+- [x] Artefak `*.egg-info/` diabaikan Git.
+
+### Risiko Tersisa
+- Tidak ada risiko baru. Warning deprecation `starlette.testclient` berasal dari dependensi, bukan dari perubahan ini.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Fitur Multi-Website CV — 2026-10-24
+
+**Task:** FEATURE-CV-MULTI-WEBSITE-001 — Maksimal tiga website/portofolio
+**Requirement:** FR-001, FR-002, FR-005, FR-006, NFR-UX-001
+
+### Ringkasan
+Menambahkan dukungan hingga tiga alamat website/portofolio pada Informasi Kontak. LinkedIn tetap menjadi field terpisah. `contact.websites` menjadi model baru; `contact.website` dipertahankan untuk kompatibilitas draft lama dan disinkronkan dengan entri pertama yang terisi. Entri kosong diabaikan pada preview dan export, dan seluruh render/export dibatasi maksimal tiga entri.
+
+### Kesesuaian dengan Code Plan
+- Scope sesuai plan: schema dan helper normalisasi, ContactForm dinamis, 4 template, DOCX export, parser compatibility, serta test frontend/backend.
+- Tidak ada dependency baru dan tidak ada perubahan versi IndexedDB.
+- Perubahan packaging yang belum di-commit dari `HOTFIX-PACKAGING-001` tidak disentuh.
+- Tidak ada penyimpangan material. Parser impor tetap mengambil website pertama yang terdeteksi agar tidak menangkap domain perusahaan dari badan CV; pengguna dapat menambah website lain secara manual.
+
+### File Dibuat
+- Tidak ada file source baru. Test ditambahkan ke file test yang sudah ada.
+
+### File Diubah
+- `frontend/src/types/resume.ts`
+- `frontend/src/components/builder/ContactForm.tsx`
+- `frontend/src/templates/AtsClean.tsx`
+- `frontend/src/templates/AtsModern.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/templates/VisualMinimal.tsx`
+- `frontend/src/components/builder/__tests__/builder.test.tsx`
+- `frontend/src/templates/__tests__/templates.test.tsx`
+- `frontend/src/services/__tests__/storage.test.ts`
+- `backend/app/services/docx_generator.py`
+- `backend/app/services/resume_parser.py`
+- `backend/tests/test_export.py`
+- `backend/tests/test_import.py`
+- `docs/project/PRD.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+- Schema kontak menerima `websites?: string[]`; `getWebsites()` dan `getFilledWebsites()` menjadi normalisasi tunggal untuk fallback legacy, batas tiga, trim, dan filter entri kosong.
+- ContactForm menampilkan satu input default, tombol tambah hingga total tiga, tombol hapus pada kolom kedua/ketiga, serta menyinkronkan `website` ke entri pertama yang terisi.
+- Empat template merender semua website non-kosong (maksimal tiga) tanpa mengubah LinkedIn.
+- DOCX generator memakai `websites` dengan fallback `website`, deduplikasi case-insensitive, dan batas tiga entri; PDF ikut memakai jalur DOCX yang sama.
+- Parser mengisi `website` dan `websites` secara konsisten untuk website pertama yang terdeteksi.
+- Draft lama tanpa `websites` tetap dapat disimpan/dibuka; field legacy dipertahankan.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend focused tests | `npm --prefix frontend test -- builder.test.tsx templates.test.tsx storage.test.ts` | PASS | 30/30 tests |
+| Backend focused tests | `backend/.venv/bin/pytest backend/tests/test_export.py backend/tests/test_import.py -q` | PASS | 19/19 tests |
+| Frontend full suite | `npm --prefix frontend test` | PASS | 183/183 tests, 24 files |
+| Backend full suite | `backend/.venv/bin/pytest backend/tests -q` | PASS | 121/121 tests, 1 warning dependensi |
+| Frontend lint | `npm --prefix frontend run lint` | PASS | 0 error, 18 warning existing |
+| Backend lint | `backend/.venv/bin/ruff check backend/app backend/tests` | PASS | All checks passed |
+| Frontend build | `npm --prefix frontend run build` | PASS | Vite build sukses, chunk-size warning existing |
+| Distribution smoke test | `python scripts/verify_distribution.py` | NOT RUN | Tidak dijalankan ulang; perubahan tidak menyentuh packaging |
+
+### Acceptance Criteria
+- [x] Total maksimal tiga kolom website/portofolio, termasuk kolom default.
+- [x] LinkedIn tetap field terpisah dan tidak dihitung sebagai website.
+- [x] Setiap entri hanya berisi URL/domain tanpa field label.
+- [x] Entri kosong tidak muncul di preview maupun export.
+- [x] Draft lama dengan hanya `website` tetap kompatibel.
+- [x] Live preview 4 template dan ekspor DOCX/PDF mendukung daftar website.
+- [x] Impor CV tidak merusak kontrak lama.
+- [x] Test, lint, Ruff, dan Vite build lulus.
+
+### Keputusan dan Technical Debt
+- Keputusan `DEC-011`: model `websites` + fallback `website`, tanpa migrasi IndexedDB.
+- Link website dirender sebagai teks, bukan hyperlink DOCX, sesuai scope.
+- Impor CV hanya memetakan website pertama yang terdeteksi; entri tambahan dapat diisi manual.
+
+### Risiko Tersisa
+- Payload eksternal dengan lebih dari tiga website dipotong secara aman sesuai batas produk.
+- Tidak ada validasi URL ketat; domain tanpa skema tetap diterima sesuai kebutuhan pengguna.
+- Tidak ada risiko keamanan baru: URL dirender sebagai teks dan tidak menambah endpoint atau trust boundary.
+
+### Dokumentasi Diperbarui
+- PRD, traceability, change request, decision log, task tracking, project state, dan report.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## Task DOC-CONSISTENCY-001 — Rekonsiliasi Dokumentasi dengan Kode Aktual — 2026-10-24
+
+**Task:** DOC-CONSISTENCY-001 — Sinkronisasi decision log, traceability, arsitektur stack, tooling test/SOP, status bukti keamanan, dan open questions
+**Requirement:** NFR-SEC-001, NFR-REL-003, NFR-UX-001
+
+### Ringkasan
+Dokumentasi proyek diselaraskan dengan kondisi repository aktual tanpa mengubah source code, test, dependency, atau konfigurasi runtime. Pekerjaan ini mengoreksi klaim yang tidak didukung kode, mencatat gap keamanan yang ditemukan, dan mempertahankan status rilis/security gate historis sampai review owner.
+
+Temuan utama:
+- Referensi traceability lama memakai `DEC-007`/`DEC-008`/`DEC-009`/`DEC-010` untuk PDF toolkit; decision log aktual memakai `DEC-012`.
+- Runtime cookie sesi memakai `SameSite=Lax`, bukan `Strict`; dicatat sebagai `DEC-013`.
+- Stack frontend aktual adalah React 19, Zod, Vitest, dan Oxlint; tidak memakai Radix UI/React Hook Form.
+- Tooling Playwright, Biome, Bandit, Semgrep, dan `uv` tidak terpasang/terkonfigurasi; klaim “4 Browser matrix PASS” tidak didukung bukti dan dikoreksi menjadi NOT VERIFIED (`Q-005`).
+- Benchmark 100% adalah fidelitas field/teks round-trip, bukan SSIM/pixel diff; metrik visual formal tetap terbuka (`Q-001`).
+- Structured logging/audit trail 7 hari tidak ditemukan (`RISK-SEC-001`).
+- Workspace temp job manager memakai permission default `0775`, bukan `0700`, dan tidak ada periodic sweeper (`RISK-SEC-002`).
+- Sandbox egress hanya berupa proxy environment (`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` ke port tertutup), bukan block OS-level; Linux juga belum memiliki memory cap (`RISK-SEC-003`, provisional HIGH).
+- `docs/conversations.json` berisi 178 transkrip dan memerlukan keputusan kebijakan repository (`Q-006`).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan: hanya file dokumentasi dan tracking yang diubah; tidak ada source code, test, dependency, atau runtime configuration yang diubah.
+- Penyimpangan dan persetujuan ulang: tidak ada perluasan ke implementasi. Penemuan `RISK-SEC-003` dicatat sebagai gap/risk sesuai arahan pengguna “Catat gap + risk”.
+- Perbedaan command/expected result: tidak ada test/build yang dijalankan ulang karena task dokumentasi; bukti test yang dikutip adalah hasil eksekusi yang sudah tercatat.
+
+### File Dibuat
+- Tidak ada.
+
+### File Diubah
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/BRD.md`
+- `docs/project/DISTRIBUTION.md`
+- `docs/project/IMPLEMENTATION-PLAN.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/SOP.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+- `docs/project/UAT-REPORT.md`
+- `docs/project/phases/phase-01-feasibility.md`
+- `docs/project/security/SECURITY-SCAN-REPORT.md`
+- `.agent/DECISIONS.md`
+- `.agent/OPEN-QUESTIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Perubahan
+- `DECISIONS.md`: menambahkan `DEC-012` (retrospective PDF toolkit), `DEC-013` (cookie Lax), catatan `DEC-010` tidak pernah digunakan, dan catatan implementasi `DEC-008` yang mengoreksi klaim egress block.
+- `OPEN-QUESTIONS.md`: Q-001 sebagian terbuka; Q-002–Q-004 ditutup dengan bukti; Q-003 diberi catatan gap sandbox; Q-005 dan Q-006 tetap terbuka.
+- `ARCHITECTURE.md`: stack aktual, port default 8000, subprocess per job, `SameSite=Lax`, sandbox egress/memory gap, dan logging gap.
+- `BRD.md`: catatan bahwa KPI-004 belum punya metode visual formal dan BRULE-003 baru dipenuhi via per-job cleanup + startup sweep.
+- `TEST-STRATEGY.md`: command aktual, status Playwright/Biome/Bandit/Semgrep, koreksi corpus 5 resume dan metrik field/teks.
+- `PRD.md`: catatan konsistensi bahwa kriteria 5 baru diukur field/teks, NFR-COMP-002 belum terverifikasi, dan `RISK-SEC-003` masih terbuka.
+- `SOP.md`: command aktual, `strict` TypeScript/mypy belum aktif, dan larangan mengklaim isolasi jaringan penuh.
+- `SECURITY.md`: threat matrix dikoreksi, status bukti historis dipisahkan dari bukti terkini, risk register `RISK-SEC-001`/`002`/`003` dengan owner dan review date.
+- `TRACEABILITY.md`: referensi `DEC-012`/`DEC-013`, status Playwright NOT VERIFIED, dan status THR-004/008/011 yang jujur.
+- `DISTRIBUTION.md`: cookie `SameSite=Lax`, endpoint health/bootstrap tidak diklaim terproteksi, fidelitas field/teks, cleanup per-job + startup sweep.
+- `UAT-REPORT.md`: klarifikasi metrik field/teks dan koreksi klaim egress/daemon sweeper.
+- `IMPLEMENTATION-PLAN.md` dan `phase-01-feasibility.md`: koreksi klaim Playwright dan sandbox egress.
+- `SECURITY-SCAN-REPORT.md`: catatan historis 7/7 vs suite aktual 8/8 dan 121/121.
+- `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`, dan laporan ini: status task, risiko, dan next action.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Whitespace/error diff | `git diff --check` | PASS | Tidak ada output |
+| Audit klaim lama | `grep -RIn ...` untuk `SameSite=Strict`, Playwright, egress, 4/4, 7/7, 62/62, React 18 | PASS | Sisa hits hanya entri historis `.agent/REPORT.md` dan catatan koreksi yang disengaja |
+| Audit file berubah | `git diff --name-only` | PASS | Perubahan task ini hanya `docs/project/**` dan file tracking yang tercantum di atas; perubahan `backend/**`, `frontend/**`, `.gitignore`, dan `.agent/CHANGE-REQUESTS.md` adalah pekerjaan fitur/hotfix yang sudah ada |
+| Unit/integration test | — | NOT RUN | Task dokumentasi; tidak ada source/test yang diubah. Bukti 121/121 Pytest dan 183/183 Vitest adalah hasil eksekusi sebelumnya, bukan retest task ini |
+| Security scan | — | NOT RUN | Tidak ada perubahan kode; hasil historis 2026-10-21 dikutip dengan caveat |
+| Git commit/push | — | NOT RUN | Tidak ada commit/push tanpa instruksi eksplisit |
+
+### Acceptance Criteria
+- [x] Referensi decision log pada traceability diselaraskan (`DEC-012`, `DEC-013`).
+- [x] Stack dan tooling aktual didokumentasikan tanpa klaim yang tidak dapat dijalankan.
+- [x] Klaim cookie, CI/CD, Playwright, logging, dan sandbox dikoreksi.
+- [x] Gap keamanan dicatat sebagai risk dengan owner dan review date.
+- [x] Open questions dan status verifikasi historis diperbarui.
+- [x] Tidak ada source code/test/dependency yang diubah oleh task ini.
+- [x] Status rilis/security gate historis tidak diubah; release berikutnya ditandai pending sampai review `RISK-SEC-003`.
+- [x] Tidak ada commit/push.
+
+### Keputusan dan Technical Debt
+- `DEC-012` dan `DEC-013` menjadi rujukan resmi untuk PDF toolkit dan cookie sesi.
+- Technical debt yang tetap terbuka: TypeScript `strict` dan mypy `strict` belum aktif, tidak ada CI/CD, tidak ada E2E Playwright, tidak ada structured audit logging, dan sandbox egress/memory cap belum memadai.
+- `RISK-SEC-003` berstatus HIGH provisional; jangan menurunkan severity atau menyatakan release berikutnya aman tanpa mitigasi/acceptance formal.
+
+### Risiko Tersisa
+- `RISK-SEC-001` — audit/logging gap, MEDIUM provisional, owner User, review 2026-10-31.
+- `RISK-SEC-002` — permission/cleanup temp workspace, LOW provisional, owner User, review 2026-10-31.
+- `RISK-SEC-003` — sandbox egress hanya proxy env + Linux tanpa memory cap, HIGH provisional, owner User, review 2026-10-31.
+- `Q-001` — metrik fidelitas visual formal belum ditetapkan.
+- `Q-005` — cross-browser E2E belum terverifikasi.
+- `Q-006` — kebijakan `docs/conversations.json` belum diputuskan.
+
+### Dokumentasi Diperbarui
+- Architecture, security, SOP, test strategy, traceability, distribution, implementation plan, UAT report, security scan report, phase-01, decision log, open questions, tasks, project state, dan report.
+
+### Status
+✅ Selesai dan terverifikasi (dokumentasi). Risk review owner masih pending dan tidak menghalangi penutupan task dokumentasi ini.
+
+### Rekomendasi Berikutnya
+Review treatment `RISK-SEC-001`/`002`/`003` sebelum release berikutnya. Setelah keputusan risiko, ajukan task terpisah untuk pagination/page-boundary preview dan pre-export quality checks melalui code plan Gerbang 3.
+
+---
+
+## Hasil Task — Peningkatan CV P0/P1/P2 (2026-10-24)
+
+**Task:** `IMPROVEMENT-CV-PREEXPORT-001`, `IMPROVEMENT-CV-STRUCTURED-001`, `IMPROVEMENT-CV-WORKFLOW-001`
+**Requirement:** FR-024, FR-034 s.d. FR-041, NFR-UX-001, NFR-REL-004
+
+### Ringkasan
+Seluruh peningkatan CV yang disetujui pengguna telah diimplementasikan dalam tiga batch: (P0) estimasi pagination A4, preflight ekspor, dan sanitasi nama berkas; (P1) headline profesional, pencapaian terstruktur, reorder entri/bagian, deskripsi pendidikan, validasi tanggal, dukungan 4 template, DOCX, dan parser; (P2) CV target, impor selektif merge/replace + undo, serta manajemen draft lanjutan. Tidak ada template baru yang ditambahkan.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan: ya, dengan tambahan hardening autosave dan inisialisasi draft yang diperlukan untuk mencegah kehilangan data pada alur P2.
+- Penyimpangan dan persetujuan ulang: tidak ada perluasan ke template baru, perubahan kontrak publik backend, atau perubahan security/release gate. Autosave hardening dan test integrasi App/Navbar ditambahkan sebagai bagian dari acceptance P2.
+- Perbedaan command/expected result: `git diff --check` awalnya menemukan satu blank line di EOF `backend/tests/test_export.py`; whitespace diperbaiki dan pemeriksaan diulang. Build menghasilkan warning chunk >500 kB yang tidak memblokir.
+- Status rilis/security gate tidak diubah. `RISK-SEC-003` tetap HIGH provisional dan menjadi blocker release berikutnya.
+
+### File Dibuat
+- `frontend/src/components/export/ExportResumeModal.tsx`
+- `frontend/src/components/export/__tests__/exportModal.test.tsx`
+- `frontend/src/components/builder/SectionOrderForm.tsx`
+- `frontend/src/components/builder/__tests__/cv_improvements.test.tsx`
+- `frontend/src/components/ats/__tests__/job_target.test.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `frontend/src/components/preview/__tests__/preview.test.tsx`
+- `frontend/src/hooks/__tests__/useResumeDraft.test.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/src/services/__tests__/export.test.ts`
+- `frontend/src/services/__tests__/importMerge.test.ts`
+- `frontend/src/services/__tests__/resumeQuality.test.ts`
+- `frontend/src/services/importMerge.ts`
+- `frontend/src/services/resumeQuality.ts`
+- `frontend/src/types/resumeSections.ts`
+- `frontend/src/utils/array.ts`
+- `frontend/src/utils/dateValidation.ts`
+- `frontend/src/utils/__tests__/dateValidation.test.ts`
+
+### File Diubah
+- Frontend: `App.tsx`, `Navbar.tsx`, `ContactForm.tsx`, `ExperienceForm.tsx`, `EducationForm.tsx`, `ImportResumeModal.tsx`, `JobMatchModal.tsx`, `ResumePreview.tsx`, `useResumeDraft.ts`, `export.ts`, `storage.ts`, `ats.ts`, `resume.ts`, 4 template, dan test terkait.
+- Backend: `api/export.py`, `services/docx_generator.py`, `services/resume_parser.py`, `tests/test_export.py`, `tests/test_import.py`, `pyproject.toml`.
+- Dokumentasi/tracking: `PRD.md`, `ARCHITECTURE.md`, `SECURITY.md`, `SOP.md`, `TEST-STRATEGY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `.agent/DECISIONS.md`, `.agent/CHANGE-REQUESTS.md`.
+
+### Perubahan
+- **P0:** Preflight `resumeQuality` memisahkan error/warning; modal ekspor memblokir error, mewajibkan acknowledgment warning, dan menyediakan navigasi “Perbaiki”. `ResumePreview` menghitung estimasi halaman dari tinggi render dengan overlay page-break; template full-bleed memakai tinggi A4 penuh. Nama berkas dapat diedit dan disanitasi di frontend/backend, termasuk control character dan ekstensi ganda.
+- **P1:** `headline` ditambahkan ke kontak dan dirender/diekspor/diparse. `achievements[]` menjadi sumber utama dengan fallback `description`; baris kosong dipertahankan saat edit dan difilter saat render. Pengalaman/pendidikan dapat diurutkan ulang; pendidikan mendukung deskripsi; `sectionOrder` dinormalisasi; validasi tanggal mendukung format bulan/tahun dan tanggal terbuka. Empat template dan DOCX memakai helper/fallback yang konsisten.
+- **P2:** Job Matching dapat membuat draft CV target sebagai salinan dengan `targetJob` dan skill cocok diurutkan lebih dahulu; draft asli tidak berubah. Impor mendukung pemilihan bagian, `merge`/`replace`, dan undo 30 detik berbasis snapshot bagian terpilih. Navbar mendukung pencarian, favorit (diurutkan lebih dahulu tanpa mengubah `updatedAt`), rename inline, duplikasi, dan badge target. Autosave di-flush sebelum berpindah/menduplikasi draft dan inisialisasi menunggu daftar draft selesai dimuat.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend unit/integration | `npm test -- --reporter=dot` | PASS | 233/233 test (36 file); 6 test baru Navbar/useResumeDraft dan 2 test integrasi App terkait P0/P2 PASS |
+| Frontend build/typecheck | `npm run build` | PASS | `tsc -b && vite build`; warning chunk 745.07 kB non-blocking |
+| Frontend lint | `npm run lint` | PASS (0 error) | 16 warning pre-existing; warning baru pada ExportResumeModal dan ResumePreview dihapus |
+| Backend test | `.venv/bin/python -m pytest -q` | PASS | 126/126 test |
+| Backend lint | `.venv/bin/python -m ruff check app tests` | PASS | `All checks passed!` |
+| Whitespace check | `git diff --check` | PASS setelah perbaikan | Satu blank line EOF di `test_export.py` diperbaiki |
+| Distribusi | — | NOT RUN | Tidak dijalankan ulang untuk batch ini |
+| Security scan baru | — | NOT RUN | Tidak ada klaim scan baru; `RISK-SEC-003` tetap terbuka |
+
+### Acceptance Criteria
+- [x] Pagination preview, badge halaman, dan overlay page-break tersedia.
+- [x] Preflight memblokir error dan meminta acknowledgment warning.
+- [x] Nama berkas dapat diedit dan disanitasi frontend/backend.
+- [x] Headline profesional, pencapaian terstruktur, reorder, deskripsi pendidikan, dan validasi tanggal berfungsi di editor/preview/export.
+- [x] Draft lama tetap kompatibel melalui fallback tanpa migrasi destruktif.
+- [x] CV target dibuat sebagai salinan dan tidak mengubah draft sumber.
+- [x] Impor selektif merge/replace dan undo 30 detik bekerja.
+- [x] Pencarian/favorit/rename/duplikasi draft dan badge target tersedia.
+- [x] Autosave tidak menimpa draft baru saat berpindah dan tidak membuat draft kosong saat inisialisasi.
+- [x] Build, lint, test frontend, test backend, dan Ruff lulus.
+- [x] Dokumentasi/traceability diperbarui; status rilis/security gate tidak diubah tanpa owner review.
+- [x] Tidak ada commit/push.
+
+### Keputusan dan Technical Debt
+- `DEC-014`: estimasi pagination/preflight/filename sanitization.
+- `DEC-015`: model data terstruktur dan backward compatibility draft lama.
+- `DEC-016`: CV target, impor selektif + undo, dan manajemen draft.
+- Technical debt: 16 warning Oxlint pre-existing, belum ada E2E Playwright, dan snapshot undo impor hanya bertahan selama sesi halaman.
+
+### Risiko Tersisa
+- `RISK-SEC-003` — HIGH provisional, blocker release berikutnya; owner User, review 2026-10-31.
+- `RISK-SEC-001` dan `RISK-SEC-002` — masih OPEN, owner User, review 2026-10-31.
+- `Q-001`, `Q-005`, `Q-006` — belum berubah.
+- Tidak ada open Critical/High finding baru dari perubahan ini; `RISK-SEC-003` adalah risk lama yang tetap terbuka.
+
+### Dokumentasi Diperbarui
+- `docs/project/PRD.md`, `ARCHITECTURE.md`, `SECURITY.md`, `SOP.md`, `TEST-STRATEGY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`.
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `.agent/DECISIONS.md`, `.agent/CHANGE-REQUESTS.md`.
+
+### Status
+✅ Selesai dan terverifikasi untuk scope peningkatan CV. Perubahan masih uncommitted dan belum dirilis; release berikutnya terblokir sampai risk review owner selesai.
+
+### Rekomendasi Berikutnya
+Review treatment `RISK-SEC-001`/`RISK-SEC-002`/`RISK-SEC-003`, lalu putuskan commit/release secara eksplisit. Jangan commit/push tanpa instruksi.
+
+---
+
+## Task Post-Release — IMPROVEMENT-UIUX-LAYOUT-001 — 2026-10-24
+
+**Task:** IMPROVEMENT-UIUX-LAYOUT-001 — Tata Letak, UI/UX & Animasi Halus
+**Requirement:** CR-013, NFR-UX-001, NFR-ACC-001
+
+### Ringkasan
+Memperbaiki tata letak utama aplikasi agar kolom editor dan live preview A4 melakukan scroll secara independen tanpa menggulung header maupun tab bagian form, menambahkan navigasi langkah (*Sebelumnya/Berikutnya* + progress bar), menutup celah interaksi popover/modal dengan hook `useDismiss` (klik di luar & `Escape`), mengelompokkan serta menambahkan pencarian pada 18 kartu Alat Dokumen, dan menyematkan animasi mikro halus (160–280 ms) yang otomatis dinonaktifkan ketika `prefers-reduced-motion: reduce` aktif.
+
+### Kesesuaian dengan Rencana
+- **A. Tata letak:** Shell `app-shell h-dvh overflow-hidden` dengan reset `@media print` penuh; tinggi preview menggunakan `h-full min-h-0` (menghapus `h-[calc(100vh-56px)]`); tab bagian tetap terlihat saat form panjang di-scroll dan auto-scroll ke viewport saat berpindah langkah; switcher mobile memakai segmented pill beranimasi; footer navigasi langkah *Sebelumnya / Berikutnya / Periksa & Unduh* + indikator progres langkah 1–7; baris `LanguagesForm` responsif di layar sempit; indikator chevron berputar pada `SectionOrderForm`.
+- **B. Interaksi Navbar:** Hook baru `frontend/src/hooks/useDismiss.ts` diterapkan pada menu warna, font, template, unduh, serta modal Draft CV (dengan penanganan bertingkat ketika mode rename aktif).
+- **C. Animasi halus:** Token `@theme` di `frontend/src/index.css` mendefinisikan `animate-fade-in` (sekaligus memperbaiki kelas yang sebelumnya belum terdefinisi pada `PdfEditorModal`), `animate-fade-up`, `animate-pop-in`, `animate-toast-in`, `animate-soft-pulse`, `.animate-overlay-in` pada seluruh modal dialog, `.stagger-item` pada kartu workspace, fade lembut saat template/font/warna pratinjau berubah, serta blok `@media (prefers-reduced-motion: reduce)`.
+- **D. Workspace Alat Dokumen:** 18 kartu dikelompokkan ke 4 kategori (*Konversi*, *Kelola PDF*, *Keamanan & Tanda Tangan*, *Gambar*) dilengkapi input pencarian instan dan state kosong informatif.
+- **Perbaikan stabilitas tambahan:** Menambahkan `isMountedRef` pada `PdfOcrModal.tsx` agar resolusi `getOcrStatus()` pasca-unmount tidak memicu *unhandled rejection* di pengujian paralel.
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Frontend lint | `npm run lint` | PASS (0 error) | 16 warning pre-existing, 0 warning baru |
+| Frontend build & typecheck | `npm run build` | PASS | `tsc -b && vite build` sukses |
+| Frontend unit/integration/a11y | `npx vitest run --reporter=dot` | PASS | 233/233 test (36/36 file), 0 unhandled error, WCAG 2.2 AA axe PASS |
+| Git whitespace check | `git diff --check` | PASS | Bersih tanpa trailing whitespace |
+
+### Acceptance Criteria
+- [x] Kolom editor dan preview A4 scroll secara independen tanpa menghilangkan tab bagian maupun memotong preview di layar mobile.
+- [x] Aturan `@media print` mereset tinggi shell sehingga cetak browser tidak terpotong.
+- [x] Navigasi langkah *Sebelumnya/Berikutnya* dan progress bar berfungsi serta tombol langkah terakhir membuka modal preflight ekspor.
+- [x] Popover warna, font, template, unduh, dan modal Draft CV tertutup dengan klik di luar atau tombol `Escape`.
+- [x] Workspace Alat Dokumen memiliki 4 kategori terstruktur dan pencarian real-time dengan tombol reset.
+- [x] Seluruh animasi berdurasi singkat (160–280 ms), tidak menghalangi interaksi/transform hover, dan menghormati `prefers-reduced-motion: reduce`.
+- [x] Tidak ada perubahan pada backend, kontrak API, skema storage, maupun output ekspor PDF/DOCX.
+- [x] Tidak dilakukan commit/push tanpa instruksi eksplisit.
+
+### Risiko Tersisa
+- Tidak ada risiko keamanan baru (perubahan murni presentasi/UI frontend). Risiko tingkat proyek sebelumnya (`RISK-SEC-001`, `RISK-SEC-002`, `RISK-SEC-003`) tetap mengikuti jadwal review owner 2026-10-31.
+
+### Status
+✅ Selesai dan terverifikasi (`IMPROVEMENT-UIUX-LAYOUT-001`).

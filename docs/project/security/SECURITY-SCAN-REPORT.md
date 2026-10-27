@@ -5,6 +5,8 @@
 - **Target Aplikasi:** Doc-builder (Desktop / Localhost)
 - **Security Risk Tier:** HIGH
 
+> **Catatan historis (2026-10-24):** Laporan ini adalah snapshot eksekusi 2026-10-21. Sejak itu `test_security.py` berkembang menjadi 8 test fungsi; hotfix autentikasi mencatat 8/8 PASS, dan verifikasi multi-website mencatat 121/121 Pytest PASS. Angka 7/7 di §4 adalah bukti historis, bukan status suite saat ini. `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` di `SECURITY.md` mencatat gap yang belum ditutup; `RISK-SEC-003` mencakup klaim egress block yang tidak didukung implementasi. Retest penuh tetap diperlukan sebelum release berikutnya.
+
 ---
 
 ## 1. Software Composition Analysis (SCA)

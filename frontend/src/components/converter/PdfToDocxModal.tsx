@@ -88,7 +88,7 @@ export const PdfToDocxModal: React.FC<PdfToDocxModalProps> = ({ isOpen, onClose 
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200">
         <div className="flex items-center justify-between border-b pb-3">
           <div className="flex items-center gap-2">

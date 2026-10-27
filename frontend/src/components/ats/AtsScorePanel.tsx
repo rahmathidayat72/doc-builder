@@ -93,7 +93,7 @@ export const AtsScorePanel: React.FC<AtsScorePanelProps> = ({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4 animate-overlay-in">
       <div
         ref={dialogRef}
         role="dialog"

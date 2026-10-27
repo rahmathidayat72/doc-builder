@@ -1,4 +1,4 @@
-import { type ResumeDraft } from '../types/resume'
+import { type ResumeDraft, getExperienceDescriptionText } from '../types/resume'
 import { apiFetch } from './apiClient'
 
 export interface AtsChecklistItem {
@@ -69,7 +69,7 @@ export function evaluateAtsClientFallback(draft: ResumeDraft): AtsAnalysisResult
   }
 
   // 1. Kontak
-  const hasEmail = Boolean(contact.email && /[\w\.-]+@[\w\.-]+\.\w+/.test(contact.email))
+  const hasEmail = Boolean(contact.email && /[\w.-]+@[\w.-]+\.\w+/.test(contact.email))
   if (hasEmail) {
     breakdown.contact += 10
     checklist.push({
@@ -227,7 +227,11 @@ export function evaluateAtsClientFallback(draft: ResumeDraft): AtsAnalysisResult
   // 4. Kuantifikasi Dampak
   let quantifiedCount = 0
   for (const exp of experiences) {
-    if (/(\d+[\s%kKmMBb]+|\d+\s*persen|\b\d{2,}\b|\$\d+|rp\s*\d+)/i.test(exp.description)) {
+    if (
+      /(\d+[\s%kKmMBb]+|\d+\s*persen|\b\d{2,}\b|\$\d+|rp\s*\d+)/i.test(
+        getExperienceDescriptionText(exp)
+      )
+    ) {
       quantifiedCount++
     }
   }
@@ -358,7 +362,9 @@ export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: stri
 
   const fullCvText = (
     draft.data.summary + ' ' +
-    draft.data.experiences.map(e => e.description + ' ' + e.jobTitle).join(' ')
+    draft.data.experiences
+      .map(e => getExperienceDescriptionText(e) + ' ' + e.jobTitle)
+      .join(' ')
   ).toLowerCase()
 
   const commonTaxonomy = [

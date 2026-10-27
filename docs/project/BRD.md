@@ -88,6 +88,8 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 - **KPI-004:** Skor fidelitas visual konversi ≥ 95% pada corpus pengujian resmi.
 - **KPI-005:** Kelulusan UAT minimal 90% dari 10 responden penguji.
 
+> **Catatan konsistensi 2026-10-24:** KPI-004 belum memiliki metode visual formal (SSIM/pixel diff); benchmark 2026-10-21 mengukur fidelitas field/teks round-trip 100%, bukan kemiripan visual (`Q-001`). BRULE-003 baru dipenuhi melalui per-job cleanup dan startup sweep; periodic sweeper belum tersedia (`RISK-SEC-002`).
+
 ## 11. Batasan & Dependensi Bisnis
 - **Constraint:** Anggaran operasional nol (tanpa cloud pihak ketiga), waktu target 3–4 bulan, bebas lisensi komersial copyleft keras (GPL/AGPL tanpa izin).
 - **Dependency:** Ketersediaan instalasi LibreOffice di perangkat pengguna lokal, penyusunan corpus uji representatif, dan partisipasi 10 pengguna uji UAT.

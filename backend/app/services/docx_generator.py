@@ -162,6 +162,15 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
     run_name.font.color.rgb = accent_rgb
     p_name.paragraph_format.space_after = Pt(2)
 
+    headline = contact.get("headline", "")
+    if isinstance(headline, str) and headline.strip():
+        p_headline = doc.add_paragraph()
+        p_headline.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_headline.paragraph_format.space_after = Pt(4)
+        run_headline = p_headline.add_run(headline.strip())
+        run_headline.font.size = Pt(10)
+        run_headline.font.color.rgb = RGBColor(71, 85, 105)
+
     # KONTAK DETAIL
     contact_parts = []
     if contact.get("email"):
@@ -172,8 +181,29 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
         contact_parts.append(contact["location"])
     if contact.get("linkedin"):
         contact_parts.append(contact["linkedin"])
-    if contact.get("website"):
-        contact_parts.append(contact["website"])
+
+    websites = contact.get("websites")
+    if not isinstance(websites, list):
+        websites = []
+
+    legacy_website = contact.get("website")
+    has_website_value = any(
+        isinstance(site, str) and site.strip() for site in websites
+    )
+    if not has_website_value and isinstance(legacy_website, str) and legacy_website.strip():
+        websites = [legacy_website]
+
+    added_websites: set[str] = set()
+    for site in websites:
+        if len(added_websites) >= 3:
+            break
+        if not isinstance(site, str):
+            continue
+        normalized_site = site.strip()
+        site_key = normalized_site.lower()
+        if normalized_site and site_key not in added_websites:
+            added_websites.add(site_key)
+            contact_parts.append(normalized_site)
 
     if contact_parts:
         p_contact = doc.add_paragraph()
@@ -194,175 +224,218 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
         # Tambahkan pembatas horizontal tipis (atau border)
         return p
 
-    # 2. RINGKASAN PROFESIONAL
-    if summary and summary.strip():
-        add_section_heading(labels["summary"])
-        p_sum = doc.add_paragraph()
-        run_sum = p_sum.add_run(summary.strip())
-        run_sum.font.size = Pt(9.5)
-        p_sum.paragraph_format.space_after = Pt(6)
+    valid_sections = [
+        "summary",
+        "experience",
+        "education",
+        "skills",
+        "languages",
+        "custom",
+    ]
+    raw_order = data.get("sectionOrder")
+    section_order: list[str] = []
+    if isinstance(raw_order, list):
+        for value in raw_order:
+            if (
+                isinstance(value, str)
+                and value in valid_sections
+                and value not in section_order
+            ):
+                section_order.append(value)
+    for value in valid_sections:
+        if value not in section_order:
+            section_order.append(value)
 
-    # 3. PENGALAMAN KERJA
-    if experiences:
-        add_section_heading(labels["experience"])
-        for exp in experiences:
-            p_job = doc.add_paragraph()
-            p_job.paragraph_format.space_before = Pt(4)
-            p_job.paragraph_format.space_after = Pt(1)
+    for section_id in section_order:
+        # 2. RINGKASAN PROFESIONAL
+        if section_id == "summary" and summary and summary.strip():
+            add_section_heading(labels["summary"])
+            p_sum = doc.add_paragraph()
+            run_sum = p_sum.add_run(summary.strip())
+            run_sum.font.size = Pt(9.5)
+            p_sum.paragraph_format.space_after = Pt(6)
 
-            # Posisi & Periode
-            run_title = p_job.add_run(exp.get("jobTitle", labels["job_title"]))
-            run_title.bold = True
-            run_title.font.size = Pt(10)
+        # 3. PENGALAMAN KERJA
+        elif section_id == "experience" and experiences:
+            add_section_heading(labels["experience"])
+            for exp in experiences:
+                p_job = doc.add_paragraph()
+                p_job.paragraph_format.space_before = Pt(4)
+                p_job.paragraph_format.space_after = Pt(1)
 
-            end_date = labels["present"] if exp.get("current") else exp.get("endDate", "")
-            period = f"{exp.get('startDate', '')} - {end_date}"
-            if period.strip() != "-":
-                run_period = p_job.add_run(f"\t{period}")
-                run_period.font.size = Pt(9)
-                run_period.font.color.rgb = RGBColor(100, 116, 139)
+                # Posisi & Periode
+                run_title = p_job.add_run(exp.get("jobTitle", labels["job_title"]))
+                run_title.bold = True
+                run_title.font.size = Pt(10)
 
-            # Perusahaan & Lokasi
-            company_line = exp.get("company", "")
-            if exp.get("location"):
-                company_line += f" • {exp.get('location')}"
-            if company_line:
-                p_comp = doc.add_paragraph()
-                p_comp.paragraph_format.space_after = Pt(2)
-                run_comp = p_comp.add_run(company_line)
-                run_comp.font.size = Pt(9)
-                run_comp.font.italic = True
-                run_comp.font.color.rgb = RGBColor(71, 85, 105)
+                end_date = (
+                    labels["present"] if exp.get("current") else exp.get("endDate", "")
+                )
+                period = f"{exp.get('startDate', '')} - {end_date}"
+                if period.strip() != "-":
+                    run_period = p_job.add_run(f"\t{period}")
+                    run_period.font.size = Pt(9)
+                    run_period.font.color.rgb = RGBColor(100, 116, 139)
 
-            # Butir Deskripsi
-            desc = exp.get("description", "")
-            if desc:
-                for line in desc.split("\n"):
-                    clean_line = line.strip()
+                # Perusahaan & Lokasi
+                company_line = exp.get("company", "")
+                if exp.get("location"):
+                    company_line += f" • {exp.get('location')}"
+                if company_line:
+                    p_comp = doc.add_paragraph()
+                    p_comp.paragraph_format.space_after = Pt(2)
+                    run_comp = p_comp.add_run(company_line)
+                    run_comp.font.size = Pt(9)
+                    run_comp.font.italic = True
+                    run_comp.font.color.rgb = RGBColor(71, 85, 105)
+
+                # Butir pencapaian terstruktur, dengan fallback ke deskripsi lama.
+                achievement_values = exp.get("achievements")
+                if isinstance(achievement_values, list):
+                    achievement_lines = [
+                        str(item) for item in achievement_values if str(item).strip()
+                    ]
+                else:
+                    description = exp.get("description", "")
+                    achievement_lines = (
+                        description.splitlines() if isinstance(description, str) else []
+                    )
+
+                for line in achievement_lines:
+                    clean_line = line.strip().lstrip("•-* ").strip()
                     if clean_line:
-                        if clean_line.startswith("•") or clean_line.startswith("-"):
-                            clean_line = clean_line.lstrip("•-").strip()
                         p_desc = doc.add_paragraph(style="List Bullet")
                         p_desc.paragraph_format.space_after = Pt(1)
                         run_desc = p_desc.add_run(clean_line)
                         run_desc.font.size = Pt(9)
 
-    # 4. PENDIDIKAN
-    if education:
-        add_section_heading(labels["education"])
-        for edu in education:
-            p_edu = doc.add_paragraph()
-            p_edu.paragraph_format.space_before = Pt(4)
-            p_edu.paragraph_format.space_after = Pt(1)
+        # 4. PENDIDIKAN
+        elif section_id == "education" and education:
+            add_section_heading(labels["education"])
+            for edu in education:
+                p_edu = doc.add_paragraph()
+                p_edu.paragraph_format.space_before = Pt(4)
+                p_edu.paragraph_format.space_after = Pt(1)
 
-            run_school = p_edu.add_run(edu.get("institution", labels["institution"]))
-            run_school.bold = True
-            run_school.font.size = Pt(10)
+                run_school = p_edu.add_run(
+                    edu.get("institution", labels["institution"])
+                )
+                run_school.bold = True
+                run_school.font.size = Pt(10)
 
-            start_date = edu.get("startDate", "").strip()
-            end_date = edu.get("endDate", "").strip()
-            if start_date and end_date:
-                edu_period = f"{start_date} - {end_date}"
-            elif end_date:
-                edu_period = end_date
-            elif start_date:
-                edu_period = start_date
-            else:
-                edu_period = ""
+                start_date = edu.get("startDate", "").strip()
+                end_date = edu.get("endDate", "").strip()
+                if start_date and end_date:
+                    edu_period = f"{start_date} - {end_date}"
+                elif end_date:
+                    edu_period = end_date
+                elif start_date:
+                    edu_period = start_date
+                else:
+                    edu_period = ""
 
-            if edu_period:
-                run_edu_period = p_edu.add_run(f"\t{edu_period}")
-                run_edu_period.font.size = Pt(9)
-                run_edu_period.font.color.rgb = RGBColor(100, 116, 139)
+                if edu_period:
+                    run_edu_period = p_edu.add_run(f"\t{edu_period}")
+                    run_edu_period.font.size = Pt(9)
+                    run_edu_period.font.color.rgb = RGBColor(100, 116, 139)
 
-            details = []
-            if edu.get("degree"):
-                details.append(edu.get("degree"))
-            if edu.get("fieldOfStudy"):
-                details.append(f"{labels['in_field']} {edu.get('fieldOfStudy')}")
-            if edu.get("gpa"):
-                details.append(f"{labels['gpa']}: {edu.get('gpa')}")
+                details = []
+                if edu.get("degree"):
+                    details.append(edu.get("degree"))
+                if edu.get("fieldOfStudy"):
+                    details.append(f"{labels['in_field']} {edu.get('fieldOfStudy')}")
+                if edu.get("gpa"):
+                    details.append(f"{labels['gpa']}: {edu.get('gpa')}")
 
-            if details:
-                p_deg = doc.add_paragraph()
-                p_deg.paragraph_format.space_after = Pt(2)
-                run_deg = p_deg.add_run("  |  ".join(details))
-                run_deg.font.size = Pt(9)
-                run_deg.font.color.rgb = RGBColor(71, 85, 105)
+                if details:
+                    p_deg = doc.add_paragraph()
+                    p_deg.paragraph_format.space_after = Pt(2)
+                    run_deg = p_deg.add_run("  |  ".join(details))
+                    run_deg.font.size = Pt(9)
+                    run_deg.font.color.rgb = RGBColor(71, 85, 105)
 
-    # 5. KEAHLIAN TEKNIS
-    if skills:
-        add_section_heading(labels["skills"])
-        p_sk = doc.add_paragraph()
-        p_sk.paragraph_format.space_after = Pt(4)
-        skill_names = [s.get("name", "") for s in skills if s.get("name")]
-        run_sk = p_sk.add_run(" • ".join(skill_names))
-        run_sk.font.size = Pt(9)
+                edu_description = edu.get("description", "")
+                if isinstance(edu_description, str) and edu_description.strip():
+                    p_edu_desc = doc.add_paragraph()
+                    p_edu_desc.paragraph_format.space_after = Pt(3)
+                    run_edu_desc = p_edu_desc.add_run(edu_description.strip())
+                    run_edu_desc.font.size = Pt(9)
+                    run_edu_desc.font.color.rgb = RGBColor(71, 85, 105)
 
-    # 6. KEMAMPUAN BAHASA
-    if languages:
-        add_section_heading(labels["languages"])
-        p_lang = doc.add_paragraph()
-        p_lang.paragraph_format.space_after = Pt(4)
-        lang_strings = [
-            f"{item.get('language', '')} ({item.get('proficiency', '')})"
-            for item in languages
-            if item.get("language")
-        ]
-        run_lang = p_lang.add_run("  |  ".join(lang_strings))
-        run_lang.font.size = Pt(9)
+        # 5. KEAHLIAN TEKNIS
+        elif section_id == "skills" and skills:
+            add_section_heading(labels["skills"])
+            p_sk = doc.add_paragraph()
+            p_sk.paragraph_format.space_after = Pt(4)
+            skill_names = [s.get("name", "") for s in skills if s.get("name")]
+            run_sk = p_sk.add_run(" • ".join(skill_names))
+            run_sk.font.size = Pt(9)
 
-    # 7. BAGIAN TAMBAHAN
-    for custom_section in custom_sections:
-        section_title = custom_section.get("sectionTitle", "").strip()
-        visible_items = [
-            item
-            for item in custom_section.get("items", [])
-            if any(
-                str(item.get(field, "")).strip()
-                for field in ("title", "subtitle", "date", "description")
-            )
-        ]
-        if not section_title and not visible_items:
-            continue
+        # 6. KEMAMPUAN BAHASA
+        elif section_id == "languages" and languages:
+            add_section_heading(labels["languages"])
+            p_lang = doc.add_paragraph()
+            p_lang.paragraph_format.space_after = Pt(4)
+            lang_strings = [
+                f"{item.get('language', '')} ({item.get('proficiency', '')})"
+                for item in languages
+                if item.get("language")
+            ]
+            run_lang = p_lang.add_run("  |  ".join(lang_strings))
+            run_lang.font.size = Pt(9)
 
-        add_section_heading(section_title or labels["custom_default"])
-        for item in visible_items:
-            title = item.get("title", "").strip()
-            subtitle = item.get("subtitle", "").strip()
-            date = item.get("date", "").strip()
-            description = item.get("description", "").strip()
+        # 7. BAGIAN TAMBAHAN
+        elif section_id == "custom":
+            for custom_section in custom_sections:
+                section_title = custom_section.get("sectionTitle", "").strip()
+                visible_items = [
+                    item
+                    for item in custom_section.get("items", [])
+                    if any(
+                        str(item.get(field, "")).strip()
+                        for field in ("title", "subtitle", "date", "description")
+                    )
+                ]
+                if not section_title and not visible_items:
+                    continue
 
-            if title or date:
-                p_item = doc.add_paragraph()
-                p_item.paragraph_format.space_before = Pt(4)
-                p_item.paragraph_format.space_after = Pt(1)
-                if title:
-                    run_title = p_item.add_run(title)
-                    run_title.bold = True
-                    run_title.font.size = Pt(10)
-                if date:
-                    run_date = p_item.add_run(f"\t{date}" if title else date)
-                    run_date.font.size = Pt(9)
-                    run_date.font.color.rgb = RGBColor(100, 116, 139)
+                add_section_heading(section_title or labels["custom_default"])
+                for item in visible_items:
+                    title = item.get("title", "").strip()
+                    subtitle = item.get("subtitle", "").strip()
+                    date = item.get("date", "").strip()
+                    description = item.get("description", "").strip()
 
-            if subtitle:
-                p_subtitle = doc.add_paragraph()
-                p_subtitle.paragraph_format.space_after = Pt(2)
-                run_subtitle = p_subtitle.add_run(subtitle)
-                run_subtitle.font.size = Pt(9)
-                run_subtitle.font.italic = True
-                run_subtitle.font.color.rgb = RGBColor(71, 85, 105)
+                    if title or date:
+                        p_item = doc.add_paragraph()
+                        p_item.paragraph_format.space_before = Pt(4)
+                        p_item.paragraph_format.space_after = Pt(1)
+                        if title:
+                            run_title = p_item.add_run(title)
+                            run_title.bold = True
+                            run_title.font.size = Pt(10)
+                        if date:
+                            run_date = p_item.add_run(f"\t{date}" if title else date)
+                            run_date.font.size = Pt(9)
+                            run_date.font.color.rgb = RGBColor(100, 116, 139)
 
-            if description:
-                for line in description.splitlines():
-                    clean_line = line.strip()
-                    if not clean_line:
-                        continue
-                    p_description = doc.add_paragraph()
-                    p_description.paragraph_format.space_after = Pt(1)
-                    run_description = p_description.add_run(clean_line)
-                    run_description.font.size = Pt(9)
+                    if subtitle:
+                        p_subtitle = doc.add_paragraph()
+                        p_subtitle.paragraph_format.space_after = Pt(2)
+                        run_subtitle = p_subtitle.add_run(subtitle)
+                        run_subtitle.font.size = Pt(9)
+                        run_subtitle.font.italic = True
+                        run_subtitle.font.color.rgb = RGBColor(71, 85, 105)
+
+                    if description:
+                        for line in description.splitlines():
+                            clean_line = line.strip()
+                            if not clean_line:
+                                continue
+                            p_description = doc.add_paragraph()
+                            p_description.paragraph_format.space_after = Pt(1)
+                            run_description = p_description.add_run(clean_line)
+                            run_description.font.size = Pt(9)
 
     out = io.BytesIO()
     doc.save(out)

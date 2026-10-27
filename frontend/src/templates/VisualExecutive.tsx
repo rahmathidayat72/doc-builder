@@ -1,5 +1,10 @@
 import React from 'react'
-import { type ResumeDraft } from '../types/resume'
+import {
+  type ResumeDraft,
+  getExperienceDescriptionText,
+  getFilledWebsites
+} from '../types/resume'
+import { getResumeSectionOrder } from '../types/resumeSections'
 import { Mail, Phone, MapPin, Link as LinkIcon, Globe } from 'lucide-react'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
 import { getResumeLabels } from './resumeLabels'
@@ -12,6 +17,8 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
   const labels = getResumeLabels(draft.resumeLanguage)
+  const sectionOrder = getResumeSectionOrder(draft.data.sectionOrder)
+  const orderOf = (section: (typeof sectionOrder)[number]) => sectionOrder.indexOf(section) + 1
 
   return (
     <div className="flex h-full min-h-[297mm] text-slate-800 -m-10" data-testid="template-visual-executive">
@@ -20,7 +27,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
         className="w-[35%] p-7 space-y-6 flex flex-col justify-between"
         style={{ backgroundColor: `${accentColor}12`, borderRight: `2px solid ${accentColor}30` }}
       >
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           {/* Avatar / Inisial */}
           <div className="text-center pt-2">
             {contact.usePhoto && contact.photoUrl ? (
@@ -81,18 +88,18 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                   <span>{contact.linkedin}</span>
                 </div>
               )}
-              {contact.website && (
-                <div className="flex items-start gap-1.5 break-all">
+              {getFilledWebsites(contact.website, contact.websites).map((url, index) => (
+                <div key={`${url}-${index}`} className="flex items-start gap-1.5 break-all">
                   <Globe className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: accentColor }} />
-                  <span>{contact.website}</span>
+                  <span>{url}</span>
                 </div>
-              )}
+              ))}
             </div>
           </section>
 
           {/* Pendidikan */}
           {education.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-2" style={{ order: orderOf('education') }}>
               <h3
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
@@ -110,6 +117,11 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                         : edu.endDate || edu.startDate || ''}{' '}
                       {edu.gpa && `(${labels.gpa}: ${edu.gpa})`}
                     </div>
+                    {edu.description && (
+                      <p className="whitespace-pre-line text-3xs leading-relaxed text-slate-500">
+                        {edu.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -118,7 +130,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
           {/* Keahlian */}
           {skills.length > 0 && (
-            <section className="space-y-2">
+            <section className="space-y-2" style={{ order: orderOf('skills') }}>
               <h3
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
@@ -140,7 +152,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
           {/* Bahasa */}
           {languages.length > 0 && (
-            <section className="space-y-1.5">
+            <section className="space-y-1.5" style={{ order: orderOf('languages') }}>
               <h3
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: `${accentColor}40` }}
@@ -164,7 +176,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Kolom Kanan: Pengalaman & Narasi Utama (~65%) */}
       <main className="w-[65%] p-8 space-y-6 flex flex-col justify-between">
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           {/* Header Nama */}
           <header className="border-b pb-4" style={{ borderColor: accentColor }}>
             <h1
@@ -174,11 +186,16 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
             >
               {contact.fullName || labels.fullNameFallback}
             </h1>
+            {contact.headline && (
+              <p className="mt-1 text-xs font-semibold text-slate-600" data-testid="preview-headline">
+                {contact.headline}
+              </p>
+            )}
           </header>
 
           {/* Ringkasan Profesional */}
           {summary && (
-            <section className="space-y-1.5">
+            <section className="space-y-1.5" style={{ order: orderOf('summary') }}>
               <h2
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: '#e2e8f0' }}
@@ -191,7 +208,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
           {/* Pengalaman Kerja */}
           {experiences.length > 0 && (
-            <section className="space-y-3.5">
+            <section className="space-y-3.5" style={{ order: orderOf('experience') }}>
               <h2
                 className="text-xs font-bold uppercase tracking-wider border-b pb-1"
                 style={{ color: accentColor, borderColor: '#e2e8f0' }}
@@ -210,9 +227,9 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
                     <div className="text-xs font-semibold text-slate-600">
                       {exp.company} {exp.location && `| ${exp.location}`}
                     </div>
-                    {exp.description && (
+                    {getExperienceDescriptionText(exp) && (
                       <div className="text-slate-700 whitespace-pre-line leading-relaxed pl-1 pt-0.5">
-                        {exp.description}
+                        {getExperienceDescriptionText(exp)}
                       </div>
                     )}
                   </div>
@@ -221,12 +238,14 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
             </section>
           )}
 
-          <CustomSectionsBlock
-            sections={customSections}
-            accentColor={accentColor}
-            variant="visual-executive"
-            language={draft.resumeLanguage}
-          />
+          <div style={{ order: orderOf('custom') }}>
+            <CustomSectionsBlock
+              sections={customSections}
+              accentColor={accentColor}
+              variant="visual-executive"
+              language={draft.resumeLanguage}
+            />
+          </div>
         </div>
 
         <footer className="text-right text-3xs text-slate-300">

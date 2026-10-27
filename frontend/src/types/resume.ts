@@ -1,15 +1,39 @@
 import { z } from 'zod'
+import { DEFAULT_BODY_SECTION_ORDER } from './resumeSections'
+
+export const MAX_WEBSITES = 3
 
 export const ContactInfoSchema = z.object({
   fullName: z.string().default(''),
+  headline: z.string().optional(),
   email: z.string().email('Format email tidak valid').or(z.literal('')),
   phone: z.string().default(''),
   location: z.string().default(''),
   linkedin: z.string().default(''),
   website: z.string().default(''),
+  websites: z.array(z.string()).optional(),
   usePhoto: z.boolean().optional(),
   photoUrl: z.string().optional()
 })
+
+/**
+ * Mengambil daftar website dari model baru, dengan fallback ke field legacy
+ * `website` agar draft lama tetap tampil. Nilai kosong tetap dipertahankan
+ * untuk kebutuhan input; pemakaian render/export harus memakai
+ * `getFilledWebsites`.
+ */
+export const getWebsites = (website: string, websites?: string[]): string[] => {
+  const hasWebsiteValue = websites?.some(item => item.trim())
+  const source =
+    websites && websites.length > 0 && hasWebsiteValue ? websites : website ? [website] : []
+  return source.slice(0, MAX_WEBSITES)
+}
+
+/** Daftar website yang benar-benar terisi dan aman untuk render/export. */
+export const getFilledWebsites = (website: string, websites?: string[]): string[] =>
+  getWebsites(website, websites)
+    .map(item => item.trim())
+    .filter(Boolean)
 
 export const WorkExperienceSchema = z.object({
   id: z.string(),
@@ -19,8 +43,51 @@ export const WorkExperienceSchema = z.object({
   startDate: z.string().default(''),
   endDate: z.string().default(''),
   current: z.boolean().default(false),
-  description: z.string().default('')
+  description: z.string().default(''),
+  /**
+   * Pencapaian terstruktur per butir. `description` tetap dipertahankan untuk
+   * draft lama dan impor bebas; bila `achievements` ada, nilai inilah yang
+   * dirender.
+   */
+  achievements: z.array(z.string()).optional()
 })
+
+/**
+ * Mengambil butir pencapaian tanpa bullet. Draft lama yang hanya memiliki
+ * `description` dipecah per baris agar dapat diedit sebagai butir terstruktur.
+ */
+export const getExperienceAchievements = (exp: WorkExperience): string[] => {
+  if (exp.achievements !== undefined) {
+    return exp.achievements.map(item => item.trim()).filter(Boolean)
+  }
+  return exp.description
+    .split(/\r?\n/)
+    .map(line => line.replace(/^[\s•\-*]+/, '').trim())
+    .filter(Boolean)
+}
+
+/**
+ * Nilai mentah untuk editor. Berbeda dari `getExperienceAchievements`,
+ * fungsi ini mempertahankan butir kosong agar pengguna dapat menambah baris
+ * baru sebelum mengetik.
+ */
+export const getEditableExperienceAchievements = (exp: WorkExperience): string[] => {
+  if (exp.achievements !== undefined) return exp.achievements
+  return exp.description
+    .split(/\r?\n/)
+    .map(line => line.replace(/^[\s•\-*]+/, '').trim())
+    .filter(Boolean)
+}
+
+/** Teks deskripsi pengalaman yang siap dirender oleh template dan ekspor. */
+export const getExperienceDescriptionText = (exp: WorkExperience): string => {
+  if (exp.achievements === undefined) return exp.description
+  return exp.achievements
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(item => (item.startsWith('•') ? item : `• ${item}`))
+    .join('\n')
+}
 
 export const EducationSchema = z.object({
   id: z.string(),
@@ -66,10 +133,20 @@ export const ResumeDataSchema = z.object({
   education: z.array(EducationSchema).default([]),
   skills: z.array(SkillItemSchema).default([]),
   languages: z.array(LanguageItemSchema).default([]),
-  customSections: z.array(CustomSectionSchema).default([])
+  customSections: z.array(CustomSectionSchema).default([]),
+  /** Urutan bagian isi CV. Draft lama memakai urutan default. */
+  sectionOrder: z.array(z.string()).optional()
 })
 
 export const ResumeLanguageSchema = z.enum(['id', 'en']).default('id')
+
+export const TargetJobSchema = z.object({
+  title: z.string().default(''),
+  company: z.string().default(''),
+  description: z.string().default(''),
+  matchedSkills: z.array(z.string()).default([]),
+  createdAt: z.number()
+})
 
 export const ResumeDraftSchema = z.object({
   id: z.string().uuid(),
@@ -81,7 +158,9 @@ export const ResumeDraftSchema = z.object({
   data: ResumeDataSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
-  version: z.number().default(1)
+  version: z.number().default(1),
+  favorite: z.boolean().optional(),
+  targetJob: TargetJobSchema.optional()
 })
 
 export type ResumeLanguage = z.infer<typeof ResumeLanguageSchema>
@@ -93,6 +172,7 @@ export type LanguageItem = z.infer<typeof LanguageItemSchema>
 export type CustomSectionItem = z.infer<typeof CustomSectionItemSchema>
 export type CustomSection = z.infer<typeof CustomSectionSchema>
 export type ResumeData = z.infer<typeof ResumeDataSchema>
+export type TargetJob = z.infer<typeof TargetJobSchema>
 export type ResumeDraft = z.infer<typeof ResumeDraftSchema>
 
 export interface ResumeDraftSummary {
@@ -101,16 +181,20 @@ export interface ResumeDraftSummary {
   templateId: string
   updatedAt: number
   createdAt: number
+  favorite: boolean
+  targetJobTitle?: string
 }
 
 export const createEmptyResumeData = (): ResumeData => ({
   contact: {
     fullName: '',
+    headline: '',
     email: '',
     phone: '',
     location: '',
     linkedin: '',
     website: '',
+    websites: [],
     usePhoto: false,
     photoUrl: ''
   },
@@ -119,5 +203,6 @@ export const createEmptyResumeData = (): ResumeData => ({
   education: [],
   skills: [],
   languages: [],
-  customSections: []
+  customSections: [],
+  sectionOrder: [...DEFAULT_BODY_SECTION_ORDER]
 })

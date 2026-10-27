@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.api.export import sanitize_export_filename
 from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
 from app.main import app
 from app.services.docx_generator import generate_resume_docx
@@ -26,6 +27,7 @@ SAMPLE_RESUME_PAYLOAD = {
             "location": "Jakarta, Indonesia",
             "linkedin": "linkedin.com/in/bambang",
             "website": "bambang.id",
+            "websites": ["bambang.id", "github.com/bambang", "bambang.dev"],
         },
         "summary": "Software Architect berpengalaman 8 tahun dalam sistem skala besar.",
         "experiences": [
@@ -95,6 +97,9 @@ def test_generate_resume_docx_creates_valid_document():
     text = " ".join([p.text for p in doc.paragraphs])
     assert "BAMBANG PAMUNGKAS" in text
     assert "bambang@example.id" in text
+    assert "bambang.id" in text
+    assert "github.com/bambang" in text
+    assert "bambang.dev" in text
     assert "PT Mega Finansial" in text
     assert "Principal Architect" in text
     assert "Python • TypeScript • Docker" in text
@@ -106,6 +111,41 @@ def test_generate_resume_docx_creates_valid_document():
     assert "PENGALAMAN KERJA" in text
     assert "PENDIDIKAN" in text
     assert "dalam Sistem Informasi" in text
+
+
+def test_generate_resume_docx_limits_websites_to_three_and_uses_legacy_fallback():
+    """Ekspor DOCX memakai maksimal tiga website dan fallback field legacy."""
+    four_websites_payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "contact": {
+                **SAMPLE_RESUME_PAYLOAD["data"]["contact"],
+                "websites": ["a.dev", "b.dev", "c.dev", "d.dev"],
+            },
+        },
+    }
+    docx_io = generate_resume_docx(four_websites_payload)
+    text = " ".join([p.text for p in docx.Document(docx_io).paragraphs])
+    assert "a.dev" in text
+    assert "b.dev" in text
+    assert "c.dev" in text
+    assert "d.dev" not in text
+
+    legacy_payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "contact": {
+                **SAMPLE_RESUME_PAYLOAD["data"]["contact"],
+                "website": "legacy.dev",
+                "websites": [""],
+            },
+        },
+    }
+    legacy_io = generate_resume_docx(legacy_payload)
+    legacy_text = " ".join([p.text for p in docx.Document(legacy_io).paragraphs])
+    assert "legacy.dev" in legacy_text
 
 
 def test_generate_resume_docx_with_english_language():
@@ -267,3 +307,99 @@ def test_export_docx_endpoint_with_invalid_photo_returns_400():
     resp = client.post("/api/export/docx", json=payload, headers=headers)
     assert resp.status_code == 400
     assert "detail" in resp.json()
+
+
+def test_sanitize_export_filename_menghapus_karakter_berbahaya():
+    assert sanitize_export_filename('CV: Budi/2026', "docx") == "CV Budi 2026.docx"
+    assert sanitize_export_filename("Resume.pdf", "pdf") == "Resume.pdf"
+    assert sanitize_export_filename("../../etc/passwd\n", "pdf") == "etc passwd.pdf"
+    assert sanitize_export_filename("   ", "pdf") == "resume.pdf"
+    assert sanitize_export_filename(None, "docx") == "resume.docx"
+
+
+def test_generate_resume_docx_renders_headline_achievements_and_education_description():
+    """DOCX merender headline, butir pencapaian terstruktur, dan deskripsi pendidikan."""
+    payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "contact": {
+                **SAMPLE_RESUME_PAYLOAD["data"]["contact"],
+                "headline": "Cloud & Backend Architecture Specialist",
+            },
+            "experiences": [
+                {
+                    **SAMPLE_RESUME_PAYLOAD["data"]["experiences"][0],
+                    "description": "Deskripsi lama tidak boleh dipakai.",
+                    "achievements": [
+                        "Memimpin migrasi 12 layanan ke Kubernetes.",
+                        "Menurunkan latensi API 40%.",
+                    ],
+                }
+            ],
+            "education": [
+                {
+                    **SAMPLE_RESUME_PAYLOAD["data"]["education"][0],
+                    "description": "Fokus pada sistem terdistribusi dan keamanan aplikasi.",
+                }
+            ],
+        },
+    }
+
+    docx_io = generate_resume_docx(payload)
+    doc = docx.Document(docx_io)
+    text = " ".join([p.text for p in doc.paragraphs])
+
+    assert "Cloud & Backend Architecture Specialist" in text
+    assert "Memimpin migrasi 12 layanan ke Kubernetes." in text
+    assert "Menurunkan latensi API 40%." in text
+    assert "Deskripsi lama tidak boleh dipakai." not in text
+    assert "Fokus pada sistem terdistribusi dan keamanan aplikasi." in text
+
+
+def test_generate_resume_docx_uses_legacy_description_when_achievements_absent():
+    """Draft lama tanpa achievements tetap mengekspor description sebagai butir."""
+    payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "experiences": [
+                {
+                    **SAMPLE_RESUME_PAYLOAD["data"]["experiences"][0],
+                    "description": "• Butir lama pertama.\n• Butir lama kedua.",
+                }
+            ],
+        },
+    }
+
+    docx_io = generate_resume_docx(payload)
+    text = " ".join([p.text for p in docx.Document(docx_io).paragraphs])
+
+    assert "Butir lama pertama." in text
+    assert "Butir lama kedua." in text
+
+
+def test_generate_resume_docx_respects_section_order():
+    """Urutan sectionOrder diterapkan pada dokumen DOCX."""
+    payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "sectionOrder": [
+                "education",
+                "skills",
+                "summary",
+                "experience",
+                "languages",
+                "custom",
+            ],
+        },
+    }
+
+    docx_io = generate_resume_docx(payload)
+    text = " ".join([p.text for p in docx.Document(docx_io).paragraphs])
+    education_index = text.index("PENDIDIKAN")
+    skills_index = text.index("KEAHLIAN & KOMPETENSI")
+    summary_index = text.index("RINGKASAN PROFESIONAL")
+
+    assert education_index < skills_index < summary_index

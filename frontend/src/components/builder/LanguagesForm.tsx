@@ -70,7 +70,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
           {languages.map(lang => (
             <div
               key={lang.id}
-              className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg shadow-2xs"
+              className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 bg-white border border-slate-200 rounded-lg shadow-2xs transition-colors hover:border-slate-300 animate-fade-up"
             >
               <input
                 type="text"
@@ -78,14 +78,14 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
                 aria-label="Nama Bahasa"
                 value={lang.language}
                 onChange={e => handleUpdate(lang.id, 'language', e.target.value)}
-                className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="min-w-44 flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
               />
 
               <select
                 value={lang.proficiency}
                 aria-label="Tingkat Kemahiran Bahasa"
                 onChange={e => handleUpdate(lang.id, 'proficiency', e.target.value)}
-                className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="flex-1 sm:flex-none px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
               >
                 <option value="Native / Bilingual">Penutur Asli (Native)</option>
                 <option value="Professional">Tingkat Profesional (Fluent)</option>
@@ -97,7 +97,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
                 type="button"
                 onClick={() => handleDelete(lang.id)}
                 aria-label="Hapus Bahasa"
-                className="text-slate-400 hover:text-red-500 p-1.5 rounded transition"
+                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

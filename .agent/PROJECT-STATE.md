@@ -11,7 +11,7 @@ security_risk_approved_by: "User (Owner)"
 security_risk_approved_at: "2026-10-20"
 security_gate_status: "APPROVED"
 security_gate_evidence_ref: "docs/project/security/SECURITY-SCAN-REPORT.md"
-security_review_due: "2026-11-20"
+security_review_due: "2026-10-31"
 remediation_gate_status: "NOT_REQUIRED"
 remediation_allowed: false
 remediation_task: null
@@ -21,16 +21,23 @@ plan_approved: true
 implementation_allowed: true
 current_phase: null
 current_task: null
-last_completed_task: "FEATURE-PDF-TO-MARKDOWN-001"
+last_completed_task: "IMPROVEMENT-UIUX-LAYOUT-001"
 blocked_reason: null
-last_updated: "2026-10-22"
+last_updated: "2026-10-24"
 ```
 
 ## Ringkasan Fokus
-Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. UI pascarilis telah dipisahkan menjadi tiga workspace:
-- `#/builder`: pembuatan CV dengan editor 44%, preview 56%, dan aksi CV kontekstual.
-- `#/ats`: evaluasi keterbacaan ATS dan pencocokan lowongan.
-- `#/tools`: DOCX ke PDF, PDF ke DOCX, PowerPoint & PDF, Excel & PDF, Merge Dokumen, Split PDF, Kompres PDF, PDF & Gambar, Edit PDF, Sign PDF visual, Resize Gambar, Unlock PDF, Protect PDF, Repair PDF, OCR PDF, Watermark PDF, Nomor Halaman, dan PDF to Markdown.
+Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. Hotfix packaging backend (`HOTFIX-PACKAGING-001`) menambahkan `[build-system]` dan package discovery `app*` sehingga editable install tetap berhasil saat `backend/temp_workspace` tersedia; `.gitignore` kini mengabaikan `*.egg-info/`. UI pascarilis telah dipisahkan menjadi tiga workspace:
+- `#/builder`: pembuatan CV dengan editor 44%, preview 56%, scroll independen per kolom (`h-dvh`), footer navigasi langkah + progress bar, dan aksi CV kontekstual.
+- `#/ats`: evaluasi keterbacaan ATS dan pencocokan lowongan dengan visualisasi progress skor.
+- `#/tools`: 18 alat dokumen dikelompokkan dalam 4 kategori (*Konversi*, *Kelola PDF*, *Keamanan & Tanda Tangan*, *Gambar*) dilengkapi pencarian instan: DOCX ke PDF, PDF ke DOCX, PowerPoint & PDF, Excel & PDF, Merge Dokumen, Split PDF, Kompres PDF, PDF & Gambar, Edit PDF, Sign PDF visual, Resize Gambar, Unlock PDF, Protect PDF, Repair PDF, OCR PDF, Watermark PDF, Nomor Halaman, dan PDF to Markdown.
+- Perbaikan Tata Letak, UI/UX & Animasi Halus (`IMPROVEMENT-UIUX-LAYOUT-001`): Shell `h-dvh` dengan scroll independen editor & preview (reset penuh pada `@media print`), switcher mobile segmented pill beranimasi, indikator garis aktif tab bagian + auto-scroll ke viewport, footer navigasi Sebelumnya/Berikutnya + progress bar langkah, hook `useDismiss` (klik luar & `Escape`) untuk seluruh popover Navbar serta modal Draft, utilitas animasi mikro 160–280 ms (`fade-in`, `fade-up`, `pop-in`, `toast-in`, `soft-pulse`, `animate-overlay-in`, `stagger-item`) yang menghormati `prefers-reduced-motion: reduce`, tata letak responsif `LanguagesForm`, serta guard unmount async pada `PdfOcrModal`. Verifikasi: 233/233 Vitest (36/36 file, 0 unhandled error, WCAG 2.2 AA axe PASS), Vite build PASS, Oxlint 0 error (16 warning pre-existing).
+- Fitur Multi-Website CV (`FEATURE-CV-MULTI-WEBSITE-001`): Informasi Kontak mendukung maksimal tiga alamat website/portofolio (LinkedIn tetap terpisah), dengan model `contact.websites` dan fallback `contact.website` untuk draft lama. Entri kosong tidak dirender/diekspor; live preview 4 template dan ekspor DOCX/PDF dibatasi maksimal tiga entri.
+- Peningkatan Preflight & Pagination CV (`IMPROVEMENT-CV-PREEXPORT-001`): Live preview menghitung estimasi halaman A4, menampilkan badge jumlah halaman dan overlay page-break (full-bleed dinormalisasi). Modal ekspor menjalankan preflight kualitas: error memblokir, warning membutuhkan acknowledgment, dan tombol “Perbaiki” membuka bagian terkait. Nama berkas dapat diedit dan disanitasi di frontend serta backend.
+- Peningkatan Editor Terstruktur (`IMPROVEMENT-CV-STRUCTURED-001`): Headline profesional, pencapaian per pengalaman dengan tambah/edit/reorder, reorder pengalaman/pendidikan, deskripsi pendidikan, `sectionOrder`, dan validasi tanggal. Draft lama tetap kompatibel melalui fallback `description`; 4 template dan DOCX memakai helper yang sama.
+- Peningkatan Alur Kerja CV (`IMPROVEMENT-CV-WORKFLOW-001`): CV target dibuat sebagai salinan draft sumber dengan metadata lowongan dan skill cocok diurutkan lebih dahulu. Impor selektif mendukung `merge`/`replace` per bagian serta undo 30 detik. Daftar draft mendukung pencarian, favorit, rename inline, duplikasi, dan badge target; autosave di-flush sebelum perpindahan draft.
+- Verifikasi peningkatan CV & UI/UX: 233/233 Vitest, 126/126 Pytest, Ruff PASS, Vite build PASS, Oxlint 0 error (16 warning pre-existing). Perubahan belum di-commit, belum di-push, dan belum dirilis.
+- Verifikasi fitur multi-website historis: 183/183 Vitest, 121/121 Pytest, Ruff PASS, Vite build PASS, lint 0 error (18 warning pada saat itu).
 - Fitur PDF to Markdown Lokal Bergaya iLovePDF (`FEATURE-PDF-TO-MARKDOWN-001`):
   - Kartu baru dengan badge `New!` di workspace Alat Dokumen: "PDF to Markdown" (purple).
   - Modal `PdfToMarkdownModal.tsx`: ekstraksi dokumen PDF ke sintaks Markdown (`.md`) terstruktur 100% lokal via `pymupdf4llm`.
@@ -125,13 +132,16 @@ Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. UI
 - Form Keahlian & Kompetensi (Skills) disederhanakan menjadi input general tanpa segmentasi dropdown kategori; field internal `category` tetap dipertahankan dengan default `General` demi kompatibilitas penuh draft IndexedDB lama.
 - Skrip start-docbuilder (`.bat`, `.ps1`, `.sh`) dan package backend disempurnakan dengan penambahan direktori backend ke `PYTHONPATH` dan `sys.path` otomatis agar import internal `app.*` tidak gagal `ModuleNotFoundError`.
 - Network error `Failed to fetch` dibungkus menjadi pesan bantuan instruktif agar pengguna langsung mengetahui status server backend dan solusi peluncurannya.
-- Quality gates terbaru: 83/83 Pytest PASS (24/24 test_pdf_tools), Ruff PASS, 92/92 Vitest PASS, frontend build PASS, lint 0 error dengan 4 warning existing, dan verifikasi distribusi 5/5 PASS.
+- Quality gates terbaru (IMPROVEMENT-CV-WORKFLOW-001): 126/126 Pytest PASS, Ruff PASS, 233/233 Vitest PASS, Vite build PASS, Oxlint 0 error dengan 16 warning pre-existing. Verifikasi distribusi belum dijalankan ulang pada perubahan ini.
+- Dokumentasi reconciliation (`DOC-CONSISTENCY-001`, 2026-10-24): referensi `DEC-*` pada traceability diselaraskan (`DEC-012` untuk PDF toolkit, `DEC-013` untuk cookie `SameSite=Lax`), stack aktual React 19/Oxlint/Vitest dicatat, command SOP/test strategy dikoreksi, dan klaim Playwright/CI/CD/logging yang tidak didukung kode ditandai. Tiga open risk dicatat: `RISK-SEC-001` (audit/logging, provisional MEDIUM), `RISK-SEC-002` (permission/cleanup temp workspace, provisional LOW), dan `RISK-SEC-003` (sandbox egress hanya proxy env + Linux tanpa memory cap, provisional HIGH). Status rilis dan security gate historis tidak diubah.
 
 ## Blocker Aktif
-Tidak ada blocker saat ini. Proyek berstatus RELEASED (Siap Digunakan).
+Tidak ada blocker implementasi. Proyek berstatus RELEASED, tetapi `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` memerlukan keputusan owner sebelum ditutup/diterima. `RISK-SEC-003` berstatus High provisional; release berikutnya tidak boleh disetujui sampai risk ini dimitigasi atau diterima formal dengan approver dan expiry.
 
 ## Keputusan Tertunda
-Tidak ada keputusan tertunda.
+1. Risk treatment `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` (mitigasi vs acceptance dengan expiry), target review 2026-10-31.
+2. `Q-005`: apakah cross-browser E2E Playwright diperlukan untuk NFR-COMP-002 atau cukup verifikasi manual.
+3. `Q-006`: kebijakan repository untuk `docs/conversations.json` yang berisi 178 transkrip percakapan.
 
 ## Next Recommended Action
-Uji manual impor memakai CV PDF/DOCX pengguna yang sudah disamarkan. Jika mapping dokumen tertentu masih salah, tambahkan fixture regresi spesifik tanpa memperluas ke OCR atau rekonstruksi layout.
+Review dan putuskan treatment `RISK-SEC-001`/`RISK-SEC-002`/`RISK-SEC-003`, lalu retest keamanan jika dimitigasi. Untuk `RISK-SEC-003`, prioritaskan keputusan apakah akan menambahkan egress block OS-level dan memory cap Linux atau menerima risiko dengan expiry. Setelah risk review selesai, lakukan review perubahan peningkatan CV yang masih uncommitted, lalu putuskan commit/release secara eksplisit. Jangan commit/push tanpa instruksi.

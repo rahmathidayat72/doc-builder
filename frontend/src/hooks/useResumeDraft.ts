@@ -13,6 +13,13 @@ export interface PendingDelete {
   timerId: any
 }
 
+export interface TargetDraftInput {
+  title: string
+  company?: string
+  description: string
+  matchedSkills: string[]
+}
+
 export function useResumeDraft(initialDraftId?: string) {
   const [draft, setDraft] = useState<ResumeDraft | null>(null)
   const [draftsList, setDraftsList] = useState<ResumeDraftSummary[]>([])
@@ -20,6 +27,7 @@ export function useResumeDraft(initialDraftId?: string) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [privateMode, setPrivateModeState] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [isLoadingDrafts, setIsLoadingDrafts] = useState(true)
 
   const autosaveTimerRef = useRef<any>(null)
   const pendingDraftRef = useRef<ResumeDraft | null>(null)
@@ -33,12 +41,23 @@ export function useResumeDraft(initialDraftId?: string) {
       setPrivateModeState(pMode)
     } catch (err) {
       console.error('Gagal memuat daftar draft:', err)
+    } finally {
+      setIsLoadingDrafts(false)
     }
   }, [])
 
   useEffect(() => {
     refreshList()
   }, [refreshList])
+
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+    }
+  }, [])
 
   // 2. Muat draft awal jika initialDraftId diberikan
   useEffect(() => {
@@ -65,9 +84,16 @@ export function useResumeDraft(initialDraftId?: string) {
         updatedAt: Date.now()
       }
       await ResumeStorage.saveDraft(updated)
-      setDraft(updated)
-      pendingDraftRef.current = updated
-      setLastSaved(new Date(updated.updatedAt))
+
+      // Jangan menimpa draft aktif jika pengguna sudah berpindah draft
+      // ketika proses penyimpanan masih berjalan.
+      if (pendingDraftRef.current?.id === updated.id) {
+        pendingDraftRef.current = updated
+        setDraft(current =>
+          !current || current.id === updated.id ? updated : current
+        )
+        setLastSaved(new Date(updated.updatedAt))
+      }
       await refreshList()
     } catch (err) {
       console.error('Gagal menyimpan draft:', err)
@@ -75,6 +101,28 @@ export function useResumeDraft(initialDraftId?: string) {
       setIsSaving(false)
     }
   }, [refreshList])
+
+  const cancelScheduledAutosave = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [])
+
+  /**
+   * Menyimpan perubahan yang masih tertunda ke storage sebelum berpindah
+   * draft, agar data yang baru diketik tidak hilang atau menimpa draft lain.
+   */
+  const flushPendingSave = useCallback(async () => {
+    cancelScheduledAutosave()
+    const pending = pendingDraftRef.current
+    if (!pending) return
+    try {
+      await ResumeStorage.saveDraft({ ...pending, updatedAt: Date.now() })
+    } catch (err) {
+      console.error('Gagal menyimpan perubahan sebelum berpindah draft:', err)
+    }
+  }, [cancelScheduledAutosave])
 
   // 4. Jadwalkan Autosave (Debounce 500ms)
   const scheduleAutosave = useCallback((updated: ResumeDraft) => {
@@ -86,7 +134,9 @@ export function useResumeDraft(initialDraftId?: string) {
     }
 
     autosaveTimerRef.current = setTimeout(() => {
-      saveNow(updated)
+      autosaveTimerRef.current = null
+      const latest = pendingDraftRef.current
+      if (latest) saveNow(latest)
     }, 500)
   }, [saveNow])
 
@@ -95,6 +145,7 @@ export function useResumeDraft(initialDraftId?: string) {
     title = 'CV Tanpa Judul',
     templateId = 'ats-clean'
   ): Promise<ResumeDraft> => {
+    await flushPendingSave()
     const now = Date.now()
     const newDraft: ResumeDraft = {
       id: crypto.randomUUID(),
@@ -106,7 +157,8 @@ export function useResumeDraft(initialDraftId?: string) {
       data: createEmptyResumeData(),
       createdAt: now,
       updatedAt: now,
-      version: 1
+      version: 1,
+      favorite: false
     }
 
     try {
@@ -120,9 +172,88 @@ export function useResumeDraft(initialDraftId?: string) {
     setLastSaved(new Date(now))
     await refreshList()
     return newDraft
-  }, [refreshList])
+  }, [flushPendingSave, refreshList])
 
-  // 6. Mutasi data CV (memicu autosave ter-debounce)
+  // 6a. Duplikasi draft dan langsung buka salinannya
+  const duplicateDraft = useCallback(async (id: string) => {
+    await flushPendingSave()
+    const duplicated = await ResumeStorage.duplicateDraft(id)
+    setDraft(duplicated)
+    pendingDraftRef.current = duplicated
+    setLastSaved(new Date(duplicated.updatedAt))
+    await refreshList()
+    return duplicated
+  }, [flushPendingSave, refreshList])
+
+  // 6b. Ganti nama draft tanpa mengubah data CV
+  const renameDraft = useCallback(async (id: string, title: string) => {
+    await ResumeStorage.renameDraft(id, title)
+    const cleanTitle = title.trim()
+    if (draft?.id === id) {
+      const updated = { ...draft, title: cleanTitle, updatedAt: Date.now() }
+      setDraft(updated)
+      pendingDraftRef.current = updated
+      setLastSaved(new Date(updated.updatedAt))
+    }
+    await refreshList()
+  }, [draft, refreshList])
+
+  // 6c. Tandai favorit agar draft penting tetap di atas daftar
+  const toggleDraftFavorite = useCallback(async (id: string) => {
+    const favorite = await ResumeStorage.toggleFavorite(id)
+    if (draft?.id === id) {
+      const updated = { ...draft, favorite }
+      setDraft(updated)
+      pendingDraftRef.current = updated
+    }
+    await refreshList()
+  }, [draft, refreshList])
+
+  // 6d. Buat draft target dari hasil job matching tanpa mengubah draft sumber
+  const createTargetedDraft = useCallback(async (target: TargetDraftInput) => {
+    if (!draft) throw new Error('Tidak ada draft aktif untuk dijadikan dasar CV target.')
+
+    await flushPendingSave()
+    const now = Date.now()
+    const clonedData = JSON.parse(JSON.stringify(draft.data)) as ResumeData
+    const matchedKeys = new Set(target.matchedSkills.map(skill => skill.toLowerCase()))
+    clonedData.skills = [...clonedData.skills].sort((left, right) => {
+      const leftMatched = matchedKeys.has(left.name.toLowerCase()) ? 1 : 0
+      const rightMatched = matchedKeys.has(right.name.toLowerCase()) ? 1 : 0
+      return rightMatched - leftMatched
+    })
+
+    const role = target.title.trim()
+    const company = target.company?.trim()
+    const title = `CV Target — ${role}${company ? ` di ${company}` : ''}`.slice(0, 140)
+
+    const targeted: ResumeDraft = {
+      ...draft,
+      id: crypto.randomUUID(),
+      title,
+      data: clonedData,
+      favorite: false,
+      targetJob: {
+        title: role,
+        company: company || '',
+        description: target.description,
+        matchedSkills: target.matchedSkills,
+        createdAt: now
+      },
+      createdAt: now,
+      updatedAt: now,
+      version: 1
+    }
+
+    await ResumeStorage.saveDraft(targeted)
+    setDraft(targeted)
+    pendingDraftRef.current = targeted
+    setLastSaved(new Date(now))
+    await refreshList()
+    return targeted
+  }, [draft, flushPendingSave, refreshList])
+
+  // 7. Mutasi data CV (memicu autosave ter-debounce)
   const updateData = useCallback((updater: (prev: ResumeData) => ResumeData) => {
     if (!draft) return
     const newData = updater(draft.data)
@@ -150,6 +281,11 @@ export function useResumeDraft(initialDraftId?: string) {
     const target = draftsList.find(d => d.id === id) || (draft?.id === id ? draft : null)
     const title = target?.title || 'Draft'
 
+    if (draft?.id === id) {
+      cancelScheduledAutosave()
+      pendingDraftRef.current = null
+    }
+
     // Pindahkan ke trash di storage
     await ResumeStorage.deleteDraft(id, true)
     await refreshList()
@@ -166,7 +302,7 @@ export function useResumeDraft(initialDraftId?: string) {
     }, 10_000)
 
     setPendingDelete({ id, title, timerId })
-  }, [draft, draftsList, refreshList])
+  }, [draft, draftsList, cancelScheduledAutosave, refreshList])
 
   // 9. Batalkan penghapusan (Undo Delete)
   const undoDelete = useCallback(async () => {
@@ -197,8 +333,10 @@ export function useResumeDraft(initialDraftId?: string) {
     lastSaved,
     privateMode,
     pendingDelete,
+    isLoadingDrafts,
     loadDraft: async (id: string) => {
       try {
+        await flushPendingSave()
         const d = await ResumeStorage.getDraft(id)
         if (d) {
           setDraft(d)
@@ -210,6 +348,10 @@ export function useResumeDraft(initialDraftId?: string) {
       }
     },
     createNewDraft,
+    duplicateDraft,
+    renameDraft,
+    toggleDraftFavorite,
+    createTargetedDraft,
     updateData,
     updateMeta,
     saveNow,

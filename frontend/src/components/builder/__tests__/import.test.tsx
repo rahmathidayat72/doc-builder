@@ -111,6 +111,58 @@ describe('ImportResumeModal Component', () => {
     fireEvent.click(screen.getByTestId('confirm-replace-import'))
     expect(applyButton).not.toBeDisabled()
     fireEvent.click(applyButton)
-    expect(onApply).toHaveBeenCalledWith(result.data)
+    expect(onApply).toHaveBeenCalledWith(
+      result.data,
+      [
+        'contact',
+        'summary',
+        'experiences',
+        'education',
+        'skills',
+        'languages',
+        'customSections'
+      ],
+      'merge'
+    )
+  })
+
+  it('hanya mengirim bagian yang dicentang dengan mode yang dipilih', async () => {
+    const onApply = vi.fn()
+    const result = {
+      success: true,
+      filename: 'resume.docx',
+      data: {
+        contact: { fullName: 'Rina', email: 'rina@example.com', phone: '', location: '', linkedin: '', website: '' },
+        summary: 'Ringkasan hasil impor.',
+        experiences: [],
+        education: [],
+        skills: [{ id: 'skill-1', name: 'Python', category: 'Technical' }],
+        languages: [],
+        customSections: []
+      },
+      confidence: { overall: 0.8, fullName: 0.9, email: 0.9, phone: 0, summary: 0.8, experiences: 0, education: 0, skills: 0.8, languages: 0, customSections: 0 },
+      extraction: { sourceFormat: 'docx', lineCount: 10, textCharacters: 100, detectedSections: ['skills'], missingSections: [], layoutPreserved: false },
+      warnings: []
+    }
+    vi.mocked(apiFetch).mockResolvedValueOnce(new Response(JSON.stringify(result), { status: 200 }))
+
+    render(<ImportResumeModal isOpen={true} onClose={vi.fn()} onApply={onApply} />)
+    fireEvent.change(screen.getByTestId('input-file-import'), {
+      target: { files: [new File(['docx'], 'resume.docx')] }
+    })
+    fireEvent.click(screen.getByTestId('btn-start-parse'))
+    await waitFor(() => expect(screen.getByText('Tinjau Semua Bagian')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('import-section-contact'))
+    fireEvent.click(screen.getByTestId('import-section-summary'))
+    fireEvent.click(screen.getByTestId('import-mode-replace'))
+    fireEvent.click(screen.getByTestId('confirm-replace-import'))
+    fireEvent.click(screen.getByTestId('btn-confirm-apply'))
+
+    expect(onApply).toHaveBeenCalledWith(
+      result.data,
+      ['experiences', 'education', 'skills', 'languages', 'customSections'],
+      'replace'
+    )
   })
 })

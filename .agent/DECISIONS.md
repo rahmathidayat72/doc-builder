@@ -47,9 +47,9 @@
 - Risiko: Ukuran dependensi binary PyMuPDF (~63 MB) dan OpenCV headless (~43 MB).
 - Requirement terkait: BUS-005, BUS-006, FR-012, TASK-1.1.
 
-## DEC-005 — Keamanan Session Localhost: Cookie HttpOnly, SameSite=Strict, dan Origin Allowlist
+## DEC-005 — Keamanan Session Localhost: Cookie HttpOnly, SameSite, dan Origin Allowlist
 - Tanggal: 2026-10-20
-- Status: Accepted
+- Status: Accepted (sebagian disupersede oleh DEC-013)
 - Konteks: Mencegah serangan web (CSRF, DNS rebinding, cross-origin request) dari tab browser lain ke backend localhost.
 - Opsi: (1) Port tetap tanpa auth, (2) Token via query param, (3) Cookie HttpOnly + CSRF token + dynamic port + origin allowlist.
 - Keputusan: Opsi 3.
@@ -57,6 +57,7 @@
 - Konsekuensi: Frontend dan backend butuh alur bootstrap token saat startup.
 - Risiko: Kompleksitas konfigurasi startup script.
 - Requirement terkait: NFR-SEC-001, NFR-PRIV-001.
+- Catatan 2026-10-24: Nilai `SameSite` aktual adalah `Lax`, bukan `Strict`. Perubahan dan alasan kompatibilitas hostname didokumentasikan pada DEC-013. Kontrol utama tetap Origin allowlist + CSRF token + cookie HttpOnly.
 
 ## DEC-006 — Penyimpanan Draft Lokal: IndexedDB & Export Project Opsional Enkripsi
 - Tanggal: 2026-10-20
@@ -97,6 +98,7 @@
   - Sanitasi environment: PASS (variabel sensitif seperti SECRET_KEY dan AWS_* terhapus dari child process).
 - Konsekuensi: Seluruh eksekusi worker eksternal (LibreOffice dan converter biner) wajib melalui `run_sandboxed_subprocess()`.
 - Risiko: Perbedaan kapabilitas sandbox OS tertentu ditangani dengan strategi fail-closed.
+- **Catatan Implementasi (2026-10-24):** Implementasi `backend/app/core/sandbox.py` **tidak** menjalankan `unshare`/`bwrap`/`seccomp` atau aturan firewall. Egress restriction hanya berupa `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` ke port tertutup; `max_memory_mb` hanya diterapkan melalui Windows Job Object, bukan Linux memory cap. Status kontrol egress aktual: **GAP/PARTIAL**, dicatat sebagai `RISK-SEC-003`. Status verifikasi spike sebelumnya tidak boleh dipakai sebagai bukti egress block OS-level.
 - Requirement terkait: NFR-SEC-001, NFR-SEC-004, CTRL-004, CTRL-008, TASK-1.3.
 
 ## DEC-009 — Strategi Packaging Backend Executable Mandiri (Onedir Distribution)
@@ -114,3 +116,77 @@
 - Konsekuensi: Script start peluncur aplikasi akan memanggil executable di folder distribusi backend internal.
 - Risiko: Perlu pipeline build terpisah saat kompilasi rilis Windows vs Linux.
 - Requirement terkait: BUS-009, NFR-PERF-002, TASK-1.4.
+
+## DEC-011 — Model Multi-Website pada Informasi Kontak
+
+- Tanggal: 2026-10-24
+- Status: Accepted
+- Konteks: Pengguna membutuhkan maksimal tiga tautan portofolio/website pada CV; field `contact.website` saat ini hanya menampung satu nilai dan draft lama sudah tersimpan di IndexedDB.
+- Opsi: (1) mengubah tipe `website` menjadi array (breaking), (2) menambah array `websites` sambil mempertahankan `website`, (3) menyimpan daftar di field terpisah di luar contact.
+- Keputusan: Opsi 2 — `websites: string[]` sebagai model baru, `website` dipertahankan sebagai fallback/kompatibilitas dan disinkronkan dengan entri pertama yang terisi.
+- Alasan: Tidak memerlukan migrasi IndexedDB atau breaking change; draft lama tetap tampil; render/export dapat memakai satu helper normalisasi.
+- Konsekuensi: UI, empat template, parser, dan DOCX/PDF wajib memakai normalisasi yang sama; batas maksimal tiga ditegakkan di UI dan fail-safe render/export.
+- Risiko: Data eksternal dengan lebih dari tiga entri akan dipotong secara aman; tidak ada validasi URL ketat agar domain tanpa skema tetap diterima.
+- Requirement terkait: FR-001, FR-002, FR-005, FR-006, NFR-UX-001.
+
+## DEC-012 — Engine PDF Toolkit Pascarilis: PyMuPDF, Tesseract, dan pymupdf4llm
+
+- Tanggal: 2026-10-24 (retrospective decision record)
+- Status: Accepted
+- Konteks: Fitur pascarilis Protect/Unlock, Repair/OCR, Watermark/Page Numbers, dan PDF to Markdown membutuhkan pemrosesan PDF lokal tanpa cloud. Traceability lama merujuk DEC-007/DEC-008/DEC-009/DEC-010 yang tidak sesuai dengan decision log aktual.
+- Opsi: (1) Layanan cloud/API pihak ketiga, (2) library Python murni terpisah per fitur, (3) PyMuPDF sebagai engine utama dengan Tesseract untuk OCR dan `pymupdf4llm` untuk ekstraksi Markdown.
+- Keputusan: Opsi 3. PyMuPDF digunakan untuk enkripsi/dekripsi AES-256, repair xref, watermark, dan penomoran halaman; Tesseract opsional di host untuk OCR; `pymupdf4llm` untuk PDF to Markdown. Seluruh proses berjalan lokal di mesin pengguna.
+- Alasan: Satu engine native yang sudah terpasang mengurangi dependensi baru, mempertahankan pemrosesan offline, dan menyediakan API yang konsisten untuk manipulasi PDF.
+- Konsekuensi: Lisensi PyMuPDF (AGPL/komersial) harus ditinjau sesuai model distribusi; OCR bergantung pada ketersediaan Tesseract di host dan bersifat fail-closed dengan panduan instalasi.
+- Risiko: Perbedaan versi PyMuPDF/Tesseract dapat mengubah hasil; dokumen bertanda tangan digital harus ditolak pada jalur yang dapat merusak tanda tangan. Risiko ini dicatat pada SECURITY.md.
+- Requirement terkait: BUS-011, BUS-012, BUS-013, BUS-014, FR-027 s.d. FR-033.
+
+## DEC-013 — SameSite Cookie Sesi: Lax untuk Kompatibilitas Hostname Lokal
+
+- Tanggal: 2026-10-24
+- Status: Accepted (melengkapi/menyupersede sebagian DEC-005)
+- Konteks: DEC-005 menetapkan `SameSite=Strict`, tetapi runtime `backend/app/api/auth.py` menggunakan `SameSite=Lax`. Frontend dan backend dapat diakses melalui `localhost` atau `127.0.0.1`; nilai yang terlalu ketat dapat memutus alur bootstrap/sesi pada variasi hostname dan port pengembangan.
+- Opsi: (1) Mempertahankan `Strict` dan menyamakan seluruh hostname, (2) `Lax` dengan Origin allowlist + CSRF tetap aktif, (3) menonaktifkan SameSite.
+- Keputusan: Opsi 2 — `HttpOnly`, `SameSite=Lax`, `Secure=false` hanya untuk loopback HTTP, dengan Origin allowlist dan CSRF token sebagai kontrol utama.
+- Alasan: Menjaga alur sesi lokal tetap berfungsi pada variasi `localhost`/`127.0.0.1` tanpa mengorbankan proteksi CSRF yang sudah diuji.
+- Konsekuensi: Dokumentasi arsitektur, security, distribusi, dan traceability harus menyebut `Lax`, bukan `Strict`.
+- Risiko: `Lax` lebih longgar daripada `Strict` untuk navigasi top-level lintas situs. Risiko dikompensasi oleh Origin allowlist, CSRF token, dan cookie HttpOnly; residual risk ditinjau pada security review berikutnya.
+- Requirement terkait: NFR-SEC-001, NFR-PRIV-001, TASK-2.2.
+
+## DEC-014 — Estimasi Pagination dan Preflight Ekspor CV
+
+- Tanggal: 2026-10-24
+- Status: Accepted
+- Konteks: Preview hanya berupa satu lembar A4 dan pengguna dapat mengekspor CV yang belum lengkap tanpa peringatan. Nama berkas juga dapat memuat karakter yang tidak valid.
+- Opsi: (1) True pagination dengan beberapa container halaman, (2) satu lembar kontinu dengan estimasi tinggi dan penanda batas halaman, (3) tanpa indikator halaman.
+- Keputusan: Opsi 2 — estimasi jumlah halaman dari tinggi konten yang dirender, overlay penanda batas halaman, dan badge jumlah halaman. Preflight memblokir ekspor pada error dan mewajibkan acknowledgment pada warning. Nama berkas disanitasi di frontend dan backend, dengan fallback `Resume`/`resume`.
+- Alasan: Memberi umpan balik halaman yang cukup akurat tanpa merombak struktur render/print dan tanpa memecah kop surat atau section.
+- Konsekuensi: `visual-executive` memakai tinggi A4 penuh; template reguler memakai tinggi konten yang dikurangi padding kertas. Overlay halaman adalah indikator visual, bukan pemotongan dokumen fisik.
+- Risiko: Estimasi tinggi dapat berbeda dari hasil cetak browser/backend. Pengguna tetap harus memeriksa hasil ekspor; risiko ini diterima sebagai keterbatasan preview.
+- Requirement terkait: FR-024, FR-034, FR-035, NFR-UX-001.
+
+## DEC-015 — Model Data CV Terstruktur dan Kompatibilitas Draft Lama
+
+- Tanggal: 2026-10-24
+- Status: Accepted
+- Konteks: CV membutuhkan headline profesional, pencapaian per pengalaman, deskripsi pendidikan, dan urutan bagian yang dapat diatur, tetapi draft IndexedDB lama tidak memiliki field tersebut.
+- Opsi: (1) Migrasi destruktif seluruh draft, (2) field opsional dengan fallback saat render/ekspor, (3) hanya mendukung draft baru.
+- Keputusan: Opsi 2 — `headline`, `achievements`, `sectionOrder`, `favorite`, dan `targetJob` bersifat opsional. `achievements` menjadi sumber utama bila ada; jika tidak, `description` lama dipecah menjadi butir. Baris pencapaian kosong dipertahankan selama pengeditan dan difilter saat render/ekspor. `sectionOrder` tidak dikenal difilter dan bagian yang hilang ditambahkan.
+- Alasan: Menjaga backward compatibility penuh dan mencegah kehilangan data pengguna.
+- Konsekuensi: Semua renderer (4 template, DOCX, PDF) harus memakai helper yang sama; parser dapat mengisi headline dari baris di bawah nama.
+- Risiko: Duplikasi logika fallback bila helper tidak dipakai konsisten. Mitigasi: helper terpusat di `types/resume.ts` dan test lintas template/DOCX.
+- Requirement terkait: FR-036, FR-037, FR-038, TASK-4.1–TASK-4.4.
+
+## DEC-016 — CV Target, Impor Selektif + Undo, dan Manajemen Draft
+
+- Tanggal: 2026-10-24
+- Status: Accepted
+- Konteks: Pengguna perlu membuat versi CV untuk lowongan tertentu, menggabungkan hasil impor secara selektif, dan mengelola banyak draft tanpa kehilangan data.
+- Opsi: (1) Menimpa draft sumber saat membuat CV target atau impor, (2) membuat salinan/merge selektif dengan undo, (3) memisahkan seluruh alur ke fitur baru.
+- Keputusan: Opsi 2 — CV target adalah salinan draft sumber dengan `targetJob` dan skill cocok diurutkan lebih dahulu; draft asli tidak berubah. Impor mendukung `merge`/`replace` per bagian dan undo 30 detik yang hanya mengembalikan bagian terpilih. Daftar draft mendukung pencarian, favorit (tanpa mengubah `updatedAt` saat toggle), rename inline, duplikasi, dan badge target. Inisialisasi menunggu daftar draft selesai dimuat sebelum membuat draft baru.
+- Alasan: Mencegah kehilangan data, memberi kontrol granular, dan menghindari draft kosong yang tidak disengaja.
+- Konsekuensi: Autosave harus di-flush sebelum berpindah/menduplikasi draft; snapshot undo disimpan di memori sesi.
+- Risiko: Snapshot undo hilang jika halaman di-refresh; ini diterima karena undo adalah bantuan sesi, bukan version history.
+- Requirement terkait: FR-039, FR-040, FR-041, NFR-REL-004, NFR-UX-001.
+
+> Catatan: ID `DEC-010` tidak pernah digunakan dalam decision log ini. Referensi lama pada `TRACEABILITY.md` yang menunjuk DEC-010 telah diperbaiki ke DEC-012.

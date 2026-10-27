@@ -1,12 +1,14 @@
 # Laporan Verifikasi UAT & Benchmark Fidelitas Corpus (UAT-REPORT.md)
 
 - **Tanggal Pelaksanaan:** 2026-10-21
-- **Status Gate:** APPROVED (Kriteria Keberhasilan Terpenuhi 100%)
+- **Status Gate:** APPROVED (historis 2026-10-21; metrik field/teks dan UAT terpenuhi, metrik visual formal belum — lihat klarifikasi di bawah)
 - **Target Release:** Phase 09 - Distribution & Release
 - **Target KPI Bisnis:**
   - Skor Kepuasan Pengguna (CSAT): Target ≥ 90% (Realisasi: **94.5%**)
-  - Skor Fidelitas Corpus Format ATS: Target ≥ 95% (Realisasi: **100.0%**)
-  - Kepatuhan Privasi Data Lokal: Target 100% (Realisasi: **100.0%**)
+  - Skor Fidelitas Field/Teks Corpus ATS: Target ≥ 95% (Realisasi: **100.0%**)
+  - Kepatuhan Privasi Data Lokal: Target 100% (Realisasi desain: **100%** — tanpa telemetry; egress block subprocess belum tersedia, `RISK-SEC-003`)
+
+> **Klarifikasi metrik (2026-10-24):** Angka 100% berasal dari round-trip field/teks (`Resume Payload -> DOCX -> Resume Parser`), bukan perbandingan visual SSIM/pixel diff. Klaim “fidelitas visual 100%” pada dokumen lama tidak didukung metode tersebut; metrik visual formal dicatat sebagai `Q-001`.
 
 ---
 
@@ -45,7 +47,7 @@ Setiap peserta menguji alur kerja end-to-end:
 
 ---
 
-## 3. Hasil Benchmark Fidelitas Corpus (Corpus Fidelity Benchmark)
+## 3. Hasil Benchmark Fidelitas Field/Teks Corpus (Corpus Fidelity Benchmark)
 
 Evaluasi fidelitas corpus dilakukan secara terotomatisasi menggunakan script `scripts/benchmark_corpus.py` terhadap 5 dataset resume standar industri yang mencakup format ATS Clean, ATS Modern, dan ATS Compact:
 
@@ -119,8 +121,8 @@ Ambang Batas Target : >= 95.00%
 ## 4. Verifikasi Retensi Privasi Data Lokal
 
 - Seluruh data draf tersimpan secara eksklusif pada IndexedDB lokal per-browser pengguna.
-- Server backend hanya mendengarkan loopback interface `127.0.0.1` tanpa akses internet keluar (egress blocked).
-- Berkas sementara di sandbox dibersihkan seketika setelah setiap operasi (`per-job cleanup`) dan melalui daemon periodic sweeper (TTL 5 menit).
+- Server backend hanya mendengarkan loopback interface `127.0.0.1`. Egress block OS-level untuk subprocess **belum tersedia**; implementasi saat ini hanya proxy environment (`RISK-SEC-003`), sehingga ini bukan jaminan isolasi jaringan penuh.
+- Berkas sementara dibersihkan setelah setiap operasi (`per-job cleanup`) dan melalui startup sweep (TTL 5 menit). Daemon periodic sweeper belum tersedia (`RISK-SEC-002`).
 - Zero telemetry tracking atau eksternal analytics.
 
 ---

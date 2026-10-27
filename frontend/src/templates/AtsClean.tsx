@@ -1,5 +1,10 @@
 import React from 'react'
-import { type ResumeDraft } from '../types/resume'
+import {
+  type ResumeDraft,
+  getExperienceDescriptionText,
+  getFilledWebsites
+} from '../types/resume'
+import { getResumeSectionOrder } from '../types/resumeSections'
 import { Mail, Phone, MapPin, Link as LinkIcon, Globe } from 'lucide-react'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
 import { getResumeLabels } from './resumeLabels'
@@ -12,9 +17,11 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
   const labels = getResumeLabels(draft.resumeLanguage)
+  const sectionOrder = getResumeSectionOrder(draft.data.sectionOrder)
+  const orderOf = (section: (typeof sectionOrder)[number]) => sectionOrder.indexOf(section) + 1
 
   return (
-    <div className="space-y-5 text-slate-800" data-testid="template-ats-clean">
+    <div className="flex flex-col gap-5 text-slate-800" data-testid="template-ats-clean">
       {/* Header Klasik Rata Tengah */}
       <header className="text-center border-b pb-3" style={{ borderColor: accentColor }}>
         {contact.usePhoto && contact.photoUrl && (
@@ -34,6 +41,14 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
         >
           {contact.fullName || labels.fullNameFallback}
         </h1>
+        {contact.headline && (
+          <p
+            className="mt-1 text-xs font-semibold text-slate-600"
+            data-testid="preview-headline"
+          >
+            {contact.headline}
+          </p>
+        )}
         <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-xs text-slate-600 mt-1.5">
           {contact.email && (
             <span className="flex items-center gap-1">
@@ -59,18 +74,18 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
               {contact.linkedin}
             </span>
           )}
-          {contact.website && (
-            <span className="flex items-center gap-1">
+          {getFilledWebsites(contact.website, contact.websites).map((url, index) => (
+            <span key={`${url}-${index}`} className="flex items-center gap-1">
               <Globe className="w-3.5 h-3.5 text-slate-400" />
-              {contact.website}
+              {url}
             </span>
-          )}
+          ))}
         </div>
       </header>
 
       {/* Ringkasan */}
       {summary && (
-        <section className="space-y-1">
+        <section className="space-y-1" style={{ order: orderOf('summary') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
@@ -83,7 +98,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pengalaman Kerja */}
       {experiences.length > 0 && (
-        <section className="space-y-2.5">
+        <section className="space-y-2.5" style={{ order: orderOf('experience') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
@@ -102,9 +117,9 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="text-slate-600 font-medium italic">
                   {exp.company} {exp.location && `| ${exp.location}`}
                 </div>
-                {exp.description && (
+                {getExperienceDescriptionText(exp) && (
                   <div className="text-slate-700 whitespace-pre-line leading-relaxed pl-1 pt-0.5">
-                    {exp.description}
+                    {getExperienceDescriptionText(exp)}
                   </div>
                 )}
               </div>
@@ -115,7 +130,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pendidikan */}
       {education.length > 0 && (
-        <section className="space-y-2">
+        <section className="space-y-2" style={{ order: orderOf('education') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
@@ -137,6 +152,11 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
                   {edu.degree} {edu.fieldOfStudy && `${labels.inField} ${edu.fieldOfStudy}`}
                   {edu.gpa && ` | ${labels.gpa}: ${edu.gpa}`}
                 </div>
+                {edu.description && (
+                  <p className="whitespace-pre-line text-2xs leading-relaxed text-slate-600">
+                    {edu.description}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -145,7 +165,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Keahlian */}
       {skills.length > 0 && (
-        <section className="space-y-1.5">
+        <section className="space-y-1.5" style={{ order: orderOf('skills') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
@@ -160,7 +180,7 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Bahasa */}
       {languages.length > 0 && (
-        <section className="space-y-1.5">
+        <section className="space-y-1.5" style={{ order: orderOf('languages') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider border-b pb-0.5"
             style={{ color: accentColor, borderColor: '#cbd5e1' }}
@@ -177,12 +197,14 @@ export const AtsCleanTemplate: React.FC<TemplateProps> = ({ draft }) => {
         </section>
       )}
 
-      <CustomSectionsBlock
-        sections={customSections}
-        accentColor={accentColor}
-        variant="ats-clean"
-        language={draft.resumeLanguage}
-      />
+      <div style={{ order: orderOf('custom') }}>
+        <CustomSectionsBlock
+          sections={customSections}
+          accentColor={accentColor}
+          variant="ats-clean"
+          language={draft.resumeLanguage}
+        />
+      </div>
     </div>
   )
 }

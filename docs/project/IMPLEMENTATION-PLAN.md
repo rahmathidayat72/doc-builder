@@ -39,9 +39,9 @@ Phase 09: UAT, Corpus Benchmark Verification & Distribution Release
 - **Scope Task:**
   - TASK-1.1: Evaluasi library PDF→DOCX pada corpus referensi (benchmark fidelitas, stabilitas, lisensi).
   - TASK-1.2: Evaluasi library NLP lokal bilingual (ID/EN) (memori, akurasi keyword extraction, kecepatan).
-  - TASK-1.3: Abstraksi subprocess sandbox dan network egress block (Windows & Linux).
+  - TASK-1.3: Abstraksi subprocess sandbox dan rencana network egress block (Windows & Linux). Implementasi aktual hanya proxy env; egress block OS-level belum ada (`RISK-SEC-003`).
   - TASK-1.4: Evaluasi packaging runtime backend mandiri (PyInstaller/Nuitka) (cold start ≤5 detik).
-- **Exit Criteria:** Laporan kelayakan terdokumentasi di Decision Log; library definitif dipilih; kriteria kemiripan visual visual disepakati.
+- **Exit Criteria:** Laporan kelayakan terdokumentasi di Decision Log; library definitif dipilih; kriteria fidelitas field/teks disepakati. Metrik visual formal (SSIM/pixel diff) belum ditetapkan (`Q-001`).
 
 ### Phase 02: Foundation & Local Architecture
 - **Tujuan:** Membangun monorepo workspace, setup tooling quality gate, dan arsitektur komunikasi aman localhost.
@@ -75,10 +75,23 @@ Phase 09: UAT, Corpus Benchmark Verification & Distribution Release
 
 ### Phase 08: Hardening & Multi-Browser E2E
 - **Tujuan:** Pematangan kualitas, aksesibilitas, dan ketahanan keamanan.
-- **Scope Task:** TASK-8.1 (WCAG 2.2 AA & Playwright multi-browser test), TASK-8.2 (Security scans, SCA, SAST, DAST baseline).
-- **Exit Criteria:** 0 temuan Critical/High; kompatibilitas 4 browser modern terbukti.
+- **Scope Task:** TASK-8.1 (WCAG 2.2 AA & rencana Playwright multi-browser test), TASK-8.2 (Security scans, SCA, SAST, DAST baseline).
+- **Exit Criteria:** 0 temuan Critical/High yang diketahui pada saat Phase 08; kompatibilitas 4 browser modern **belum terverifikasi** karena Playwright tidak terpasang dan tidak ada E2E suite (`Q-005`). **Catatan 2026-10-24:** audit dokumentasi menemukan `RISK-SEC-003` (HIGH provisional), sehingga exit criteria ini tidak dapat dipakai sebagai dasar release berikutnya sampai risk tersebut diselesaikan.
+- **Catatan 2026-10-24:** Implementasi aktual TASK-8.1 menjalankan Vitest + axe-core, bukan Playwright. Klaim “4 Browser matrix PASS” pada traceability lama telah dikoreksi menjadi NOT VERIFIED.
 
 ### Phase 09: UAT & Release
 - **Tujuan:** Validasi pengguna akhir dan packaging distribusi.
 - **Scope Task:** TASK-9.1 (UAT 10 pengguna & verifikasi fidelitas corpus ≥95%), TASK-9.2 (Packaging executable & script start).
 - **Exit Criteria:** 90% kepuasan UAT; instalasi lokal berjalan lancar di Windows & Linux.
+
+## 3. Peningkatan Pascarilis CV Builder (2026-10-24)
+
+Peningkatan berikut berada di luar baseline Phase 01–09 dan tidak mengubah status rilis historis. Seluruh item telah diimplementasikan dan diverifikasi pada 2026-10-24, tetapi belum di-commit, belum di-push, dan belum dirilis.
+
+| Task | Requirement | Capability | Dependency | Status |
+|---|---|---|---|---|
+| `IMPROVEMENT-CV-PREEXPORT-001` | FR-024, FR-034, FR-035 | Estimasi pagination A4, overlay page-break, preflight kualitas ekspor, acknowledgment warning, dan sanitasi nama berkas frontend/backend | TASK-4.3 | ✅ Selesai dan terverifikasi |
+| `IMPROVEMENT-CV-STRUCTURED-001` | FR-036, FR-037, FR-038 | Headline profesional, pencapaian terstruktur, reorder entri/bagian, deskripsi pendidikan, validasi tanggal, dukungan 4 template + DOCX + parser | TASK-4.1–TASK-4.4 | ✅ Selesai dan terverifikasi |
+| `IMPROVEMENT-CV-WORKFLOW-001` | FR-039, FR-040, FR-041 | CV target, impor selektif merge/replace + undo, pencarian/favorit/rename/duplikasi draft, dan hardening autosave | TASK-3.1, TASK-4.4, TASK-5.2 | ✅ Selesai dan terverifikasi |
+
+**Quality gate peningkatan:** 233/233 Vitest, 126/126 Pytest, Ruff PASS, Vite build PASS, Oxlint 0 error (16 warning pre-existing). Release berikutnya tetap memerlukan keputusan owner atas `RISK-SEC-003` (HIGH provisional) dan tidak boleh mengklaim security gate/release gate terpenuhi sebelum risiko tersebut dimitigasi atau diterima formal dengan expiry.

@@ -213,6 +213,56 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     u4()
   })
 
+  it('merender maksimal tiga website non-kosong di 4 template', () => {
+    const multiWebsiteDraft: ResumeDraft = {
+      ...sampleDraft,
+      data: {
+        ...sampleDraft.data,
+        contact: {
+          ...sampleDraft.data.contact,
+          website: 'dewisartika.id',
+          websites: ['dewisartika.id', 'github.com/dewisartika', 'portfolio.dev', 'extra.dev']
+        }
+      }
+    }
+
+    const { unmount: u1 } = render(
+      <AtsCleanTemplate draft={{ ...multiWebsiteDraft, templateId: 'ats-clean' }} />
+    )
+    expect(screen.getAllByText(/dewisartika\.id/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/github\.com\/dewisartika/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/portfolio.dev/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/extra\.dev/)).not.toBeInTheDocument()
+    u1()
+
+    const { unmount: u2 } = render(
+      <AtsModernTemplate draft={{ ...multiWebsiteDraft, templateId: 'ats-modern' }} />
+    )
+    expect(screen.getAllByText(/dewisartika\.id/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/github\.com\/dewisartika/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/portfolio.dev/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/extra\.dev/)).not.toBeInTheDocument()
+    u2()
+
+    const { unmount: u3 } = render(
+      <VisualExecutiveTemplate draft={{ ...multiWebsiteDraft, templateId: 'visual-executive' }} />
+    )
+    expect(screen.getAllByText(/dewisartika\.id/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/github\.com\/dewisartika/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/portfolio.dev/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/extra\.dev/)).not.toBeInTheDocument()
+    u3()
+
+    const { unmount: u4 } = render(
+      <VisualMinimalTemplate draft={{ ...multiWebsiteDraft, templateId: 'visual-minimal' }} />
+    )
+    expect(screen.getAllByText(/dewisartika\.id/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/github\.com\/dewisartika/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/portfolio.dev/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/extra\.dev/)).not.toBeInTheDocument()
+    u4()
+  })
+
   it('merender foto profil secara adaptif di 4 template saat usePhoto aktif', () => {
     const photoDraft: ResumeDraft = {
       ...sampleDraft,
@@ -271,5 +321,56 @@ describe('Template Registry & Rendering Suite (2 ATS + 2 Visual)', () => {
     const { unmount: u4 } = render(<VisualMinimalTemplate draft={{ ...noPhotoDraft, templateId: 'visual-minimal' }} />)
     expect(screen.queryByTestId('preview-photo')).not.toBeInTheDocument()
     u4()
+  })
+
+  it('merender headline, pencapaian terstruktur, deskripsi pendidikan, dan urutan bagian', () => {
+    const enhancedDraft: ResumeDraft = {
+      ...sampleDraft,
+      data: {
+        ...sampleDraft.data,
+        contact: {
+          ...sampleDraft.data.contact,
+          headline: 'Cloud & Backend Architecture Specialist'
+        },
+        experiences: [
+          {
+            ...sampleDraft.data.experiences[0],
+            description: '',
+            achievements: [
+              'Memimpin migrasi 12 layanan ke Kubernetes.',
+              'Menurunkan latensi API 40%.'
+            ]
+          }
+        ],
+        education: [
+          {
+            ...sampleDraft.data.education[0],
+            description: 'Fokus pada sistem terdistribusi dan keamanan aplikasi.'
+          }
+        ],
+        sectionOrder: [
+          'education',
+          'summary',
+          'experience',
+          'skills',
+          'languages',
+          'custom'
+        ]
+      }
+    }
+
+    render(<AtsCleanTemplate draft={enhancedDraft} />)
+
+    expect(screen.getByTestId('preview-headline')).toHaveTextContent(
+      'Cloud & Backend Architecture Specialist'
+    )
+    expect(screen.getByText(/Memimpin migrasi 12 layanan/i)).toBeInTheDocument()
+    expect(screen.getByText(/Menurunkan latensi API 40%/i)).toBeInTheDocument()
+    expect(screen.getByText(/Fokus pada sistem terdistribusi/i)).toBeInTheDocument()
+
+    const educationSection = screen.getByText('Pendidikan').closest('section')
+    const summarySection = screen.getByText('Ringkasan Profesional').closest('section')
+    expect(educationSection).toHaveStyle({ order: '1' })
+    expect(summarySection).toHaveStyle({ order: '2' })
   })
 })

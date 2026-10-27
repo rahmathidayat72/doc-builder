@@ -121,6 +121,74 @@ describe('CV Builder Form Components & Live Preview', () => {
     )
   })
 
+  it('ContactForm menampilkan website legacy dan dapat menambah hingga tiga kolom', () => {
+    const mockChange = vi.fn()
+    const contact = {
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      phone: '',
+      location: '',
+      linkedin: '',
+      website: 'legacy.dev'
+    }
+
+    const { rerender } = render(<ContactForm contact={contact} onChange={mockChange} />)
+
+    expect(screen.getByTestId('input-website-0')).toHaveValue('legacy.dev')
+    expect(screen.queryByTestId('input-website-1')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('btn-add-website'))
+    expect(mockChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ websites: ['legacy.dev', ''], website: 'legacy.dev' })
+    )
+
+    rerender(
+      <ContactForm
+        contact={{ ...contact, websites: ['legacy.dev', 'github.com/budi'] }}
+        onChange={mockChange}
+      />
+    )
+    fireEvent.click(screen.getByTestId('btn-add-website'))
+    expect(mockChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        websites: ['legacy.dev', 'github.com/budi', ''],
+        website: 'legacy.dev'
+      })
+    )
+
+    rerender(
+      <ContactForm
+        contact={{ ...contact, websites: ['legacy.dev', 'github.com/budi', 'budi.dev'] }}
+        onChange={mockChange}
+      />
+    )
+    expect(screen.getByTestId('input-website-2')).toHaveValue('budi.dev')
+    expect(screen.queryByTestId('btn-add-website')).not.toBeInTheDocument()
+  })
+
+  it('ContactForm menghapus website tambahan dan merapatkan urutan', () => {
+    const mockChange = vi.fn()
+    const contact = {
+      fullName: 'Budi Santoso',
+      email: 'budi@example.com',
+      phone: '',
+      location: '',
+      linkedin: '',
+      website: 'budi.dev',
+      websites: ['budi.dev', 'github.com/budi', 'linkedin.com/in/budi']
+    }
+
+    render(<ContactForm contact={contact} onChange={mockChange} />)
+    fireEvent.click(screen.getByTestId('btn-remove-website-1'))
+
+    expect(mockChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        websites: ['budi.dev', 'linkedin.com/in/budi'],
+        website: 'budi.dev'
+      })
+    )
+  })
+
   it('ContactForm menampilkan pratinjau foto dan dapat menghapusnya', () => {
     const mockChange = vi.fn()
     const contact = {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   FileSearch,
   Upload,
@@ -37,10 +37,19 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
     filename: string
     ocrPages?: number
   } | null>(null)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const checkStatus = async () => {
     setIsCheckingStatus(true)
     const status = await getOcrStatus()
+    if (!isMountedRef.current) return
     setOcrStatus(status)
     setIsCheckingStatus(false)
   }
@@ -119,7 +128,7 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Modal OCR PDF"
-      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-overlay-in"
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4 sm:p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[90vh] flex flex-col">
         {/* Header */}

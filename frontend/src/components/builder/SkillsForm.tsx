@@ -119,7 +119,7 @@ export const SkillsForm: React.FC<SkillsFormProps> = ({ skills, onChange }) => {
             {skills.map(skill => (
               <span
                 key={skill.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 rounded-full text-xs font-medium text-slate-800 shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 hover:border-indigo-300 rounded-full text-xs font-medium text-slate-800 shadow-xs transition-colors animate-pop-in"
               >
                 {skill.name}
                 <button

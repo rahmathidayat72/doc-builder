@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
-import { type ContactInfo } from '../../types/resume'
-import { User, Mail, Phone, MapPin, Link as LinkIcon, Globe, Camera, Trash2, Upload } from 'lucide-react'
+import { MAX_WEBSITES, getWebsites, type ContactInfo } from '../../types/resume'
+import { User, Mail, Phone, MapPin, Link as LinkIcon, Globe, Camera, Trash2, Upload, Plus } from 'lucide-react'
 
 interface ContactFormProps {
   contact: ContactInfo
@@ -83,6 +83,33 @@ export const ContactForm: React.FC<ContactFormProps> = ({ contact, onChange }) =
       usePhoto: false,
       photoUrl: ''
     })
+  }
+
+  const websiteInputs = getWebsites(contact.website, contact.websites)
+  const visibleWebsites = websiteInputs.length > 0 ? websiteInputs : ['']
+
+  const syncWebsites = (next: string[]) => {
+    onChange({
+      ...contact,
+      websites: next,
+      website: next.find(item => item.trim()) || ''
+    })
+  }
+
+  const handleWebsiteChange = (index: number, value: string) => {
+    const next = [...visibleWebsites]
+    next[index] = value
+    syncWebsites(next)
+  }
+
+  const handleAddWebsite = () => {
+    if (visibleWebsites.length >= MAX_WEBSITES) return
+    syncWebsites([...visibleWebsites, ''])
+  }
+
+  const handleRemoveWebsite = (index: number) => {
+    if (index === 0) return
+    syncWebsites(visibleWebsites.filter((_, itemIndex) => itemIndex !== index))
   }
 
   return (
@@ -195,6 +222,24 @@ export const ContactForm: React.FC<ContactFormProps> = ({ contact, onChange }) =
           </div>
         </div>
 
+        <div className="md:col-span-2">
+          <label className="block text-xs font-medium text-slate-700 mb-1">
+            Headline Profesional
+          </label>
+          <input
+            type="text"
+            placeholder="Contoh: Senior Backend Engineer · 6+ tahun membangun API berskala besar"
+            value={contact.headline || ''}
+            onChange={e => handleChange('headline', e.target.value)}
+            maxLength={120}
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+            data-testid="input-headline"
+          />
+          <p className="mt-1 text-2xs text-slate-500">
+            Satu baris singkat di bawah nama untuk menonjolkan posisi dan spesialisasi utama.
+          </p>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">
             Alamat Email <span className="text-red-500">*</span>
@@ -256,19 +301,58 @@ export const ContactForm: React.FC<ContactFormProps> = ({ contact, onChange }) =
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">Portofolio / Website</label>
-          <div className="relative">
-            <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="budisantoso.dev"
-              value={contact.website}
-              onChange={e => handleChange('website', e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
-            />
+        {visibleWebsites.map((value, index) => (
+          <div key={index}>
+            <label
+              htmlFor={`input-website-${index}`}
+              className="block text-xs font-medium text-slate-700 mb-1"
+            >
+              Portofolio / Website {index + 1}
+            </label>
+            <div className="relative">
+              <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                id={`input-website-${index}`}
+                type="text"
+                placeholder={index === 0 ? 'budisantoso.dev' : `https://contoh${index + 1}.com`}
+                value={value}
+                onChange={e => handleWebsiteChange(index, e.target.value)}
+                maxLength={300}
+                className="w-full pl-9 pr-9 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                data-testid={`input-website-${index}`}
+              />
+              {index > 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveWebsite(index)}
+                  className="absolute right-2 top-1.5 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"
+                  aria-label={`Hapus Website ${index + 1}`}
+                  title={`Hapus Website ${index + 1}`}
+                  data-testid={`btn-remove-website-${index}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        ))}
+
+        {visibleWebsites.length < MAX_WEBSITES && (
+          <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={handleAddWebsite}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition"
+              data-testid="btn-add-website"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Tambah Website
+            </button>
+            <span className="text-2xs text-slate-500">
+              Maksimal {MAX_WEBSITES} website
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

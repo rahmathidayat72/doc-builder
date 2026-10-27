@@ -170,18 +170,112 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
     return "\n".join(lines)
 
 
+def _extract_headline(
+    lines: list[str], contact: dict[str, Any], confidence: dict[str, float]
+) -> None:
+    """Mengambil headline profesional dari baris di bawah nama.
+
+    Hanya dijalankan jika nama sudah terdeteksi agar baris nama tidak
+    salah dipakai sebagai headline. Bagian yang mengandung kontak, tautan,
+    lokasi, atau heading section diabaikan.
+    """
+    full_name = str(contact.get("fullName", "")).strip().lower()
+    if not full_name:
+        return
+
+    generic_lines = {
+        "curriculum vitae",
+        "daftar riwayat hidup",
+        "resume",
+        "cv",
+        "profile",
+        "profil",
+        "professional profile",
+    }
+    location_markers = (
+        "jakarta",
+        "bandung",
+        "surabaya",
+        "yogyakarta",
+        "semarang",
+        "medan",
+        "bali",
+        "indonesia",
+        "remote",
+        "bogor",
+        "depok",
+        "tangerang",
+        "bekasi",
+        "jabodetabek",
+        "banten",
+        "jawa",
+        "sumatera",
+        "kalimantan",
+        "sulawesi",
+        "papua",
+        "maluku",
+        "aceh",
+        "riau",
+        "lampung",
+    )
+
+    for line in lines[:10]:
+        clean = line.strip()
+        if not clean:
+            continue
+        normalized = clean.lower().rstrip(":")
+        if normalized in generic_lines:
+            continue
+        if _match_known_heading(clean) is not None:
+            continue
+
+        parts = [part.strip(" \t-–—•|") for part in re.split(r"\s*[|•·]\s*", clean)]
+        for part in parts:
+            candidate = part.strip(" \t-–—,;:")
+            candidate_lower = candidate.lower()
+            if not candidate or len(candidate) > 100:
+                continue
+            if candidate_lower == full_name or candidate_lower in generic_lines:
+                continue
+            if re.search(EMAIL_REGEX, candidate) or re.search(PHONE_REGEX, candidate):
+                continue
+            if "@" in candidate or any(
+                token in candidate_lower
+                for token in ("http://", "https://", "www.", "linkedin.com", "github.com")
+            ):
+                continue
+            if re.search(DATE_TOKEN_REGEX, candidate, re.IGNORECASE):
+                continue
+            if any(marker in candidate_lower for marker in location_markers):
+                continue
+            words = candidate.split()
+            if not (1 <= len(words) <= 10):
+                continue
+            contact["headline"] = candidate
+            confidence["headline"] = 0.55
+            return
+
+
 def extract_contact_info(
     lines: list[str], full_text: str
-) -> tuple[dict[str, str], dict[str, float]]:
-    contact = {
+) -> tuple[dict[str, Any], dict[str, float]]:
+    contact: dict[str, Any] = {
         "fullName": "",
+        "headline": "",
         "email": "",
         "phone": "",
         "location": "",
         "linkedin": "",
         "website": "",
+        "websites": [],
     }
-    confidence = {"fullName": 0.0, "email": 0.0, "phone": 0.0, "location": 0.0}
+    confidence = {
+        "fullName": 0.0,
+        "headline": 0.0,
+        "email": 0.0,
+        "phone": 0.0,
+        "location": 0.0,
+    }
 
     email_match = re.search(EMAIL_REGEX, full_text)
     if email_match:
@@ -213,6 +307,7 @@ def extract_contact_info(
         if email_domain and found_lower.endswith(email_domain):
             continue
         contact["website"] = found_web
+        contact["websites"] = [found_web]
         break
 
     for line in lines[:8]:
@@ -226,6 +321,8 @@ def extract_contact_info(
             contact["fullName"] = clean.title()
             confidence["fullName"] = 0.85
             break
+
+    _extract_headline(lines, contact, confidence)
 
     location_keywords = [
         "jakarta",
@@ -260,16 +357,14 @@ def extract_contact_info(
         clean = line.strip()
         if not clean:
             continue
-        if ("|" in clean or "•" in clean) and (
-            re.search(EMAIL_REGEX, clean) or re.search(PHONE_REGEX, clean)
-        ):
+        if "|" in clean or "•" in clean:
             parts = [p.strip() for p in re.split(r"\s*[|•]\s*", clean) if p.strip()]
             for part in parts:
                 if re.search(EMAIL_REGEX, part) or re.search(PHONE_REGEX, part):
                     continue
                 if any(w in part.lower() for w in ["linkedin.com", "http://", "https://"]):
                     continue
-                if any(k in part.lower() for k in location_keywords) or len(part.split()) >= 2:
+                if any(k in part.lower() for k in location_keywords):
                     if not contact["location"]:
                         contact["location"] = part
                         confidence["location"] = 0.85
@@ -799,6 +894,7 @@ def parse_resume_document(file_bytes: bytes, filename: str) -> dict[str, Any]:
         "confidence": {
             "overall": overall_confidence,
             "fullName": contact_confidence["fullName"],
+            "headline": contact_confidence["headline"],
             "email": contact_confidence["email"],
             "phone": contact_confidence["phone"],
             "summary": summary_confidence,

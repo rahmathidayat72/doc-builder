@@ -42,6 +42,21 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
     expect(retrieved?.data.contact.fullName).toBe('Budi Santoso')
   })
 
+  it('mempertahankan website legacy pada draft lama tanpa field websites', async () => {
+    const draft = createSampleDraft(
+      '33333333-3333-4333-8333-333333333333',
+      'Draft Website Legacy'
+    )
+    draft.data.contact.website = 'legacy.dev'
+    delete draft.data.contact.websites
+
+    await ResumeStorage.saveDraft(draft)
+    const retrieved = await ResumeStorage.getDraft(draft.id)
+
+    expect(retrieved?.data.contact.website).toBe('legacy.dev')
+    expect(retrieved?.data.contact.websites).toBeUndefined()
+  })
+
   it('mengembalikan daftar draft terurut berdasarkan updatedAt terbaru', async () => {
     const draft1 = createSampleDraft('11111111-1111-4111-8111-111111111111', 'Draft Pertama')
     draft1.updatedAt = 1000
@@ -190,5 +205,59 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
     expect(loaded?.data.experiences).toHaveLength(1)
     expect(loaded?.data.education).toHaveLength(1)
     expect(loaded?.data.languages).toHaveLength(1)
+  })
+
+  it('menyimpan favorit, menaruhnya di atas daftar, dan mempertahankan target lowongan', async () => {
+    const older = createSampleDraft(
+      '55555555-5555-4555-8555-555555555555',
+      'Draft Lama'
+    )
+    older.updatedAt = 100
+    older.targetJob = {
+      title: 'Backend Engineer',
+      company: 'PT Target',
+      description: 'Python dan FastAPI',
+      matchedSkills: ['python'],
+      createdAt: 1
+    }
+
+    const newer = createSampleDraft(
+      '66666666-6666-4666-8666-666666666666',
+      'Draft Baru'
+    )
+    newer.updatedAt = 200
+
+    await ResumeStorage.saveDraft(older)
+    await ResumeStorage.saveDraft(newer)
+
+    expect((await ResumeStorage.listDrafts())[0].title).toBe('Draft Baru')
+
+    await ResumeStorage.toggleFavorite(older.id)
+    const list = await ResumeStorage.listDrafts()
+    expect(list[0]).toMatchObject({
+      title: 'Draft Lama',
+      favorite: true,
+      targetJobTitle: 'Backend Engineer'
+    })
+
+    await ResumeStorage.toggleFavorite(older.id)
+    expect((await ResumeStorage.listDrafts())[0].title).toBe('Draft Baru')
+  })
+
+  it('duplikasi draft mereset favorit dan menolak judul kosong', async () => {
+    const draft = createSampleDraft(
+      '77777777-7777-4777-8777-777777777777',
+      'Draft Utama'
+    )
+    draft.favorite = true
+    await ResumeStorage.saveDraft(draft)
+
+    const duplicated = await ResumeStorage.duplicateDraft(draft.id)
+    expect(duplicated.title).toBe('Draft Utama (Salinan)')
+    expect(duplicated.favorite).toBe(false)
+
+    await expect(ResumeStorage.renameDraft(draft.id, '   ')).rejects.toThrow(
+      'Judul draft tidak boleh kosong.'
+    )
   })
 })

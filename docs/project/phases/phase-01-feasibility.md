@@ -51,6 +51,6 @@ Menguji secara empiris seluruh asumsi teknis dengan risiko kegagalan tertinggi s
 ## 7. Bukti Verifikasi Empiris
 1. **TASK-1.1 (PDF to DOCX):** Word recall 100%, durasi <0.5s, memori <3.5MB, tabel 7x4 terdeteksi utuh (`spikes/pdf2docx-eval/benchmark_summary.json`).
 2. **TASK-1.2 (Bilingual NLP):** Latensi 1.88ms per pasang, memori 169KB, 0 dependensi eksternal, akurasi recall >75% bilingual (`spikes/nlp-eval/nlp_benchmark_summary.json`).
-3. **TASK-1.3 (Sandbox & Egress Block):** 4/4 skenario PASS: Job Objects aktif, egress diblokir `DOCBUILDER_NETWORK_BLOCKED`, timeout 2.01s auto-kill, secret tereduksi.
+3. **TASK-1.3 (Sandbox & Egress Block):** 4/4 skenario tercatat PASS pada spike: Job Objects aktif, timeout 2.01s auto-kill, secret tereduksi. **Koreksi 2026-10-24:** egress restriction aktual hanya proxy environment (`HTTP_PROXY` ke port tertutup), bukan block OS-level; klaim egress diblokir tidak boleh dipakai sebagai bukti isolasi penuh. Lihat `RISK-SEC-003`.
 4. **TASK-1.4 (Packaging Executable):** Cold start biner 1.289s (SLA ≤5s), warm start 0.592s, ukuran folder biner 30.52 MB (`spikes/packaging-eval/packaging_summary.json`).
 

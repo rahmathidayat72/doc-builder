@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
 from app.main import app
 from app.services.docx_generator import generate_resume_docx
-from app.services.resume_parser import parse_resume_document
+from app.services.resume_parser import extract_contact_info, parse_resume_document
 
 client = TestClient(app)
 
@@ -62,6 +62,31 @@ SAMPLE_RESUME_PAYLOAD = {
         ],
     },
 }
+
+
+def test_extract_contact_info_populates_websites_contract():
+    """Parser mengisi field legacy dan daftar websites secara konsisten."""
+    lines = ["Budi Santoso", "budi@example.com", "budi.dev"]
+    contact, _ = extract_contact_info(lines, "\n".join(lines))
+
+    assert contact["website"] == "budi.dev"
+    assert contact["websites"] == ["budi.dev"]
+
+
+def test_extract_contact_info_extracts_professional_headline():
+    """Headline di bawah nama dipisahkan dari lokasi dan data kontak."""
+    lines = [
+        "Budi Santoso",
+        "Senior Backend Engineer | Jakarta, Indonesia",
+        "budi@example.com | +628123456789",
+    ]
+    contact, confidence = extract_contact_info(lines, "\n".join(lines))
+
+    assert contact["fullName"] == "Budi Santoso"
+    assert contact["headline"] == "Senior Backend Engineer"
+    assert contact["location"] == "Jakarta, Indonesia"
+    assert confidence["headline"] == 0.55
+
 
 
 def test_parse_resume_document_from_pdf():
@@ -195,6 +220,7 @@ def test_parse_resume_with_glyph_bullets_and_graduation_single_year():
     assert "Cileungsi" in contact["location"]
     # Email domain tidak boleh bocor menjadi website
     assert contact["website"] == ""
+    assert contact["websites"] == []
 
     experiences = result["data"]["experiences"]
     assert len(experiences) == 2

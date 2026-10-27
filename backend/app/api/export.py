@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -8,6 +9,19 @@ from app.services.pdf_generator import generate_resume_pdf
 
 router = APIRouter(prefix="/export", tags=["Export"])
 
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def sanitize_export_filename(raw_title: Any, extension: str) -> str:
+    """Membersihkan judul pengguna sebelum dipakai pada header Content-Disposition."""
+    title = str(raw_title or "").strip()
+    title = re.sub(r"\.(pdf|docx)$", "", title, flags=re.IGNORECASE)
+    title = _INVALID_FILENAME_CHARS.sub(" ", title)
+    title = re.sub(r"\s+", " ", title).strip(" .")
+    if not title:
+        title = "resume"
+    return f"{title[:120].strip() or 'resume'}.{extension}"
+
 
 @router.post("/docx")
 def export_docx(payload: dict[str, Any]):
@@ -15,8 +29,7 @@ def export_docx(payload: dict[str, Any]):
     Mengekspor data CV menjadi berkas Microsoft Word (.docx).
     """
     try:
-        title = payload.get("title", "resume").replace(" ", "_")
-        filename = f"{title}.docx"
+        filename = sanitize_export_filename(payload.get("title", "resume"), "docx")
 
         docx_io = generate_resume_docx(payload)
 
@@ -38,8 +51,7 @@ def export_pdf(payload: dict[str, Any]):
     Jika LibreOffice tidak terpasang, mengembalikan status 422 dengan pesan panduan.
     """
     try:
-        title = payload.get("title", "resume").replace(" ", "_")
-        filename = f"{title}.pdf"
+        filename = sanitize_export_filename(payload.get("title", "resume"), "pdf")
 
         pdf_io, err_code = generate_resume_pdf(payload)
 

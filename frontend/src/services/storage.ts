@@ -53,6 +53,19 @@ export function getDB(): Promise<IDBPDatabase<DocBuilderDBSchema>> {
   return dbPromise
 }
 
+const toSummary = (draft: ResumeDraft): ResumeDraftSummary => ({
+  id: draft.id,
+  title: draft.title,
+  templateId: draft.templateId,
+  updatedAt: draft.updatedAt,
+  createdAt: draft.createdAt,
+  favorite: Boolean(draft.favorite),
+  targetJobTitle: draft.targetJob?.title || undefined
+})
+
+const sortSummaries = (left: ResumeDraftSummary, right: ResumeDraftSummary) =>
+  Number(right.favorite) - Number(left.favorite) || right.updatedAt - left.updatedAt
+
 export class ResumeStorage {
   private static inMemoryDrafts: Map<string, ResumeDraft> = new Map()
 
@@ -86,26 +99,12 @@ export class ResumeStorage {
   static async listDrafts(): Promise<ResumeDraftSummary[]> {
     const privateMode = await this.isPrivateMode()
     if (privateMode) {
-      return Array.from(this.inMemoryDrafts.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map(d => ({
-          id: d.id,
-          title: d.title,
-          templateId: d.templateId,
-          updatedAt: d.updatedAt,
-          createdAt: d.createdAt
-        }))
+      return Array.from(this.inMemoryDrafts.values()).map(toSummary).sort(sortSummaries)
     }
 
     const db = await getDB()
-    const all = await db.getAllFromIndex('drafts', 'by-updated')
-    return all.reverse().map(d => ({
-      id: d.id,
-      title: d.title,
-      templateId: d.templateId,
-      updatedAt: d.updatedAt,
-      createdAt: d.createdAt
-    }))
+    const all = await db.getAll('drafts')
+    return all.map(toSummary).sort(sortSummaries)
   }
 
   /** Menghapus draft dengan opsi pemindahan ke tempat sampah sementara untuk undo */
@@ -175,6 +174,7 @@ export class ResumeStorage {
       ...original,
       id: newId,
       title: `${original.title} (Salinan)`,
+      favorite: false,
       createdAt: now,
       updatedAt: now
     }
@@ -185,14 +185,31 @@ export class ResumeStorage {
 
   /** Mengganti nama draft */
   static async renameDraft(id: string, newTitle: string): Promise<void> {
+    const cleanTitle = newTitle.trim()
+    if (!cleanTitle) {
+      throw new Error('Judul draft tidak boleh kosong.')
+    }
+
     const draft = await this.getDraft(id)
     if (!draft) {
       throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
     }
 
-    draft.title = newTitle.trim()
+    draft.title = cleanTitle
     draft.updatedAt = Date.now()
     await this.saveDraft(draft)
+  }
+
+  /** Menandai atau melepas draft favorit. */
+  static async toggleFavorite(id: string): Promise<boolean> {
+    const draft = await this.getDraft(id)
+    if (!draft) {
+      throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
+    }
+
+    draft.favorite = !draft.favorite
+    await this.saveDraft(draft)
+    return Boolean(draft.favorite)
   }
 
   /** Menghapus seluruh data lokal (Clear All Data / Data Privacy Reset) */

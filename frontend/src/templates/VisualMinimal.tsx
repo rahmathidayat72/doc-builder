@@ -1,5 +1,10 @@
 import React from 'react'
-import { type ResumeDraft } from '../types/resume'
+import {
+  type ResumeDraft,
+  getExperienceDescriptionText,
+  getFilledWebsites
+} from '../types/resume'
+import { getResumeSectionOrder } from '../types/resumeSections'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
 import { getResumeLabels } from './resumeLabels'
 
@@ -11,9 +16,11 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
   const labels = getResumeLabels(draft.resumeLanguage)
+  const sectionOrder = getResumeSectionOrder(draft.data.sectionOrder)
+  const orderOf = (section: (typeof sectionOrder)[number]) => sectionOrder.indexOf(section) + 1
 
   return (
-    <div className="space-y-6 text-slate-800" data-testid="template-visual-minimal">
+    <div className="flex flex-col gap-6 text-slate-800" data-testid="template-visual-minimal">
       {/* Header Minimalis Terbuka */}
       <header className="flex items-center justify-between gap-4">
         <div className="space-y-2 flex-1">
@@ -24,12 +31,19 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
           >
             {contact.fullName || labels.fullNameFallback}
           </h1>
+          {contact.headline && (
+            <p className="text-xs font-semibold text-slate-600" data-testid="preview-headline">
+              {contact.headline}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs text-slate-500 font-medium">
             {contact.email && <span>{contact.email}</span>}
             {contact.phone && <span>• {contact.phone}</span>}
             {contact.location && <span>• {contact.location}</span>}
             {contact.linkedin && <span>• {contact.linkedin}</span>}
-            {contact.website && <span>• {contact.website}</span>}
+            {getFilledWebsites(contact.website, contact.websites).map((url, index) => (
+              <span key={`${url}-${index}`}>• {url}</span>
+            ))}
           </div>
         </div>
         {contact.usePhoto && contact.photoUrl && (
@@ -44,7 +58,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Ringkasan */}
       {summary && (
-        <section className="space-y-1.5 pt-2">
+        <section className="space-y-1.5 pt-2" style={{ order: orderOf('summary') }}>
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
             {labels.summaryAbout}
           </h2>
@@ -54,7 +68,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pengalaman */}
       {experiences.length > 0 && (
-        <section className="space-y-4 pt-2">
+        <section className="space-y-4 pt-2" style={{ order: orderOf('experience') }}>
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
             {labels.experienceShort}
           </h2>
@@ -70,9 +84,9 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="text-slate-500 text-2xs">
                   {exp.company} {exp.location && `, ${exp.location}`}
                 </div>
-                {exp.description && (
+                {getExperienceDescriptionText(exp) && (
                   <div className="text-slate-600 whitespace-pre-line leading-relaxed font-light pl-2">
-                    {exp.description}
+                    {getExperienceDescriptionText(exp)}
                   </div>
                 )}
               </div>
@@ -83,7 +97,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pendidikan */}
       {education.length > 0 && (
-        <section className="space-y-3 pt-2">
+        <section className="space-y-3 pt-2" style={{ order: orderOf('education') }}>
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
             {labels.education}
           </h2>
@@ -102,6 +116,11 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
                   {edu.degree} {edu.fieldOfStudy && `${labels.inField} ${edu.fieldOfStudy}`}
                   {edu.gpa && ` (${labels.gpa}: ${edu.gpa})`}
                 </div>
+                {edu.description && (
+                  <p className="mt-0.5 whitespace-pre-line text-2xs font-light leading-relaxed text-slate-500">
+                    {edu.description}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -110,7 +129,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Keahlian */}
       {skills.length > 0 && (
-        <section className="space-y-2 pt-2">
+        <section className="space-y-2 pt-2" style={{ order: orderOf('skills') }}>
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
             {labels.skillsShort}
           </h2>
@@ -126,7 +145,7 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Bahasa */}
       {languages.length > 0 && (
-        <section className="space-y-1.5 pt-2">
+        <section className="space-y-1.5 pt-2" style={{ order: orderOf('languages') }}>
           <h2 className="text-3xs font-bold uppercase tracking-widest text-slate-400">
             {labels.languagesShort}
           </h2>
@@ -140,12 +159,14 @@ export const VisualMinimalTemplate: React.FC<TemplateProps> = ({ draft }) => {
         </section>
       )}
 
-      <CustomSectionsBlock
-        sections={customSections}
-        accentColor={accentColor}
-        variant="visual-minimal"
-        language={draft.resumeLanguage}
-      />
+      <div style={{ order: orderOf('custom') }}>
+        <CustomSectionsBlock
+          sections={customSections}
+          accentColor={accentColor}
+          variant="visual-minimal"
+          language={draft.resumeLanguage}
+        />
+      </div>
     </div>
   )
 }

@@ -1,5 +1,10 @@
 import React from 'react'
-import { type ResumeDraft } from '../types/resume'
+import {
+  type ResumeDraft,
+  getExperienceDescriptionText,
+  getFilledWebsites
+} from '../types/resume'
+import { getResumeSectionOrder } from '../types/resumeSections'
 import { Mail, Phone, MapPin, Link as LinkIcon, Globe } from 'lucide-react'
 import { CustomSectionsBlock } from './CustomSectionsBlock'
 import { getResumeLabels } from './resumeLabels'
@@ -12,9 +17,11 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
   const { contact, summary, experiences, education, skills, languages, customSections } = draft.data
   const accentColor = draft.colorTheme || '#1e293b'
   const labels = getResumeLabels(draft.resumeLanguage)
+  const sectionOrder = getResumeSectionOrder(draft.data.sectionOrder)
+  const orderOf = (section: (typeof sectionOrder)[number]) => sectionOrder.indexOf(section) + 1
 
   return (
-    <div className="space-y-5 text-slate-800" data-testid="template-ats-modern">
+    <div className="flex flex-col gap-5 text-slate-800" data-testid="template-ats-modern">
       {/* Header Rata Kiri Tegas */}
       <header className="border-b-2 pb-3" style={{ borderColor: accentColor }}>
         <div className="flex items-start justify-between gap-4">
@@ -26,6 +33,14 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
             >
               {contact.fullName || labels.fullNameFallback}
             </h1>
+            {contact.headline && (
+              <p
+                className="mt-1 text-xs font-semibold text-slate-600"
+                data-testid="preview-headline"
+              >
+                {contact.headline}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 mt-2 font-medium">
               {contact.email && (
                 <span className="flex items-center gap-1">
@@ -51,12 +66,12 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
                   {contact.linkedin}
                 </span>
               )}
-              {contact.website && (
-                <span className="flex items-center gap-1">
+              {getFilledWebsites(contact.website, contact.websites).map((url, index) => (
+                <span key={`${url}-${index}`} className="flex items-center gap-1">
                   <Globe className="w-3.5 h-3.5 text-slate-400" />
-                  {contact.website}
+                  {url}
                 </span>
-              )}
+              ))}
             </div>
           </div>
           {contact.usePhoto && contact.photoUrl && (
@@ -72,7 +87,7 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Ringkasan */}
       {summary && (
-        <section className="space-y-1">
+        <section className="space-y-1" style={{ order: orderOf('summary') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider pl-2 border-l-4"
             style={{ color: accentColor, borderColor: accentColor }}
@@ -85,7 +100,7 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pengalaman Kerja */}
       {experiences.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-3" style={{ order: orderOf('experience') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider pl-2 border-l-4"
             style={{ color: accentColor, borderColor: accentColor }}
@@ -104,9 +119,9 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
                 <div className="text-xs text-slate-600 font-semibold">
                   {exp.company} {exp.location && `• ${exp.location}`}
                 </div>
-                {exp.description && (
+                {getExperienceDescriptionText(exp) && (
                   <div className="text-slate-700 whitespace-pre-line leading-relaxed pl-1 pt-0.5">
-                    {exp.description}
+                    {getExperienceDescriptionText(exp)}
                   </div>
                 )}
               </div>
@@ -117,7 +132,7 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Pendidikan */}
       {education.length > 0 && (
-        <section className="space-y-2.5">
+        <section className="space-y-2.5" style={{ order: orderOf('education') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider pl-2 border-l-4"
             style={{ color: accentColor, borderColor: accentColor }}
@@ -139,6 +154,11 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
                   {edu.degree} {edu.fieldOfStudy && `${labels.inField} ${edu.fieldOfStudy}`}
                   {edu.gpa && ` | ${labels.gpa}: ${edu.gpa}`}
                 </div>
+                {edu.description && (
+                  <p className="whitespace-pre-line text-2xs leading-relaxed text-slate-600">
+                    {edu.description}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -147,7 +167,7 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Keahlian */}
       {skills.length > 0 && (
-        <section className="space-y-1.5">
+        <section className="space-y-1.5" style={{ order: orderOf('skills') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider pl-2 border-l-4"
             style={{ color: accentColor, borderColor: accentColor }}
@@ -169,7 +189,7 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
 
       {/* Bahasa */}
       {languages.length > 0 && (
-        <section className="space-y-1.5">
+        <section className="space-y-1.5" style={{ order: orderOf('languages') }}>
           <h2
             className="text-xs font-bold uppercase tracking-wider pl-2 border-l-4"
             style={{ color: accentColor, borderColor: accentColor }}
@@ -186,12 +206,14 @@ export const AtsModernTemplate: React.FC<TemplateProps> = ({ draft }) => {
         </section>
       )}
 
-      <CustomSectionsBlock
-        sections={customSections}
-        accentColor={accentColor}
-        variant="ats-modern"
-        language={draft.resumeLanguage}
-      />
+      <div style={{ order: orderOf('custom') }}>
+        <CustomSectionsBlock
+          sections={customSections}
+          accentColor={accentColor}
+          variant="ats-modern"
+          language={draft.resumeLanguage}
+        />
+      </div>
     </div>
   )
 }

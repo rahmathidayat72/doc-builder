@@ -11,8 +11,8 @@
 
 Doc-builder dirancang sebagai aplikasi desktop lokal independen tanpa ketergantungan cloud (offline-first). Dalam mode distribusi terpadu:
 - Server FastAPI backend menyajikan antarmuka pengguna React SPA secara langsung pada alamat `http://127.0.0.1:8000/`.
-- Seluruh endpoint API `/api/*` terproteksi melalui middleware Origin Allowlist, Session Cookie `SameSite=Strict`, dan verifikasi token CSRF.
-- Privasi 100% terjaga: draf tersimpan di IndexedDB browser lokal pengguna, dan operasi file sementara dibersihkan secara instan melalui sandbox terisolasi.
+- Endpoint API terproteksi (kecuali `/api/health` dan alur bootstrap sesi) melalui middleware Origin Allowlist, Session Cookie `HttpOnly` `SameSite=Lax`, dan verifikasi token CSRF. Lihat `DEC-013`.
+- Privasi data lokal: draf tersimpan di IndexedDB browser lokal pengguna, dan workspace file sementara dibersihkan setelah job selesai serta pada startup berikutnya. Periodic sweeper belum tersedia (`RISK-SEC-002`); egress block OS-level untuk subprocess juga belum tersedia (`RISK-SEC-003`), sehingga jangan mengklaim isolasi jaringan penuh.
 
 ---
 
@@ -111,4 +111,4 @@ Hasil yang diharapkan:
    - Kepatuhan aksesibilitas WCAG 2.2 AA (0 pelanggaran axe).
    - Zero open Critical/High vulnerabilities pada SCA dependensi (`npm audit` & `pip-audit`).
    - Zero hardcoded secrets/credentials pada repository.
-   - Fidelitas tata letak resume teruji 100% pada benchmark corpus.
+   - Fidelitas field/teks resume teruji 100% pada benchmark round-trip; metrik visual formal (SSIM/pixel diff) belum ditetapkan (`Q-001`).

@@ -67,6 +67,9 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
         onCreateNew={vi.fn()}
         onLoadDraft={vi.fn()}
         onDeleteDraft={vi.fn()}
+        onRenameDraft={vi.fn()}
+        onDuplicateDraft={vi.fn()}
+        onToggleFavorite={vi.fn()}
         onUndoDelete={vi.fn()}
         onTogglePrivateMode={vi.fn()}
       />
