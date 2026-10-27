@@ -72,6 +72,7 @@ Doc-builder menggunakan arsitektur **Hybrid Client-Server Lokal** yang berjalan 
 - **Resource Limiting:** Timeout 5 menit per pekerjaan; Windows Job Object membatasi memori default 500 MB; Linux belum memiliki memory cap (cgroup/rlimit). Batas disk temporer 500 MB.
 - **Sanitasi File:** Validasi magic bytes sebelum berkas diproses; penolakan makro aktif (.docm/.xlsm); penolakan berkas terenkripsi pada jalur yang tidak meminta password; fail-closed untuk dokumen bertanda tangan digital pada operasi yang dapat merusaknya; pembersihan metadata gambar.
 - **Pembersihan Berkas Temporer:** Pola try-finally membersihkan workspace setelah job selesai, ditambah startup sweep untuk workspace kedaluwarsa (TTL 5 menit). Periodic daemon sweeper belum diimplementasikan; lihat `RISK-SEC-002`.
+- **Audit Trail:** `backend/app/core/audit.py` menulis event JSONL append-only ke `backend/logs/` dengan permission `0600`/direktori `0700`, rotasi harian UTC, dan retensi 7 hari. `SecurityMiddleware` mencatat denial Origin/session/CSRF, error API, dan request `/api/*` yang diizinkan tanpa body, header, cookie, query string, atau PII. Kegagalan tulis bersifat fail-open.
 
 ## 5. Alur Data (Data Flow)
 
@@ -112,11 +113,11 @@ Daftar Draft -> Cari / Favorit / Rename / Duplikasi / Hapus + Undo
 
 ## 6. Error Handling & Observability
 - **Error Response Envelope:** Respons error menggunakan `{ success: false, error: { ... } }` tanpa membocorkan stack trace internal ke client.
-- **Logging:** Structured logging JSON, audit trail append-only, dan retensi 7 hari **belum diimplementasikan** di `backend/app`. Gap ini dicatat sebagai `RISK-SEC-001`; dokumentasi lama yang mengklaim kontrol tersebut sudah dikoreksi.
+- **Logging:** Audit trail JSONL lokal tersedia di `backend/app/core/audit.py`: append-only, permission `0600`/`0700`, rotasi harian UTC, retensi 7 hari, dan field yang tidak memuat body/header/query/PII. `SecurityMiddleware` mencatat denial keamanan, error API, dan request `/api/*` yang diizinkan. Batas: log belum tamper-evident terhadap pengguna OS yang sama dan belum memiliki batas ukuran harian; `RISK-SEC-001` menunggu approval penutupan owner.
 - **Health Check Endpoint:** `GET /api/health` mengembalikan status kesiapan server lokal dan deteksi ketersediaan LibreOffice.
 
 ## 7. Known Documentation & Security Gaps (2026-10-24)
-- `RISK-SEC-001`: audit/logging dan retensi log belum tersedia.
+- `RISK-SEC-001`: audit trail JSONL lokal sudah diimplementasikan dan diuji; status mitigasi menunggu approval penutupan owner.
 - `RISK-SEC-002`: workspace job manager memakai permission default `0775`, belum eksplisit `0700`; periodic sweeper belum tersedia.
 - `RISK-SEC-003`: sandbox belum memiliki egress block OS-level; Linux belum memiliki memory cap. Klaim “isolasi jaringan penuh” dikoreksi.
 - `Q-001`: metrik fidelitas visual formal belum ditetapkan; benchmark 100% adalah field/teks, bukan SSIM/pixel diff.

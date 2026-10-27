@@ -43,6 +43,7 @@ pnpm-debug.log*
 # Temporary Workspaces & Local Logs
 temp_workspace/
 */temp_workspace/
+backend/logs/
 *.log
 
 # PyInstaller & Build Outputs

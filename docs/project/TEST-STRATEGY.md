@@ -55,9 +55,9 @@ Doc-builder berfokus pada keandalan rekonstruksi format dokumen, keakuratan atur
   4. Pengguna menyunting CV -> Refresh halaman -> Data pulih dari autosave IndexedDB.
 
 ### 2.4 Security Regression Testing
-- **Suite aktual:** `backend/tests/test_security.py` memiliki 8 test fungsi per 2026-10-24 (public health, origin rejection, session 401, invalid bootstrap 401, trusted bootstrap, full bootstrap/CSRF flow, PDF mutation CSRF 403, image mutation CSRF 403).
-- **Bukti eksekusi:** hotfix autentikasi 2026-10-21 mencatat 8/8 test keamanan PASS; verifikasi peningkatan CV 2026-10-24 mencatat 126/126 Pytest PASS dan 233/233 Vitest PASS. Laporan `SECURITY-SCAN-REPORT.md` yang mencatat 7/7 adalah snapshot lebih awal dan tidak lagi mencerminkan nama test saat ini.
-- **Cakupan yang diuji:** request API tanpa cookie session (401), mutasi tanpa token CSRF (403), origin non-lokal (403), dan alur bootstrap sesi/CSRF.
+- **Suite aktual:** `backend/tests/test_security.py` memiliki 8 test fungsi per 2026-10-24 (public health, origin rejection, session 401, invalid bootstrap 401, trusted bootstrap, full bootstrap/CSRF flow, PDF mutation CSRF 403, image mutation CSRF 403). Sejak 2026-10-27, `backend/tests/test_audit.py` menambah 10 test untuk permission/retensi/concurrency audit, kegagalan tulis, denial Origin/session/CSRF, request sukses, pengecualian health, dan pemeriksaan kebocoran query/credential.
+- **Bukti eksekusi:** hotfix autentikasi 2026-10-21 mencatat 8/8 test keamanan PASS; verifikasi peningkatan CV 2026-10-24 mencatat 126/126 Pytest PASS dan 233/233 Vitest PASS; verifikasi audit 2026-10-27 mencatat 136/136 Pytest PASS (termasuk 10/10 `test_audit.py`) dan Ruff PASS. Laporan `SECURITY-SCAN-REPORT.md` yang mencatat 7/7 adalah snapshot lebih awal dan tidak lagi mencerminkan nama test saat ini.
+- **Cakupan yang diuji:** request API tanpa cookie session (401), mutasi tanpa token CSRF (403), origin non-lokal (403), alur bootstrap sesi/CSRF, permission `0600`/`0700`, retensi 7 hari, penulisan paralel, dan kegagalan tulis yang tidak menggagalkan request.
 - **Cakupan yang belum otomatis:** zip bomb/decompression bomb, path traversal, dan parser exploit end-to-end; sebagian baru diuji pada level validasi magic bytes.
 
 ### 2.5 User Acceptance Testing (UAT)

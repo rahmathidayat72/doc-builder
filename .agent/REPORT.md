@@ -3165,3 +3165,73 @@ Memperbaiki tata letak utama aplikasi agar kolom editor dan live preview A4 mela
 
 ### Status
 ✅ Selesai dan terverifikasi (`IMPROVEMENT-UIUX-LAYOUT-001`).
+
+---
+
+## Task Post-Release — SEC-AUDIT-001 — Audit Trail JSONL Lokal — 2026-10-27
+
+**Task:** SEC-AUDIT-001 — Audit trail JSONL lokal dan retensi 7 hari
+**Requirement:** NFR-SEC-001, THR-010, CTRL-010, `RISK-SEC-001`
+
+### Ringkasan
+Menyelesaikan implementasi audit trail yang sebelumnya berada di working tree tanpa test dan dokumentasi. `AuditLogger` menulis event JSONL append-only ke `backend/logs/audit-YYYY-MM-DD.jsonl` dengan direktori `0700`, berkas `0600`, rotasi harian UTC, retensi 7 hari, dan fail-open. `SecurityMiddleware` mencatat penolakan Origin/session/CSRF, error API, dan request `/api/*` yang diizinkan tanpa body, header, cookie, query string, nama berkas, token, atau PII.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `audit.py`, `config.py`, `middleware.py`, `test_audit.py`, `.gitignore`, dokumentasi, dan tracking.
+- Penyimpangan minor: field `route` untuk request sukses memakai path lengkap (`/api/auth/session`), bukan `scope["route"].path` yang menghasilkan path relatif router (`/auth/session`). Perubahan ini menyamakan format dengan log denial dan membuat bukti lebih mudah dibaca; tidak mengubah kontrak atau data.
+- Perbedaan command/expected result: tidak ada; seluruh command yang direncanakan dijalankan.
+
+### File Dibuat
+- `backend/tests/test_audit.py` (10 test)
+
+### File Diubah
+- `backend/app/core/audit.py` — `datetime.UTC` dan perbaikan lint.
+- `backend/app/core/middleware.py` — route log request sukses memakai path lengkap.
+- `.gitignore` — `backend/logs/`.
+- `docs/project/SECURITY.md`, `ARCHITECTURE.md`, `TRACEABILITY.md`, `TEST-STRATEGY.md`, `security/SECURITY-SCAN-REPORT.md`.
+- `.agent/TASKS.md`, `REPORT.md`, `PROJECT-STATE.md`, `DECISIONS.md`.
+
+### Perubahan
+- Audit event: `timestamp`, `event`, `outcome`, `request_id`, `method`, `route`, `status`, `reason`/`error_type`, `duration_ms`.
+- Event yang dicatat: `security.denied` (origin/session/CSRF), `api.error`, dan `api.request` untuk `/api/*` selain `/api/health`.
+- Retensi menghapus hanya berkas `audit-YYYY-MM-DD.jsonl` yang lebih tua dari 7 hari; berkas asing tidak disentuh.
+- Kegagalan tulis (disk/permission) tidak menggagalkan request dan hanya menulis tipe error ke stderr.
+- `backend/logs/` diabaikan Git agar log runtime tidak ikut ter-commit.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend lint | `.venv/bin/python -m ruff check app tests` | PASS | `All checks passed!` |
+| Audit targeted | `.venv/bin/python -m pytest tests/test_audit.py -q` | PASS | 10/10 test |
+| Backend full suite | `.venv/bin/python -m pytest -q` | PASS | 136/136 test |
+| Secret scan | `backend/.venv/bin/python scripts/scan_secrets.py` | PASS | 180 file, 0 secret |
+| Whitespace | `git diff --check` | PASS | Tidak ada temuan |
+
+### Acceptance Criteria
+- [x] Audit trail JSONL append-only dengan permission `0600`/`0700` teruji.
+- [x] Retensi 7 hari hanya menghapus berkas audit harian yang kedaluwarsa.
+- [x] Penulisan paralel menghasilkan baris JSON valid tanpa duplikasi/kerusakan.
+- [x] Kegagalan tulis tidak menggagalkan request.
+- [x] Denial Origin/session/CSRF dan request sukses tercatat; `/api/health` dikecualikan.
+- [x] Query string, credential, cookie, dan token tidak masuk log.
+- [x] `backend/logs/` diabaikan Git.
+- [x] Dokumentasi dan traceability diperbarui; `RISK-SEC-001` tetap OPEN sampai approval owner.
+
+### Keputusan dan Technical Debt
+- `DEC-017`: audit trail JSONL lokal, permission ketat, retensi 7 hari, dan fail-open.
+- Technical debt: log belum tamper-evident terhadap pengguna OS yang sama, belum ada batas ukuran harian, dan penulisan dilakukan sinkron di event loop.
+
+### Risiko Tersisa
+- `RISK-SEC-001` — status MITIGATED, closure menunggu approval owner; review 2026-10-31.
+- `RISK-SEC-002` dan `RISK-SEC-003` tidak berubah.
+- Tidak ada open Critical/High finding baru dari perubahan ini.
+
+### Dokumentasi Diperbarui
+- `docs/project/SECURITY.md`, `ARCHITECTURE.md`, `TRACEABILITY.md`, `TEST-STRATEGY.md`, `security/SECURITY-SCAN-REPORT.md`.
+- `.agent/TASKS.md`, `REPORT.md`, `PROJECT-STATE.md`, `DECISIONS.md`.
+
+### Status
+✅ Selesai dan terverifikasi (`SEC-AUDIT-001`), siap di-commit dan di-push.
+
+### Rekomendasi Berikutnya
+Owner review `RISK-SEC-001` untuk penutupan formal, lalu lanjutkan review `RISK-SEC-002` dan `RISK-SEC-003` sebelum release berikutnya.

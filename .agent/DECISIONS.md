@@ -190,3 +190,15 @@
 - Requirement terkait: FR-039, FR-040, FR-041, NFR-REL-004, NFR-UX-001.
 
 > Catatan: ID `DEC-010` tidak pernah digunakan dalam decision log ini. Referensi lama pada `TRACEABILITY.md` yang menunjuk DEC-010 telah diperbaiki ke DEC-012.
+
+## DEC-017 — Audit Trail JSONL Lokal dan Retensi 7 Hari
+
+- Tanggal: 2026-10-27
+- Status: Accepted
+- Konteks: `RISK-SEC-001` mencatat tidak adanya audit/logging keamanan dan retensi 7 hari. Aplikasi berjalan lokal single-user, sehingga solusi harus ringan, tidak membutuhkan infrastruktur eksternal, dan tidak menambah paparan data.
+- Opsi: (1) Structured logging ke file teks biasa, (2) audit trail JSONL dengan permission ketat dan retensi harian, (3) mengirim log ke layanan eksternal.
+- Keputusan: Opsi 2 — `AuditLogger` menulis JSONL append-only ke `backend/logs/audit-YYYY-MM-DD.jsonl` dengan direktori `0700`, berkas `0600`, rotasi harian UTC, retensi 7 hari, dan fail-open saat tulis gagal. `SecurityMiddleware` mencatat denial Origin/session/CSRF, error API, dan request `/api/*` yang diizinkan; `/api/health` dikecualikan. Field yang dicatat dibatasi pada metadata aman tanpa body, header, cookie, query string, nama berkas, token, atau PII.
+- Alasan: Memenuhi kebutuhan deteksi/forensik dasar tanpa dependensi baru, tetap lokal/offline, dan tidak memperluas permukaan data sensitif.
+- Konsekuensi: Penulisan log bersifat sinkron di event loop; volume lokal rendah sehingga diterima. Log belum tamper-evident terhadap pengguna OS yang sama dan belum memiliki batas ukuran harian. `backend/logs/` diabaikan Git.
+- Risiko: Disk penuh atau permission gagal tidak menggagalkan request, tetapi event audit hilang; kegagalan hanya dilaporkan sebagai tipe error di stderr. `RISK-SEC-001` tetap OPEN sampai owner menyetujui penutupan berdasarkan bukti 10 test `test_audit.py` dan full suite 136/136 Pytest PASS.
+- Requirement terkait: NFR-SEC-001, THR-010, CTRL-010, `RISK-SEC-001`.

@@ -26,5 +26,9 @@ class Settings(BaseModel):
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
     TEMP_WORKSPACE_DIR: Path = BASE_DIR / "temp_workspace"
 
+    # Audit trail lokal
+    AUDIT_LOG_DIR: Path = BASE_DIR / "logs"
+    AUDIT_LOG_RETENTION_DAYS: int = 7
+
 
 settings = Settings()

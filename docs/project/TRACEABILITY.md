@@ -19,7 +19,7 @@
 | BRULE-004, BUS-008 | FR-017, FR-018, FR-019 | DEC-006 (IndexedDB) | Phase 03 / TASK-3.1 | IndexedDB persistence test | Crash recovery test PASS |
 | BUS-008 | FR-023 | DEC-006 (Encryption) | Phase 03 / TASK-3.2 | AES-GCM roundtrip test | Project file import PASS |
 | BUS-009 | NFR-PERF-002 | DEC-001, DEC-002 | Phase 02 / TASK-2.1 | Startup timing test | Startup ≤5s verified |
-| NFR-SEC-001 | NFR-SEC-001 | DEC-005, DEC-013 (Auth/Origin/Cookie) | Phase 02 / TASK-2.2 | Security regression test | 8/8 security test PASS (hotfix 2026-10-21); 126/126 Pytest PASS (2026-10-24) |
+| NFR-SEC-001 | NFR-SEC-001 | DEC-005, DEC-013 (Auth/Origin/Cookie), DEC-017 (Audit Trail) | Phase 02 / TASK-2.2; post-release / SEC-AUDIT-001 | Security regression test; audit trail & rotasi | 8/8 security test PASS (hotfix 2026-10-21); 136/136 Pytest PASS (2026-10-27), termasuk 10/10 `test_audit.py` |
 | NFR-COMP-002 | NFR-COMP-002 | ARCH-01 | Phase 08 / TASK-8.1 | Automated axe/WCAG; Playwright NOT AVAILABLE | 68/68 Vitest PASS (historis); cross-browser E2E **NOT VERIFIED** (`Q-005`) |
 | OBJ-005 | KPI-005 | ARCH-All | Phase 09 / TASK-9.1 | UAT 10 pengguna uji | UAT sign-off sheet |
 | BUS-011 | FR-027, FR-028 | DEC-012 (PyMuPDF AES-256) | post-release / FEATURE-PDF-SECURITY-001 | Unit & Integration Test (protect & unlock roundtrip, signature reject, password validation) | Pytest 38/38 & Vitest 150/150 PASS |
@@ -44,9 +44,11 @@
 | THR-007 (Privilege escalation)| CTRL-007: Non-root execution & restricted capabilities | Preventive | TASK-1.3 | Process/token inspection | TERIMPLEMENTASI — model deployment; belum ada automated test |
 | THR-008 (Lateral movement) | CTRL-008: Egress block OS-level pada worker sandbox | Preventive | TASK-1.3 | Outbound connection test | GAP — hanya proxy env; tidak ada namespace/firewall; `RISK-SEC-003` |
 | THR-009 (Temp persistence) | CTRL-009: Per-job cleanup + startup sweep TTL 5m | Preventive | TASK-6.3 | Orphan directory audit | PARTIAL — tidak ada periodic daemon; `RISK-SEC-002` |
-| THR-010 (Defense evasion) | CTRL-010: Append-only log with 7-day retention | Detective | TASK-2.2 | Log rotation audit | GAP — logging/audit belum ada; `RISK-SEC-001` |
+| THR-010 (Defense evasion) | CTRL-010: Append-only log with 7-day retention | Detective | SEC-AUDIT-001 | Audit permission, retensi, concurrency, denial/request logging | TERVERIFIKASI — 10/10 `test_audit.py` PASS; `RISK-SEC-001` closure pending owner |
 | THR-011 (Exfiltration) | CTRL-011: Egress block OS-level; flag LibreOffice bukan kontrol utama | Preventive | TASK-6.1 | External link/egress test | GAP/PARTIAL — proxy env saja; regresi external-link belum ada; `RISK-SEC-003` |
 
 **Catatan status:** `TERVERIFIKASI (SPIKE)` dan angka PASS pada tabel ini adalah bukti historis yang tercatat di `.agent/REPORT.md`; bukan klaim bahwa seluruh suite telah dijalankan ulang pada 2026-10-24. Khusus THR-008, spike lama tidak membuktikan egress block karena skrip uji menghormati env proxy yang sama. `GAP` dan `PARTIAL` tidak berarti risk accepted. Lihat `docs/project/SECURITY.md` §12 untuk `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003`.
+
+**Catatan audit 2026-10-27:** `SEC-AUDIT-001` mengimplementasikan audit trail JSONL lokal (`backend/app/core/audit.py`) dan 10 test di `backend/tests/test_audit.py`. Full suite 136/136 Pytest PASS, Ruff PASS, secret scan 180 file 0 temuan. THR-010 berubah dari `GAP` menjadi `TERVERIFIKASI`; penutupan `RISK-SEC-001` tetap menunggu approval owner.
 
 **Catatan peningkatan CV 2026-10-24:** P0/P1/P2 CV builder tidak menambah endpoint atau transmisi jaringan baru. Data `headline`, `achievements`, `sectionOrder`, `favorite`, dan `targetJob` disimpan pada draft lokal/IndexedDB. Nama berkas ekspor disanitasi di frontend dan backend sebelum dipakai pada `Content-Disposition`; pengujian backend mencakup sanitasi nama. Preflight ekspor gagal-tertutup pada error dan meminta acknowledgment untuk warning.

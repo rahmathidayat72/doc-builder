@@ -21,13 +21,14 @@ plan_approved: true
 implementation_allowed: true
 current_phase: null
 current_task: null
-last_completed_task: "IMPROVEMENT-UIUX-LAYOUT-001"
+last_completed_task: "SEC-AUDIT-001"
 blocked_reason: null
-last_updated: "2026-10-24"
+last_updated: "2026-10-27"
 ```
 
 ## Ringkasan Fokus
-Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. Hotfix packaging backend (`HOTFIX-PACKAGING-001`) menambahkan `[build-system]` dan package discovery `app*` sehingga editable install tetap berhasil saat `backend/temp_workspace` tersedia; `.gitignore` kini mengabaikan `*.egg-info/`. UI pascarilis telah dipisahkan menjadi tiga workspace:
+Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. Hotfix packaging backend (`HOTFIX-PACKAGING-001`) menambahkan `[build-system]` dan package discovery `app*` sehingga editable install tetap berhasil saat `backend/temp_workspace` tersedia; `.gitignore` kini mengabaikan `*.egg-info/` dan `backend/logs/`. UI pascarilis telah dipisahkan menjadi tiga workspace:
+- Audit Trail Lokal (`SEC-AUDIT-001`, 2026-10-27): `backend/app/core/audit.py` menulis event JSONL append-only ke `backend/logs/` dengan permission `0600`/direktori `0700`, rotasi harian UTC, retensi 7 hari, dan fail-open. `SecurityMiddleware` mencatat denial Origin/session/CSRF, error API, dan request `/api/*` tanpa body/header/query/PII. Verifikasi: 10/10 `test_audit.py`, 136/136 Pytest, Ruff PASS, secret scan 180 file 0 temuan. `RISK-SEC-001` berstatus MITIGATED dengan closure menunggu approval owner.
 - `#/builder`: pembuatan CV dengan editor 44%, preview 56%, scroll independen per kolom (`h-dvh`), footer navigasi langkah + progress bar, dan aksi CV kontekstual.
 - `#/ats`: evaluasi keterbacaan ATS dan pencocokan lowongan dengan visualisasi progress skor.
 - `#/tools`: 18 alat dokumen dikelompokkan dalam 4 kategori (*Konversi*, *Kelola PDF*, *Keamanan & Tanda Tangan*, *Gambar*) dilengkapi pencarian instan: DOCX ke PDF, PDF ke DOCX, PowerPoint & PDF, Excel & PDF, Merge Dokumen, Split PDF, Kompres PDF, PDF & Gambar, Edit PDF, Sign PDF visual, Resize Gambar, Unlock PDF, Protect PDF, Repair PDF, OCR PDF, Watermark PDF, Nomor Halaman, dan PDF to Markdown.
@@ -36,7 +37,7 @@ Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. Ho
 - Peningkatan Preflight & Pagination CV (`IMPROVEMENT-CV-PREEXPORT-001`): Live preview menghitung estimasi halaman A4, menampilkan badge jumlah halaman dan overlay page-break (full-bleed dinormalisasi). Modal ekspor menjalankan preflight kualitas: error memblokir, warning membutuhkan acknowledgment, dan tombol “Perbaiki” membuka bagian terkait. Nama berkas dapat diedit dan disanitasi di frontend serta backend.
 - Peningkatan Editor Terstruktur (`IMPROVEMENT-CV-STRUCTURED-001`): Headline profesional, pencapaian per pengalaman dengan tambah/edit/reorder, reorder pengalaman/pendidikan, deskripsi pendidikan, `sectionOrder`, dan validasi tanggal. Draft lama tetap kompatibel melalui fallback `description`; 4 template dan DOCX memakai helper yang sama.
 - Peningkatan Alur Kerja CV (`IMPROVEMENT-CV-WORKFLOW-001`): CV target dibuat sebagai salinan draft sumber dengan metadata lowongan dan skill cocok diurutkan lebih dahulu. Impor selektif mendukung `merge`/`replace` per bagian serta undo 30 detik. Daftar draft mendukung pencarian, favorit, rename inline, duplikasi, dan badge target; autosave di-flush sebelum perpindahan draft.
-- Verifikasi peningkatan CV & UI/UX: 233/233 Vitest, 126/126 Pytest, Ruff PASS, Vite build PASS, Oxlint 0 error (16 warning pre-existing). Perubahan belum di-commit, belum di-push, dan belum dirilis.
+- Verifikasi peningkatan CV & UI/UX: 233/233 Vitest, 126/126 Pytest, Ruff PASS, Vite build PASS, Oxlint 0 error (16 warning pre-existing). Batch ini telah di-commit dan di-push pada `465727b` (2026-10-27).
 - Verifikasi fitur multi-website historis: 183/183 Vitest, 121/121 Pytest, Ruff PASS, Vite build PASS, lint 0 error (18 warning pada saat itu).
 - Fitur PDF to Markdown Lokal Bergaya iLovePDF (`FEATURE-PDF-TO-MARKDOWN-001`):
   - Kartu baru dengan badge `New!` di workspace Alat Dokumen: "PDF to Markdown" (purple).
@@ -136,12 +137,12 @@ Seluruh rangkaian fase implementasi (Fase 01 s/d Fase 09) telah SELESAI 100%. Ho
 - Dokumentasi reconciliation (`DOC-CONSISTENCY-001`, 2026-10-24): referensi `DEC-*` pada traceability diselaraskan (`DEC-012` untuk PDF toolkit, `DEC-013` untuk cookie `SameSite=Lax`), stack aktual React 19/Oxlint/Vitest dicatat, command SOP/test strategy dikoreksi, dan klaim Playwright/CI/CD/logging yang tidak didukung kode ditandai. Tiga open risk dicatat: `RISK-SEC-001` (audit/logging, provisional MEDIUM), `RISK-SEC-002` (permission/cleanup temp workspace, provisional LOW), dan `RISK-SEC-003` (sandbox egress hanya proxy env + Linux tanpa memory cap, provisional HIGH). Status rilis dan security gate historis tidak diubah.
 
 ## Blocker Aktif
-Tidak ada blocker implementasi. Proyek berstatus RELEASED, tetapi `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` memerlukan keputusan owner sebelum ditutup/diterima. `RISK-SEC-003` berstatus High provisional; release berikutnya tidak boleh disetujui sampai risk ini dimitigasi atau diterima formal dengan approver dan expiry.
+Tidak ada blocker implementasi. Proyek berstatus RELEASED. `RISK-SEC-001` sudah dimitigasi dengan audit trail dan 10 test, tetapi penutupan formal menunggu approval owner. `RISK-SEC-002` dan `RISK-SEC-003` masih memerlukan keputusan owner; `RISK-SEC-003` berstatus High provisional sehingga release berikutnya tidak boleh disetujui sampai dimitigasi atau diterima formal dengan approver dan expiry.
 
 ## Keputusan Tertunda
-1. Risk treatment `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` (mitigasi vs acceptance dengan expiry), target review 2026-10-31.
+1. Closure approval `RISK-SEC-001` berdasarkan bukti `SEC-AUDIT-001`; treatment `RISK-SEC-002` dan `RISK-SEC-003` (mitigasi vs acceptance dengan expiry), target review 2026-10-31.
 2. `Q-005`: apakah cross-browser E2E Playwright diperlukan untuk NFR-COMP-002 atau cukup verifikasi manual.
 3. `Q-006`: kebijakan repository untuk `docs/conversations.json` yang berisi 178 transkrip percakapan.
 
 ## Next Recommended Action
-Review dan putuskan treatment `RISK-SEC-001`/`RISK-SEC-002`/`RISK-SEC-003`, lalu retest keamanan jika dimitigasi. Untuk `RISK-SEC-003`, prioritaskan keputusan apakah akan menambahkan egress block OS-level dan memory cap Linux atau menerima risiko dengan expiry. Setelah risk review selesai, lakukan review perubahan peningkatan CV yang masih uncommitted, lalu putuskan commit/release secara eksplisit. Jangan commit/push tanpa instruksi.
+Owner review dan setujui penutupan `RISK-SEC-001` berdasarkan bukti 10/10 `test_audit.py` dan 136/136 Pytest. Lanjutkan keputusan treatment `RISK-SEC-002` dan `RISK-SEC-003`; untuk `RISK-SEC-003`, prioritaskan apakah akan menambahkan egress block OS-level dan memory cap Linux atau menerima risiko dengan expiry. Jangan melakukan deployment/release berikutnya tanpa approval eksplisit.
