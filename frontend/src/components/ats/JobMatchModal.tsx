@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Sparkles,
   ArrowRight,
   Loader2,
   FileSearch,
@@ -107,17 +106,17 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-slate-200 animate-fade-in max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 border border-stone-200 animate-fade-in max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+        <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg">
               <Briefcase className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-800">Pencocokan Lowongan Kerja (Job Matching)</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="text-base font-bold text-stone-900">Pencocokan Lowongan Kerja (Job Matching)</h3>
+              <p className="text-xs text-stone-600">
                 Bandingkan kata kunci kualifikasi lowongan terhadap isi CV Anda.
               </p>
             </div>
@@ -125,7 +124,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
+            className="text-stone-500 hover:text-stone-800 p-1.5 rounded-lg transition"
             data-testid="btn-close-job-match"
           >
             <X className="w-5 h-5" />
@@ -137,13 +136,13 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
           {/* Input Area Deskripsi Pekerjaan */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-700">
+              <label className="block text-xs font-semibold text-stone-800">
                 Tempel Deskripsi Lowongan Kerja (Job Description)
               </label>
               <button
                 type="button"
                 onClick={() => setJobText(SAMPLE_JOB_DESC)}
-                className="text-2xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                className="text-2xs text-teal-800 hover:text-teal-950 font-semibold cursor-pointer"
               >
                 + Masukkan Contoh Lowongan
               </button>
@@ -154,7 +153,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
               placeholder="Tempel deskripsi lowongan kerja di sini (kualifikasi, requirements, tanggung jawab)..."
               value={jobText}
               onChange={e => setJobText(e.target.value)}
-              className="w-full p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none leading-relaxed"
+              className="w-full p-3 text-xs border border-stone-300 rounded-xl focus:ring-2 focus:ring-teal-700 outline-none leading-relaxed"
               data-testid="textarea-job-desc"
             />
 
@@ -163,7 +162,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                 type="button"
                 disabled={!jobText.trim() || isLoading}
                 onClick={handleRunMatch}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 data-testid="btn-run-match"
               >
                 {isLoading ? (
@@ -184,7 +183,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
 
           {/* Hasil Komparasi */}
           {matchResult && (
-            <div className="space-y-4 border-t pt-4">
+            <div className="space-y-4 border-t border-stone-200 pt-4">
               {matchResult.analysis_status === 'insufficient_data' ? (
                 <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 space-y-2" data-testid="insufficient-data-alert">
                   <div className="flex items-center gap-2 font-bold text-sm">
@@ -201,13 +200,13 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                   {(matchResult.target_role || matchResult.detected_seniority) && (
                     <div className="flex flex-wrap items-center gap-2">
                       {matchResult.target_role && (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          <Briefcase className="w-3.5 h-3.5" />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold bg-teal-50 text-teal-900 border border-teal-200">
+                          <Briefcase className="w-3.5 h-3.5 text-teal-800" />
                           Target: {matchResult.target_role}
                         </span>
                       )}
                       {matchResult.detected_seniority && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-stone-100 text-stone-800 border border-stone-200">
                           Tingkat: {matchResult.detected_seniority}
                         </span>
                       )}
@@ -217,12 +216,12 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                   {/* Score Highlight Card */}
                   <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${getScoreColor(matchResult.match_score)}`}>
                     <div className="flex items-center gap-3">
-                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center font-black text-xl shadow-xs">
+                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center font-black text-xl shadow-2xs tabular-nums">
                         {Math.round(matchResult.match_score)}%
                       </div>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">Skor Kecocokan Profil</h4>
-                        <p className="text-xs text-slate-600">
+                        <h4 className="text-sm font-bold text-stone-900">Skor Kecocokan Profil</h4>
+                        <p className="text-xs text-stone-700">
                           {matchResult.score_breakdown ? (
                             'Evaluasi komprehensif mencakup posisi, keahlian, pengalaman, dan kualifikasi lowongan.'
                           ) : (
@@ -233,8 +232,8 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                     </div>
 
                     <div className="text-right text-xs">
-                      <span className="text-3xs text-slate-500 block uppercase font-bold">Konteks Relevansi</span>
-                      <span className="font-bold text-slate-800 text-sm">BM25: {matchResult.bm25_score}%</span>
+                      <span className="text-3xs text-stone-600 block font-semibold">Konteks relevansi</span>
+                      <span className="font-bold text-stone-900 text-sm tabular-nums">BM25: {matchResult.bm25_score}%</span>
                     </div>
                   </div>
 
@@ -254,54 +253,54 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                   {/* Rincian Dimensi Evaluasi (Score Breakdown) */}
                   {matchResult.score_breakdown && (
                     <div className="space-y-2">
-                      <span className="text-xs font-bold text-slate-800 block">Rincian Evaluasi Dimensi:</span>
+                      <span className="text-xs font-bold text-stone-900 block">Rincian Evaluasi Dimensi:</span>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                         {matchResult.score_breakdown.role && matchResult.score_breakdown.role.status !== 'not_evaluated' && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Posisi & Peran</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.role.score)}%</span>
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Posisi & Peran</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.role.score)}%</span>
                             {matchResult.score_breakdown.role.evidence && (
-                              <p className="text-3xs text-slate-500 mt-0.5 truncate">{matchResult.score_breakdown.role.evidence}</p>
+                              <p className="text-3xs text-stone-600 mt-0.5 truncate">{matchResult.score_breakdown.role.evidence}</p>
                             )}
                           </div>
                         )}
                         {matchResult.score_breakdown.skills && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Keahlian</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.skills.score)}%</span>
-                            <p className="text-3xs text-slate-500 mt-0.5">
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Keahlian</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.skills.score)}%</span>
+                            <p className="text-3xs text-stone-600 mt-0.5">
                               {matchResult.matched_skills.length} / {matchResult.total_job_skills} keahlian
                             </p>
                           </div>
                         )}
                         {matchResult.score_breakdown.responsibilities && matchResult.score_breakdown.responsibilities.status !== 'not_evaluated' && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Tanggung Jawab</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.responsibilities.score)}%</span>
-                            <p className="text-3xs text-slate-500 mt-0.5">Bukti pengalaman kerja</p>
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Tanggung Jawab</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.responsibilities.score)}%</span>
+                            <p className="text-3xs text-stone-600 mt-0.5">Bukti pengalaman kerja</p>
                           </div>
                         )}
                         {matchResult.score_breakdown.experience && matchResult.score_breakdown.experience.status !== 'not_evaluated' && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Durasi Pengalaman</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.experience.score)}%</span>
-                            <p className="text-3xs text-slate-500 mt-0.5">
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Durasi Pengalaman</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.experience.score)}%</span>
+                            <p className="text-3xs text-stone-600 mt-0.5">
                               {matchResult.score_breakdown.experience.cv_years ?? 0} thn terakumulasi
                             </p>
                           </div>
                         )}
                         {matchResult.score_breakdown.education && matchResult.score_breakdown.education.status !== 'not_evaluated' && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Pendidikan</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.education.score)}%</span>
-                            <p className="text-3xs text-slate-500 mt-0.5">Kualifikasi akademik</p>
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Pendidikan</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.education.score)}%</span>
+                            <p className="text-3xs text-stone-600 mt-0.5">Kualifikasi akademik</p>
                           </div>
                         )}
                         {matchResult.score_breakdown.languages && matchResult.score_breakdown.languages.status !== 'not_evaluated' && (
-                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
-                            <span className="text-3xs uppercase font-bold text-slate-500 block">Bahasa</span>
-                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.languages.score)}%</span>
-                            <p className="text-3xs text-slate-500 mt-0.5">Kemampuan bahasa</p>
+                          <div className="p-2.5 rounded-lg border border-stone-200 bg-stone-50/70">
+                            <span className="text-3xs font-semibold text-stone-600 block">Bahasa</span>
+                            <span className="font-bold text-stone-900 text-sm tabular-nums">{Math.round(matchResult.score_breakdown.languages.score)}%</span>
+                            <p className="text-3xs text-stone-600 mt-0.5">Kemampuan bahasa</p>
                           </div>
                         )}
                       </div>
@@ -330,7 +329,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                       Keahlian yang Cocok ({matchResult.matched_skills.length}):
                     </span>
                     {matchResult.matched_skills.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">Belum ada keahlian yang cocok ditemukan.</p>
+                      <p className="text-xs text-stone-500 italic">Belum ada keahlian yang cocok ditemukan.</p>
                     ) : (
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {matchResult.matched_skills.map((skill, idx) => (
@@ -368,12 +367,11 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
 
                   {/* Actionable Advice */}
                   {matchResult.advice.length > 0 && (
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-1">
+                      <span className="text-xs font-bold text-stone-900 block">
                         Panduan Penyesuaian CV:
                       </span>
-                      <ul className="text-xs text-slate-600 list-disc list-inside space-y-1 pt-1">
+                      <ul className="text-xs text-stone-700 list-disc list-inside space-y-1 pt-1">
                         {matchResult.advice.map((item, idx) => (
                           <li key={idx} className="leading-relaxed">{item}</li>
                         ))}
@@ -384,42 +382,42 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
               )}
 
               {onCreateTargetedDraft && (
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-2.5" data-testid="target-draft-panel">
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5 space-y-2.5" data-testid="target-draft-panel">
                   <div>
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
-                      <CopyPlus className="h-4 w-4 text-indigo-600" />
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
+                      <CopyPlus className="h-4 w-4 text-teal-800" />
                       Buat CV Target
                     </span>
-                    <p className="mt-1 text-2xs leading-relaxed text-indigo-800">
+                    <p className="mt-1 text-2xs leading-relaxed text-stone-700">
                       Salin CV ini menjadi draft terpisah, urutkan keahlian yang cocok di atas, dan simpan konteks lowongan. Draft asli tidak berubah.
                     </p>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="block text-2xs font-semibold text-slate-700">
+                    <label className="block text-2xs font-semibold text-stone-800">
                       Posisi target <span className="text-rose-500">*</span>
                       <input
                         type="text"
                         value={targetTitle}
                         onChange={event => setTargetTitle(event.target.value)}
                         placeholder="Contoh: Senior Backend Engineer"
-                        className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-teal-700"
                         data-testid="input-target-title"
                       />
                     </label>
-                    <label className="block text-2xs font-semibold text-slate-700">
+                    <label className="block text-2xs font-semibold text-stone-800">
                       Perusahaan (opsional)
                       <input
                         type="text"
                         value={targetCompany}
                         onChange={event => setTargetCompany(event.target.value)}
                         placeholder="Contoh: PT Maju Digital"
-                        className="mt-1 w-full rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-teal-700"
                         data-testid="input-target-company"
                       />
                     </label>
                   </div>
                   {matchResult.matched_skills.length > 0 && (
-                    <p className="text-2xs text-indigo-800">
+                    <p className="text-2xs text-stone-700">
                       Keahlian cocok yang akan diprioritaskan: {matchResult.matched_skills.slice(0, 6).join(', ')}
                     </p>
                   )}
@@ -428,7 +426,7 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
                     type="button"
                     onClick={handleCreateTargetedDraft}
                     disabled={!targetTitle.trim() || isCreatingTarget}
-                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-teal-800 px-3 py-2 text-xs font-bold text-white transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-50"
                     data-testid="btn-create-targeted-draft"
                   >
                     {isCreatingTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CopyPlus className="h-3.5 w-3.5" />}
@@ -441,11 +439,11 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-2 border-t flex justify-end">
+        <div className="pt-2 border-t border-stone-200 flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+            className="px-4 py-1.5 text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 rounded-lg transition"
           >
             Selesai
           </button>

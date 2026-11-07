@@ -169,3 +169,137 @@ def test_analyze_structure_endpoint_with_auth():
     assert "checklist" in data
     assert "disclaimer" in data
     assert data["score"] >= 85
+
+
+def test_evaluate_ats_structure_with_canonical_frontend_schema():
+    """Memastikan payload canonical frontend (achievements & education) dinilai secara akurat."""
+    canonical_resume = {
+        "title": "Canonical Frontend Schema Resume",
+        "data": {
+            "contact": {
+                "fullName": "Siti Nurhaliza",
+                "email": "siti.nurhaliza@example.com",
+                "phone": "+6281298765432",
+                "location": "Jakarta Selatan, Indonesia",
+                "linkedin": "linkedin.com/in/sitinurhaliza",
+            },
+            "summary": (
+                "Senior Frontend Engineer berdedikasi dengan lebih dari 6 tahun pengalaman "
+                "dalam merancang arsitektur aplikasi web modern berskala besar, memimpin tim "
+                "frontend, serta mengoptimalkan Core Web Vitals hingga mencapai performa "
+                "optimal, responsif, dan efisien."
+            ),
+            "experiences": [
+                {
+                    "id": "exp-c1",
+                    "jobTitle": "Lead Frontend Engineer",
+                    "company": "PT Digital Solusindo",
+                    "startDate": "2021",
+                    "endDate": "Sekarang",
+                    "current": True,
+                    "achievements": [
+                        "Mengoptimalkan performa halaman awal hingga mempercepat LCP sebesar 42%.",
+                        "Memimpin tim 8 engineer dalam implementasi design system.",
+                    ],
+                },
+                {
+                    "id": "exp-c2",
+                    "jobTitle": "Frontend Developer",
+                    "company": "PT Aplikasi Nusantara",
+                    "startDate": "2018",
+                    "endDate": "2021",
+                    "current": False,
+                    "achievements": [
+                        "Meningkatkan konversi checkout sebesar 28% lewat refactor UI/UX.",
+                        "Mengurangi bundle size JavaScript hingga 35%.",
+                    ],
+                },
+            ],
+            "education": [
+                {
+                    "id": "edu-c1",
+                    "institution": "Universitas Indonesia",
+                    "degree": "S1",
+                    "fieldOfStudy": "Ilmu Komputer",
+                    "startDate": "2014",
+                    "endDate": "2018",
+                }
+            ],
+            "skills": [
+                {"id": "1", "name": "React"},
+                {"id": "2", "name": "TypeScript"},
+                {"id": "3", "name": "Next.js"},
+                {"id": "4", "name": "Tailwind CSS"},
+            ],
+            "languages": [
+                {"id": "1", "language": "Bahasa Indonesia", "proficiency": "Native"},
+                {"id": "2", "language": "English", "proficiency": "Professional"},
+            ],
+        },
+    }
+
+    res = evaluate_ats_structure(canonical_resume)
+    assert res["score"] >= 85
+    assert res["gradeCode"] == "A"
+    assert res["breakdown"]["contact"] == 25
+    assert res["breakdown"]["structure"] == 25
+    assert res["breakdown"]["summary"] == 20
+    assert res["breakdown"]["quantified_impact"] == 20
+    assert res["breakdown"]["integrity"] == 10
+
+    # Pastikan endpoint /api/ats/analyze-structure juga sukses menerima payload ini
+    client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
+    headers = {CSRF_HEADER_NAME: session_manager.csrf_token, "Origin": "http://localhost:5173"}
+    resp = client.post("/api/ats/analyze-structure", json=canonical_resume, headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["score"] >= 85
+    assert data["breakdown"]["quantified_impact"] == 20
+
+
+def test_evaluate_ats_structure_supports_legacy_educations_fallback():
+    """Memastikan payload lama dengan key 'educations' tetap diakui pada pilar struktur."""
+    legacy_resume = {
+        "title": "Legacy Educations Schema Resume",
+        "data": {
+            "contact": {
+                "fullName": "Budi Hartono",
+                "email": "budi.hartono@example.com",
+                "phone": "+628111222333",
+                "location": "Surabaya, Indonesia",
+            },
+            "summary": (
+                "Database Administrator profesional dengan 5 tahun pengalaman dalam "
+                "merawat stabilitas kluster PostgreSQL, optimasi query replikasi, dan "
+                "keamanan basis data skala enterprise."
+            ),
+            "experiences": [
+                {
+                    "id": "exp-l1",
+                    "jobTitle": "Database Administrator",
+                    "company": "PT Fintek Jaya",
+                    "description": "Mengelola 20 node PostgreSQL dengan uptime 99.99%.",
+                }
+            ],
+            "educations": [
+                {
+                    "id": "edu-l1",
+                    "school": "Institut Teknologi Sepuluh Nopember",
+                    "degree": "S1",
+                    "fieldOfStudy": "Sistem Informasi",
+                }
+            ],
+            "skills": [
+                {"id": "1", "name": "PostgreSQL"},
+                {"id": "2", "name": "Linux"},
+                {"id": "3", "name": "Docker"},
+            ],
+        },
+    }
+
+    res = evaluate_ats_structure(legacy_resume)
+    # Pilar struktur harus mendeteksi riwayat pendidikan (5 poin)
+    edu_checks = [c for c in res["checklist"] if c["item"] == "Riwayat Pendidikan Tersedia"]
+    assert len(edu_checks) == 1
+    assert edu_checks[0]["passed"] is True
+    assert res["breakdown"]["structure"] >= 25

@@ -79,17 +79,17 @@ const IssueRow: React.FC<{
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-800">{issue.title}</span>
-          <span className="rounded bg-white/80 px-1.5 py-0.5 text-3xs font-semibold text-slate-500">
+          <span className="text-xs font-bold text-stone-900">{issue.title}</span>
+          <span className="rounded bg-white/80 px-1.5 py-0.5 text-3xs font-semibold text-stone-600">
             {RESUME_SECTION_LABELS[issue.section]}
           </span>
         </div>
-        <p className="mt-1 text-2xs leading-relaxed text-slate-600">{issue.message}</p>
+        <p className="mt-1 text-2xs leading-relaxed text-stone-700">{issue.message}</p>
       </div>
       <button
         type="button"
         onClick={() => onFix(issue.section)}
-        className="flex shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-2xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700"
+        className="flex shrink-0 items-center gap-1 rounded-md border border-stone-200 bg-white px-2 py-1 text-2xs font-semibold text-stone-800 transition hover:border-teal-700 hover:text-teal-900"
         data-testid={`btn-fix-${issue.id}`}
       >
         <Wrench className="h-3 w-3" aria-hidden="true" />
@@ -155,7 +155,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs animate-overlay-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 p-4 backdrop-blur-xs animate-overlay-in"
       role="presentation"
       data-testid="export-modal"
     >
@@ -163,17 +163,17 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
-        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl"
       >
-        <div className="flex items-start justify-between border-b border-slate-200 p-5">
+        <div className="flex items-start justify-between border-b border-stone-200 p-5">
           <div>
-            <p className="text-2xs font-bold uppercase tracking-widest text-indigo-600">
+            <p className="text-xs font-semibold text-teal-800">
               Pemeriksaan sebelum ekspor
             </p>
-            <h2 id="export-modal-title" className="mt-1 text-lg font-black text-slate-900">
+            <h2 id="export-modal-title" className="mt-0.5 text-lg font-bold text-stone-900">
               Unduh CV
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-stone-600">
               Periksa hasil akhir agar CV tidak terpotong atau kehilangan informasi penting.
             </p>
           </div>
@@ -181,7 +181,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg p-1.5 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Tutup modal ekspor"
           >
             <X className="h-5 w-5" />
@@ -189,17 +189,17 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
         </div>
 
         <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto p-5">
-          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
+          <div className="grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-3">
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-slate-400">Halaman</p>
-              <p className="mt-1 text-lg font-black text-slate-900" data-testid="export-page-count">
+              <p className="text-2xs font-medium text-stone-600">Halaman</p>
+              <p className="mt-1 text-lg font-bold text-stone-900 tabular-nums" data-testid="export-page-count">
                 {report.pageCount}
               </p>
             </div>
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-slate-400">Skor kesiapan</p>
+              <p className="text-2xs font-medium text-stone-600">Skor kesiapan</p>
               <p
-                className={`mt-1 text-lg font-black ${
+                className={`mt-1 text-lg font-bold tabular-nums ${
                   report.errors.length > 0
                     ? 'text-red-600'
                     : report.warnings.length > 0
@@ -212,15 +212,15 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
               </p>
             </div>
             <div>
-              <p className="text-2xs font-semibold uppercase tracking-wider text-slate-400">Temuan</p>
-              <p className="mt-1 text-xs font-semibold text-slate-700">
+              <p className="text-2xs font-medium text-stone-600">Temuan</p>
+              <p className="mt-1 text-xs font-semibold text-stone-800">
                 {report.errors.length} error · {report.warnings.length} peringatan
               </p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <p className="text-xs font-bold text-slate-800">Format berkas</p>
+            <p className="text-xs font-bold text-stone-900">Format berkas</p>
             <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label="Format ekspor">
               {FORMAT_OPTIONS.map(option => {
                 const Icon = option.icon
@@ -234,16 +234,16 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
                     aria-pressed={selected}
                     className={`rounded-xl border p-3 text-left transition ${
                       selected
-                        ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-200'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        ? 'border-teal-700 bg-teal-50/70 ring-1 ring-teal-200'
+                        : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
                     } disabled:cursor-not-allowed disabled:opacity-60`}
                     data-testid={`export-format-${option.id}`}
                   >
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                      <Icon className="h-4 w-4 text-indigo-600" aria-hidden="true" />
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
+                      <Icon className="h-4 w-4 text-teal-800" aria-hidden="true" />
                       {option.label}
                     </span>
-                    <span className="mt-1 block text-2xs leading-relaxed text-slate-500">
+                    <span className="mt-1 block text-2xs leading-relaxed text-stone-600">
                       {option.description}
                     </span>
                   </button>
@@ -253,10 +253,10 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
           </div>
 
           <div>
-            <label htmlFor="export-filename" className="block text-xs font-bold text-slate-800">
+            <label htmlFor="export-filename" className="block text-xs font-bold text-stone-900">
               Nama berkas
             </label>
-            <div className="mt-1.5 flex overflow-hidden rounded-lg border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-indigo-500">
+            <div className="mt-1.5 flex overflow-hidden rounded-lg border border-stone-300 bg-white focus-within:ring-2 focus-within:ring-teal-700">
               <input
                 id="export-filename"
                 type="text"
@@ -264,10 +264,10 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
                 onChange={event => setFilename(event.target.value)}
                 disabled={busy}
                 maxLength={120}
-                className="min-w-0 flex-1 px-3 py-2 text-sm text-slate-800 outline-none disabled:bg-slate-50"
+                className="min-w-0 flex-1 px-3 py-2 text-sm text-stone-900 outline-none disabled:bg-stone-50"
                 data-testid="input-export-filename"
               />
-              <span className="flex items-center border-l border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-500">
+              <span className="flex items-center border-l border-stone-200 bg-stone-50 px-3 text-xs font-semibold text-stone-600">
                 {selectedFormat.extension}
               </span>
             </div>
@@ -290,7 +290,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
                   <AlertCircle className="h-4 w-4 text-red-600" aria-hidden="true" />
-                  <h3 className="text-xs font-bold text-slate-800">Harus diperbaiki</h3>
+                  <h3 className="text-xs font-bold text-stone-900">Harus diperbaiki</h3>
                 </div>
                 <ul className="space-y-2">
                   {report.errors.map(issue => (
@@ -304,7 +304,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
               <div>
                 <div className="mb-1.5 flex items-center gap-1.5">
                   <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                  <h3 className="text-xs font-bold text-slate-800">Saran perbaikan</h3>
+                  <h3 className="text-xs font-bold text-stone-900">Saran perbaikan</h3>
                 </div>
                 <ul className="space-y-2">
                   {report.warnings.map(issue => (
@@ -335,8 +335,8 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-2xs leading-relaxed text-slate-500">
+        <div className="flex flex-col-reverse gap-2 border-t border-stone-200 bg-stone-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-2xs leading-relaxed text-stone-600">
             {report.errors.length > 0
               ? 'Perbaiki error terlebih dahulu sebelum mengunduh.'
               : report.warnings.length > 0 && !acknowledgedWarnings
@@ -348,7 +348,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-semibold text-stone-800 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Batal
             </button>
@@ -356,7 +356,7 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
               type="button"
               onClick={handleExport}
               disabled={!canExport}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="flex items-center gap-1.5 rounded-lg bg-teal-800 px-4 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-teal-900 disabled:cursor-not-allowed disabled:bg-stone-300"
               data-testid="btn-confirm-export"
             >
               {busy ? (

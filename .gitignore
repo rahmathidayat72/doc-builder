@@ -24,11 +24,18 @@ node_modules/
 */node_modules/
 frontend/dist/
 frontend/dist-ssr/
+frontend/test-results/
+frontend/playwright-report/
+test-results/
+playwright-report/
 .vite/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Agent & Tooling Clones
+agent/
 
 # Local Security Tokens & Secrets (DO NOT COMMIT)
 .local_security/

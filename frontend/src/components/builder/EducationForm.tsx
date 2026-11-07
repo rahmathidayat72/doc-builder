@@ -54,20 +54,20 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
 
   return (
     <div className="space-y-4">
-      <div className="border-b pb-2 flex items-center justify-between">
+      <div className="border-b border-stone-200 pb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-600" />
+          <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-teal-800" />
             Riwayat Pendidikan
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-stone-600">
             Cantumkan jenjang pendidikan formal universitas atau sekolah terakhir.
           </p>
         </div>
         <button
           type="button"
           onClick={handleAdd}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition shadow-2xs"
           data-testid="btn-add-education"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -76,13 +76,13 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
       </div>
 
       {education.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-          <GraduationCap className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <p className="text-xs text-slate-500 font-medium">Belum ada riwayat pendidikan ditambahkan.</p>
+        <div className="text-center py-8 border-2 border-dashed border-stone-200 rounded-xl bg-stone-50">
+          <GraduationCap className="w-8 h-8 text-stone-400 mx-auto mb-2" />
+          <p className="text-xs text-stone-600 font-medium">Belum ada riwayat pendidikan ditambahkan.</p>
           <button
             type="button"
             onClick={handleAdd}
-            className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+            className="mt-2 text-xs text-teal-800 hover:text-teal-950 font-semibold"
           >
             + Tambah Riwayat Pendidikan
           </button>
@@ -95,11 +95,11 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
             return (
               <div
                 key={edu.id}
-                className="p-4 border border-slate-200 rounded-xl bg-white shadow-sm space-y-3 relative group"
+                className="p-4 border border-stone-200 rounded-xl bg-white shadow-2xs space-y-3 relative group"
                 data-testid={`education-item-${index}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded">
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-stone-100 text-stone-700 rounded">
                     Pendidikan #{index + 1}
                   </span>
                   <div className="flex items-center gap-1">
@@ -107,7 +107,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                       type="button"
                       onClick={() => handleMove(index, -1)}
                       disabled={index === 0}
-                      className="text-slate-400 hover:text-indigo-600 p-1 rounded transition disabled:cursor-not-allowed disabled:opacity-30"
+                      className="text-stone-400 hover:text-teal-800 p-1 rounded transition disabled:cursor-not-allowed disabled:opacity-30"
                       title="Naikkan pendidikan ini"
                       aria-label={`Naikkan ${edu.institution || `pendidikan ${index + 1}`}`}
                       data-testid={`btn-move-education-up-${index}`}
@@ -118,7 +118,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                       type="button"
                       onClick={() => handleMove(index, 1)}
                       disabled={index === education.length - 1}
-                      className="text-slate-400 hover:text-indigo-600 p-1 rounded transition disabled:cursor-not-allowed disabled:opacity-30"
+                      className="text-stone-400 hover:text-teal-800 p-1 rounded transition disabled:cursor-not-allowed disabled:opacity-30"
                       title="Turunkan pendidikan ini"
                       aria-label={`Turunkan ${edu.institution || `pendidikan ${index + 1}`}`}
                       data-testid={`btn-move-education-down-${index}`}
@@ -128,7 +128,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                     <button
                       type="button"
                       onClick={() => handleDelete(edu.id)}
-                      className="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                      className="text-stone-400 hover:text-red-600 p-1 rounded transition"
                       title="Hapus pendidikan ini"
                       data-testid={`btn-delete-education-${index}`}
                     >
@@ -139,7 +139,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-stone-700 mb-1">
                       Nama Institusi / Universitas <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -147,46 +147,46 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                       placeholder="Contoh: Universitas Indonesia"
                       value={edu.institution}
                       onChange={e => handleUpdate(edu.id, 'institution', e.target.value)}
-                      className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none"
                       data-testid={`input-edu-institution-${index}`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Gelar / Jenjang</label>
+                    <label className="block text-xs font-medium text-stone-700 mb-1">Gelar / Jenjang</label>
                     <input
                       type="text"
                       placeholder="Contoh: S1 / Sarjana Komputer"
                       value={edu.degree}
                       onChange={e => handleUpdate(edu.id, 'degree', e.target.value)}
-                      className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Jurusan / Program Studi</label>
+                    <label className="block text-xs font-medium text-stone-700 mb-1">Jurusan / Program Studi</label>
                     <input
                       type="text"
                       placeholder="Contoh: Ilmu Komputer / Teknik Informatika"
                       value={edu.fieldOfStudy}
                       onChange={e => handleUpdate(edu.id, 'fieldOfStudy', e.target.value)}
-                      className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      className="w-full px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Periode Tahun</label>
+                    <label className="block text-xs font-medium text-stone-700 mb-1">Periode Tahun</label>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="relative">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                        <Calendar className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-2.5" />
                         <input
                           type="text"
                           placeholder="Mulai (2018)"
                           value={edu.startDate}
                           onChange={e => handleUpdate(edu.id, 'startDate', e.target.value)}
                           aria-invalid={Boolean(dateValidation.startError)}
-                          className={`w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${
-                            dateValidation.startError ? 'border-red-400' : 'border-slate-300'
+                          className={`w-full pl-8 pr-2 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-teal-700 outline-none ${
+                            dateValidation.startError ? 'border-red-400' : 'border-stone-300'
                           }`}
                           data-testid={`input-edu-start-${index}`}
                         />
@@ -198,8 +198,8 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                           value={edu.endDate}
                           onChange={e => handleUpdate(edu.id, 'endDate', e.target.value)}
                           aria-invalid={Boolean(dateValidation.endError)}
-                          className={`w-full px-2 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none ${
-                            dateValidation.endError ? 'border-red-400' : 'border-slate-300'
+                          className={`w-full px-2 py-1.5 text-xs border rounded-lg focus:ring-2 focus:ring-teal-700 outline-none ${
+                            dateValidation.endError ? 'border-red-400' : 'border-stone-300'
                           }`}
                           data-testid={`input-edu-end-${index}`}
                         />
@@ -213,22 +213,22 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Nilai Akhir / IPK (Opsional)</label>
+                    <label className="block text-xs font-medium text-stone-700 mb-1">Nilai Akhir / IPK (Opsional)</label>
                     <div className="relative">
-                      <Award className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                      <Award className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-2.5" />
                       <input
                         type="text"
                         placeholder="Contoh: 3.82 / 4.00"
                         value={edu.gpa}
                         onChange={e => handleUpdate(edu.id, 'gpa', e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="w-full pl-8 pr-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-stone-700 mb-1">
                     Keterangan Tambahan (Opsional)
                   </label>
                   <textarea
@@ -236,7 +236,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ education, onChang
                     placeholder="Contoh: Tugas akhir tentang sistem rekomendasi; aktif sebagai asisten dosen."
                     value={edu.description}
                     onChange={e => handleUpdate(edu.id, 'description', e.target.value)}
-                    className="w-full p-2.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none leading-relaxed"
+                    className="w-full p-2.5 text-xs border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none leading-relaxed"
                     data-testid={`input-edu-description-${index}`}
                   />
                 </div>

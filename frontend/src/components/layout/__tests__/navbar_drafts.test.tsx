@@ -159,7 +159,7 @@ describe('Navbar draft management', () => {
     expect(screen.queryByText('Draft CV')).not.toBeInTheDocument()
   })
 
-  it('menampilkan tombol navigasi Beranda dan logo mengarahkan ke home', () => {
+  it('menampilkan tombol navigasi Beranda dan logo mengarahkan ke home serta memuat maskot animasi', () => {
     const onNavigate = vi.fn()
     renderNavbar({ onNavigate })
 
@@ -169,6 +169,13 @@ describe('Navbar draft management', () => {
     expect(onNavigate).toHaveBeenCalledWith('home')
 
     const logoBtn = screen.getByTestId('btn-logo-home')
+    expect(screen.getByTestId('animated-mascot')).toBeInTheDocument()
+
+    // Hover mengaktifkan ekspresi berkedip pada maskot
+    fireEvent.mouseEnter(logoBtn)
+    expect(screen.getByTestId('animated-mascot')).toHaveAttribute('data-emotion', 'berkedip')
+    fireEvent.mouseLeave(logoBtn)
+
     fireEvent.click(logoBtn)
     expect(onNavigate).toHaveBeenCalledWith('home')
   })

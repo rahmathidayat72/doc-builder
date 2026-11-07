@@ -54,7 +54,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
 
   if (!draft) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-slate-100 p-8 text-slate-400">
+      <div className="w-full h-full flex items-center justify-center paper-canvas p-8 text-stone-500">
         <p className="text-sm">Pilih atau buat draft baru untuk melihat pratinjau.</p>
       </div>
     )
@@ -72,20 +72,20 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
   const pageBreaks = Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => index + 2)
 
   return (
-    <div className="flex flex-col h-full bg-slate-200 border-l border-slate-300">
+    <div className="flex flex-col h-full bg-stone-200/80 border-l border-stone-300">
       {/* Toolbar Zoom & Status */}
-      <div className="no-print bg-white border-b border-slate-300 px-4 py-2 flex items-center justify-between shadow-2xs">
+      <div className="no-print bg-white border-b border-stone-300 px-4 py-2 flex items-center justify-between shadow-2xs">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-            Live Preview (A4)
+          <span className="text-xs font-semibold text-stone-800">
+            Pratinjau A4
           </span>
-          <span className="text-2xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+          <span className="text-2xs px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono">
             {Math.round(zoom * 100)}%
           </span>
           <span
             key={pageCount}
             className={`text-2xs px-2 py-0.5 rounded font-semibold animate-soft-pulse ${
-              pageCount > 2 ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'
+              pageCount > 2 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-teal-50 text-teal-900 border border-teal-200'
             }`}
             data-testid="page-count"
             title={`Perkiraan ${pageCount} halaman A4`}
@@ -98,7 +98,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(prev => Math.max(0.6, prev - 0.1))}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition"
+            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
             title="Perkecil"
             aria-label="Perkecil pratinjau"
           >
@@ -107,7 +107,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(1.0)}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition"
+            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
             title="Reset Zoom (100%)"
             aria-label="Reset zoom pratinjau"
           >
@@ -116,7 +116,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(prev => Math.min(1.4, prev + 0.1))}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition"
+            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
             title="Perbesar"
             aria-label="Perbesar pratinjau"
           >
@@ -135,7 +135,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
             width: '210mm',
             minHeight: '297mm'
           }}
-          className={`bg-white shadow-2xl p-10 text-slate-800 ${fontClass} relative flex flex-col justify-between`}
+          className={`bg-white shadow-2xl p-10 text-stone-800 ${fontClass} relative flex flex-col justify-between`}
           data-testid="resume-preview-sheet"
         >
           <div ref={contentRef} className="relative flex-1">
@@ -146,7 +146,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
             {pageBreaks.map(pageNumber => (
               <div
                 key={pageNumber}
-                className="no-print pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-indigo-400/70 print:hidden"
+                className="no-print pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-teal-600/70 print:hidden"
                 style={{
                   top: isFullBleed
                     ? `${A4_HEIGHT_PX * (pageNumber - 1) - 40}px`
@@ -155,14 +155,14 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
                 data-testid={`page-break-${pageNumber}`}
                 aria-hidden="true"
               >
-                <span className="absolute right-0 -top-5 rounded bg-indigo-50 px-1.5 py-0.5 text-3xs font-semibold text-indigo-600">
+                <span className="absolute right-0 -top-5 rounded bg-teal-50 px-1.5 py-0.5 text-3xs font-semibold text-teal-800 border border-teal-200">
                   Halaman {pageNumber}
                 </span>
               </div>
             ))}
           </div>
 
-          <footer className="pt-8 text-center text-3xs text-slate-300">
+          <footer className="pt-8 text-center text-3xs text-stone-300">
             Dihasilkan secara aman dengan Doc-builder (Offline &amp; Private)
           </footer>
         </div>

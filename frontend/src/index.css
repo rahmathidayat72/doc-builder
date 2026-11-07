@@ -38,6 +38,25 @@
     from { opacity: 0; transform: translateY(8px) scale(0.98); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
+  @keyframes mascot-change {
+    0% { transform: scale(0.92) rotate(-3deg); }
+    50% { transform: scale(1.08) rotate(2deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  @keyframes mascot-frame-cycle {
+    0% { background-position-x: 0%; }
+    100% { background-position-x: 100%; }
+  }
+}
+
+/* Animasi transisi mikro maskot dokumen */
+.animate-mascot-change {
+  animation: mascot-change 250ms var(--ease-soft) both;
+}
+
+/* Animasi frame-by-frame maskot dokumen (6 frame langkah tegas) */
+.animate-mascot-frames {
+  animation: mascot-frame-cycle var(--mascot-duration, 800ms) steps(5) infinite;
 }
 
 /* Overlay modal: backdrop fade + panel muncul lembut */
@@ -57,7 +76,7 @@
 /* Fokus keyboard konsisten (di layer base agar utilitas Tailwind tetap menang) */
 @layer base {
   :focus-visible {
-    outline: 2px solid #6366f1;
+    outline: 2px solid #0f766e;
     outline-offset: 2px;
   }
 }
@@ -90,11 +109,11 @@
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d6d3d1;
   border-radius: 9999px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #a8a29e;
 }
 
 :root {
@@ -102,12 +121,66 @@
   line-height: 1.5;
   font-weight: 400;
   color-scheme: light;
-  color: #1e293b;
-  background-color: #f8fafc;
+  color: #1c1917;
+  background-color: #faf9f6;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Kanvas kertas editorial bertekstur remukan tipis & serat halus di belakang kartu konten */
+.paper-canvas {
+  background-color: #faf9f6;
+  background-image:
+    /* Bintik serat kertas halus */
+    radial-gradient(circle at 20% 28%, rgb(120 113 108 / 0.028) 0 0.75px, transparent 1px),
+    radial-gradient(circle at 76% 64%, rgb(68 64 60 / 0.022) 0 0.65px, transparent 0.9px),
+    radial-gradient(circle at 48% 82%, rgb(168 162 158 / 0.025) 0 0.8px, transparent 1.05px),
+    /* Lipatan kertas sangat samar dan lebar (soft wide paper crease) */
+    linear-gradient(
+      124deg,
+      transparent 0%,
+      transparent 28%,
+      rgb(255 255 255 / 0.32) 31.2%,
+      rgb(120 113 108 / 0.022) 32.8%,
+      transparent 37%,
+      transparent 72%,
+      rgb(120 113 108 / 0.018) 75.5%,
+      rgb(255 255 255 / 0.28) 77%,
+      transparent 81%
+    ),
+    linear-gradient(
+      42deg,
+      transparent 0%,
+      transparent 44%,
+      rgb(255 255 255 / 0.26) 47.5%,
+      rgb(120 113 108 / 0.018) 49.2%,
+      transparent 54%
+    ),
+    /* Gelombang halus permukaan kertas */
+    radial-gradient(ellipse 460px 300px at 22% 28%, rgb(255 255 255 / 0.35) 0%, rgb(120 113 108 / 0.018) 55%, transparent 82%),
+    radial-gradient(ellipse 520px 340px at 76% 68%, rgb(120 113 108 / 0.02) 0%, rgb(255 255 255 / 0.3) 52%, transparent 80%),
+    /* Relief remukan kertas tipis beropasitas rendah */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520' viewBox='0 0 520 520'%3E%3Cfilter id='crumple' x='0%25' y='0%25' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.009 0.012' numOctaves='3' seed='11' result='rough'/%3E%3CfeDiffuseLighting in='rough' lighting-color='%23faf9f6' surfaceScale='0.85' diffuseConstant='1.01' result='light'%3E%3CfeDistantLight azimuth='132' elevation='68'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23crumple)' opacity='0.11'/%3E%3C/svg%3E");
+  background-size:
+    19px 21px,
+    25px 31px,
+    33px 39px,
+    1440px 1080px,
+    1280px 960px,
+    1200px 900px,
+    1360px 1020px,
+    520px 520px;
+  background-position:
+    0 0,
+    7px 11px,
+    13px 5px,
+    0 0,
+    80px 40px,
+    0 0,
+    40px 60px,
+    0 0;
 }
 
 body {
@@ -128,6 +201,11 @@ body {
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  .paper-canvas {
+    background: white !important;
+    background-image: none !important;
   }
 
   header, nav, .no-print, button, input, textarea, select {

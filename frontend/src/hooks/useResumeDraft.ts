@@ -28,6 +28,7 @@ export function useResumeDraft(initialDraftId?: string) {
   const [privateMode, setPrivateModeState] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [isLoadingDrafts, setIsLoadingDrafts] = useState(true)
+  const [storageError, setStorageError] = useState<string | null>(null)
 
   const autosaveTimerRef = useRef<any>(null)
   const pendingDraftRef = useRef<ResumeDraft | null>(null)
@@ -39,8 +40,10 @@ export function useResumeDraft(initialDraftId?: string) {
       setDraftsList(list)
       const pMode = await ResumeStorage.isPrivateMode()
       setPrivateModeState(pMode)
+      setStorageError(null)
     } catch (err) {
       console.error('Gagal memuat daftar draft:', err)
+      setStorageError('Gagal mengakses penyimpanan lokal browser. Silakan coba lagi.')
     } finally {
       setIsLoadingDrafts(false)
     }
@@ -334,8 +337,10 @@ export function useResumeDraft(initialDraftId?: string) {
     privateMode,
     pendingDelete,
     isLoadingDrafts,
+    storageError,
     loadDraft: async (id: string) => {
       try {
+        setStorageError(null)
         await flushPendingSave()
         const d = await ResumeStorage.getDraft(id)
         if (d) {
@@ -345,6 +350,7 @@ export function useResumeDraft(initialDraftId?: string) {
         }
       } catch (err) {
         console.error('Gagal memuat draft:', err)
+        setStorageError('Gagal memuat draf dari penyimpanan lokal. Silakan coba lagi.')
       }
     },
     createNewDraft,

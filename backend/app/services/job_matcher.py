@@ -908,6 +908,51 @@ def detect_language_requirements(job_text: str) -> set[str]:
     return required_langs
 
 
+def extract_experience_text(exp: dict[str, Any]) -> str:
+    """Mengambil representasi teks lengkap dari pengalaman kerja,
+    menggabungkan 'achievements' terstruktur dan 'description' lama secara aman.
+    """
+    achievements = exp.get("achievements")
+    achievement_parts: list[str] = []
+    if isinstance(achievements, list):
+        for item in achievements:
+            val = str(item).strip() if item is not None else ""
+            if val:
+                achievement_parts.append(val)
+
+    desc = exp.get("description", "")
+    desc_str = desc.strip() if isinstance(desc, str) else ""
+
+    combined_parts: list[str] = []
+    if desc_str:
+        combined_parts.append(desc_str)
+    if achievement_parts:
+        combined_parts.extend(achievement_parts)
+
+    return " ".join(combined_parts)
+
+
+def extract_language_name(lang_item: dict[str, Any]) -> str:
+    """Mengekstrak nama bahasa mendukung field canonical 'language' dan alias 'name'."""
+    val = lang_item.get("language")
+    if not val:
+        val = lang_item.get("name")
+    return str(val).strip() if val is not None else ""
+
+
+def get_resume_educations(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Mengekstrak daftar pendidikan mendukung field canonical 'education'
+    dan fallback legacy 'educations'.
+    """
+    edu = data.get("education")
+    if isinstance(edu, list):
+        return edu
+    legacy_edu = data.get("educations")
+    if isinstance(legacy_edu, list):
+        return legacy_edu
+    return []
+
+
 def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str, Any]:
     """
     Membandingkan data resume pengguna dengan teks lowongan kerja secara komprehensif:
@@ -955,7 +1000,7 @@ def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str,
     summary = data.get("summary", "")
     experiences = data.get("experiences", [])
     skills_list = data.get("skills", [])
-    educations = data.get("educations", [])
+    educations = get_resume_educations(data)
     languages_list = data.get("languages", [])
 
     # Kumpulkan seluruh teks dari CV
@@ -963,10 +1008,18 @@ def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str,
         contact.get("fullName", ""),
         contact.get("headline", ""),
         summary,
-        " ".join([e.get("jobTitle", "") + " " + e.get("description", "") for e in experiences]),
+        " ".join([e.get("jobTitle", "") + " " + extract_experience_text(e) for e in experiences]),
         " ".join([s.get("name", "") for s in skills_list]),
-        " ".join([ed.get("degree", "") + " " + ed.get("fieldOfStudy", "") for ed in educations]),
-        " ".join([lang.get("name", "") for lang in languages_list]),
+        " ".join(
+            [
+                (
+                    f"{ed.get('degree', '')} {ed.get('fieldOfStudy', '')} "
+                    f"{ed.get('institution') or ed.get('school') or ''}"
+                ).strip()
+                for ed in educations
+            ]
+        ),
+        " ".join([extract_language_name(lang) for lang in languages_list]),
     ]
     cv_full_text = " ".join(cv_chunks)
 
@@ -1106,11 +1159,8 @@ def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str,
     resp_tokens_job = extract_tokens(clean_job_text, remove_stopwords=True)
     exp_tokens = []
     for exp in experiences:
-        desc = exp.get("description", "")
-        achievements = exp.get("achievements", [])
-        exp_tokens.extend(
-            extract_tokens(desc + " " + " ".join(achievements), remove_stopwords=True)
-        )
+        full_exp_text = extract_experience_text(exp)
+        exp_tokens.extend(extract_tokens(full_exp_text, remove_stopwords=True))
 
     resp_overlap_score = 0.0
     if resp_tokens_job and exp_tokens:
@@ -1187,7 +1237,12 @@ def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str,
         for ed in educations:
             deg = ed.get("degree", "").lower()
             field = ed.get("fieldOfStudy", "").lower()
-            cand_edu_desc.append(f"{ed.get('degree', '')} {ed.get('fieldOfStudy', '')}".strip())
+            desc_parts = [ed.get("degree", ""), ed.get("fieldOfStudy", "")]
+            if not any(str(p).strip() for p in desc_parts):
+                inst = ed.get("institution") or ed.get("school") or ""
+                if inst:
+                    desc_parts.append(str(inst))
+            cand_edu_desc.append(" ".join(str(p).strip() for p in desc_parts if str(p).strip()))
 
             for d_name, rank in EDUCATION_LEVEL_RANKS.items():
                 if d_name in deg:
@@ -1233,7 +1288,9 @@ def match_resume_to_job(resume_dict: dict[str, Any], job_text: str) -> dict[str,
         lang_status = "evaluated"
         cand_langs = set()
         for lang_item in languages_list:
-            cand_langs.add(lang_item.get("name", "").strip().lower())
+            cand_l = extract_language_name(lang_item).lower()
+            if cand_l:
+                cand_langs.add(cand_l)
         # Ekstrak juga dari cv_full_text
         for l_code, aliases in LANGUAGE_TAXONOMY.items():
             for alias in aliases:

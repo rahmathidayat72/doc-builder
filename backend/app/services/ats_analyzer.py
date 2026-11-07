@@ -56,6 +56,43 @@ STOPWORDS = {
 }
 
 
+def extract_experience_text(exp: dict[str, Any]) -> str:
+    """Mengambil representasi teks lengkap dari pengalaman kerja,
+    menggabungkan 'achievements' terstruktur dan 'description' lama secara aman.
+    """
+    achievements = exp.get("achievements")
+    parts: list[str] = []
+    if isinstance(achievements, list):
+        for item in achievements:
+            val = str(item).strip() if item is not None else ""
+            if val:
+                parts.append(val)
+
+    desc = exp.get("description", "")
+    desc_str = desc.strip() if isinstance(desc, str) else ""
+
+    combined: list[str] = []
+    if desc_str:
+        combined.append(desc_str)
+    if parts:
+        combined.extend(parts)
+
+    return " ".join(combined)
+
+
+def get_resume_educations(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Mengekstrak daftar pendidikan mendukung field canonical 'education'
+    dan fallback legacy 'educations'.
+    """
+    edu = data.get("education")
+    if isinstance(edu, list):
+        return edu
+    legacy_edu = data.get("educations")
+    if isinstance(legacy_edu, list):
+        return legacy_edu
+    return []
+
+
 def evaluate_ats_structure(resume_dict: dict[str, Any]) -> dict[str, Any]:
     """
     Mengevaluasi struktur dan keterbacaan format ATS dari resume_dict
@@ -67,7 +104,7 @@ def evaluate_ats_structure(resume_dict: dict[str, Any]) -> dict[str, Any]:
     contact = data.get("contact", {})
     summary = data.get("summary", "")
     experiences = data.get("experiences", [])
-    education = data.get("education", [])
+    education = get_resume_educations(data)
     skills = data.get("skills", [])
 
     checklist = []
@@ -304,8 +341,8 @@ def evaluate_ats_structure(resume_dict: dict[str, Any]) -> dict[str, Any]:
     quantified_count = 0
     metric_pattern = r"(\d+[\s%kKmMBb]+|\d+\s*persen|\b\d{2,}\b|\$\d+|rp\s*\d+)"
     for exp in experiences:
-        desc = exp.get("description", "")
-        if re.search(metric_pattern, desc, re.IGNORECASE):
+        exp_text = extract_experience_text(exp)
+        if re.search(metric_pattern, exp_text, re.IGNORECASE):
             quantified_count += 1
 
     if quantified_count >= 2:
@@ -352,8 +389,9 @@ def evaluate_ats_structure(resume_dict: dict[str, Any]) -> dict[str, Any]:
     # ----------------------------------------------------
     all_text_chunks = [
         contact.get("fullName", ""),
+        contact.get("headline", ""),
         summary,
-        " ".join([e.get("description", "") for e in experiences]),
+        " ".join([extract_experience_text(e) for e in experiences]),
         " ".join([s.get("name", "") for s in skills]),
     ]
     full_cv_text = " ".join(all_text_chunks).lower()

@@ -3437,3 +3437,250 @@ Menyediakan antarmuka Dashboard / Beranda Utama saat pengguna membuka Doc-builde
 ### Status
 ✅ Selesai dan terverifikasi (`FEATURE-DASHBOARD-HOME-001`).
 
+---
+
+## Improvement: Refinement, Accessibility, UI Hardening & Multi-Viewport Verification Beranda/Dashboard — 2026-11-07
+
+**Task:** IMPROVEMENT-DASHBOARD-REFINEMENT-001
+**Requirement:** BUS-006, FR-001, FR-017, NFR-UX-001, NFR-ACC-001, NFR-PERF-001
+
+### Ringkasan
+Memoles dan memperkokoh permukaan Beranda / Dashboard (`#/home`) sesuai standar `frontend-engineering` (**Mode B — Interactive Web App**, **Surface Purpose: `Operate`**, **Change Intent: `Refinement`**, **Design Read: *Quiet local-workspace confidence* (`ENERGY 1 / RHYTHM 1 / MOTION 1`)**) dalam 4 batch terukur:
+1. **Batch A (State Contract & Hardening):**
+   - Menambahkan state `storageError` tersanitasi dan pemulihan `refreshList` di `useResumeDraft.ts`.
+   - Menghubungkan `isLoadingDrafts`, `storageError`, `onRetryLoadDrafts={refreshList}`, dan `documentToolsCount={TOOLS.length}` (`18`) dari `App.tsx` ke `Dashboard.tsx`.
+   - Menambahkan skeleton placeholder bertinggi tetap (`min-h-[188px]`, `data-testid="dashboard-drafts-loading"`) saat draf sedang dimuat dari IndexedDB sehingga tidak terjadi *empty-state flash* atau pergeseran tata letak (`CLS <= 0.1`).
+   - Menambahkan banner alert `role="alert"` (`data-testid="dashboard-storage-error"`) lengkap dengan tombol *Coba Lagi* (`data-testid="btn-dashboard-retry-storage"`).
+   - Menambahkan guard *double-submit* (`isBusyRef` & `pendingAction`) pada seluruh aksi asinkron (*Buat CV Baru*, *Lanjutkan Terakhir*, *Impor PDF / DOCX*, buka draf, dan toggle favorit).
+2. **Batch B (Tipografi, Kontras WCAG 2.2 AA/AAA, & Kejujuran Visual):**
+   - Menaikkan ukuran teks baca utama dan deskripsi kartu ke `>= 16px` (`text-base`) serta seluruh label/metadata/badge ke minimal `13px` (`text-[13px]` / `text-sm`), ditambah `tabular-nums` pada angka metrik.
+   - Meningkatkan rasio kontras teks sekunder dari `text-slate-400`/`text-slate-500` menjadi `text-slate-600`/`text-slate-700` (`>= 7.5:1` di atas putih, lulus WCAG 2.2 AAA) dan aksen teks menjadi `text-indigo-700`/`text-emerald-700`/`text-sky-700`.
+   - Mengganti gradasi ungu/lavender dekoratif (`to-violet-50/40`) dan ikon `<Sparkles />` pada Hero dengan permukaan netral bersih (`bg-white border-slate-200/90`, 90–95% netral).
+   - Mengeliminasi *dead control* tombol ATS yang `disabled` saat `atsScore === undefined` (diganti teks status non-interaktif ketika belum ada evaluasi, dan tombol aktif `btn-dashboard-ats-details` saat skor tersedia).
+   - Mengganti angka statis `"12+"` pada kartu *Alat Dokumen* menjadi nilai dinamis `documentToolsCount` (`18`).
+3. **Batch C (Reflow Responsif Multi-Viewport & Ketahanan Teks Ekstrem):**
+   - Menyesuaikan grid kartu metrik (`grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`), kartu workspace (`grid-cols-1 md:grid-cols-3`), dan daftar draf (`grid-cols-1 md:grid-cols-2`) beserta `min-w-0` dan `truncate` agar bebas *horizontal overflow* pada viewport `1440`, `1024`, `820`, `768`, `390`, maupun perbesaran `200%`.
+4. **Batch D (Aksesibilitas Keyboard/Fokus & Verifikasi Browser Playwright):**
+   - Menambahkan indikator `:focus-visible` (`focus-visible:ring-2 focus-visible:ring-indigo-600`) pada seluruh kontrol interaktif di Beranda.
+   - Menambahkan 5 unit test baru di `dashboard.test.tsx`, audit `axe` WCAG 2.2 AA untuk `Dashboard` (kosong & terisi) di `accessibility.test.tsx`, serta suite Playwright Chromium `frontend/e2e/dashboard.spec.ts`.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai code plan Gerbang 3 yang disetujui.
+- Penyimpangan material: Tidak ada. Penyesuaian kecil pada `useResumeDraft.ts` dilakukan agar `setStorageError(null)` dipanggil setelah `await` pertama di `refreshList` demi menghindari warning `react(set-state-in-effect)` dari Oxlint.
+- Perubahan pengguna yang tidak terkait (`deleted: AGENTS.md` di root dan folder untracked `agent/`) tidak disentuh.
+
+### File Dibuat
+- `frontend/playwright.config.ts`
+- `frontend/e2e/dashboard.spec.ts`
+
+### File Diubah
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/vitest.config.ts`
+- `frontend/src/hooks/useResumeDraft.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `.gitignore`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Install Playwright DevDep | `npm --prefix frontend install --save-dev @playwright/test` | PASS | `@playwright/test` ditambahkan ke `devDependencies` |
+| Install Chromium Browser | `npx playwright install chromium` | PASS | Chromium headless shell v1254 terpasang lokal |
+| Frontend Vitest Full Suite | `npm --prefix frontend test` | PASS | 248/248 tests passed (37 test files; 8/8 `dashboard.test.tsx`, 7/7 `accessibility.test.tsx` 0 axe violations) |
+| Frontend Lint (Oxlint) | `npm --prefix frontend run lint` | PASS | 0 error (16 warning pre-existing tidak bertambah) |
+| Frontend Typecheck & Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` sukses dalam 794ms |
+| Playwright Multi-Viewport & CLS | `npx --prefix frontend playwright test` | PASS | 1/1 spec PASS (5 viewport `1440, 1024, 820, 768, 390` + zoom `200%`, computed font `>=16px`/`>=13px`, `CLS <= 0.1`, keyboard `Tab`/`Enter`, judul ekstrem 390px bebas overflow) |
+| Git Whitespace Check | `git diff --check` | PASS | 0 whitespace error |
+
+### Acceptance Criteria
+- [x] Mode B (`Operate`) & semantik `Refinement` terjaga tanpa mengubah identitas visual utama maupun merusak route `#/home`, `#/builder`, `#/ats`, `#/tools`.
+- [x] Teks baca utama `>= 16px` dan label/metadata `>= 13px` dengan kontras terhitung memenuhi WCAG 2.2 AA/AAA (`0` pelanggaran `axe-core`).
+- [x] Tidak ada kontrol mati (`disabled` button) pada kondisi awal; jumlah alat dokumen (`18`) terhubung dinamis dari `TOOLS.length`.
+- [x] State loading (`dashboard-drafts-loading`), empty (`dashboard-drafts-empty`), error penyimpanan (`dashboard-storage-error` + retry), dan pencegahan *double-submit* teruji.
+- [x] Reflow responsif pada viewport `1440x900`, `1024x768`, `820x1180`, `768x1024`, `390x844`, dan zoom `200%` bebas *horizontal overflow* dengan `CLS <= 0.1`.
+
+### Status
+✅ Selesai dan terverifikasi (`IMPROVEMENT-DASHBOARD-REFINEMENT-001`).
+
+---
+
+## Redesign Anti-Slop: Editorial Paper & Forest Teal pada Beranda, Navbar & Shell Workspace — 2026-11-07
+
+**Task:** REDESIGN-EDITORIAL-TEAL-001
+**Requirement:** BUS-006, FR-001, FR-017, NFR-UX-001, NFR-ACC-001, NFR-PERF-001
+
+### Ringkasan
+Merombak desain visual dan tata letak **Beranda (`#/home`)**, **Navbar (`Navbar.tsx`)**, serta **Shell Workspace (`#/builder`, `#/ats`, `#/tools` di `App.tsx`)** sesuai klasifikasi **Mode B — Interactive Web App**, **Surface Purpose: `Operate`**, **Change Intent: `Redesign`** dengan arah desain **Editorial Paper & Forest Teal** (`ENERGY 1 / RHYTHM 1 / MOTION 1`):
+1. **Penghapusan 100% Warna Ungu/Indigo/Violet & Token Global (`index.css`, `Navbar.tsx`, `Dashboard.tsx`, `App.tsx`):**
+   - Mengganti latar aplikasi ke kertas editorial hangat `#FAF9F6` (`stone-50`), teks utama ke arang tajam `stone-900` (`#1c1917`), dan fokus keyboard `:focus-visible` ke `#0f766e` (`teal-700`).
+   - Menetapkan satu aksen tunggal *Forest Teal* (`teal-800` / `teal-900`) untuk CTA utama, penanda tab/draf aktif, dan *progress bar* tanpa satu pun kelas `indigo-*`, `violet-*`, atau `purple-*`.
+2. **Penghapusan Pola *AI Slop* pada Beranda (`Dashboard.tsx`):**
+   - Menghapus *eyebrow badge*, kumpulan *pill* warna-warni di Hero, deretan 4 kartu stat terpisah berlabel `UPPERCASE`, serta 3 kartu fitur pelangi (`indigo`/`emerald`/`sky`) ber-panah otomatis `→`.
+   - Menerapkan **Lembar Meja Kerja Editorial** yang menyatukan header fungsional (dengan 1 CTA utama `bg-teal-800` *Buat CV Baru* + aksi sekunder netral) dan **Ledger Status Dokumen** bersekat garis `1px` (`divide-stone-200`, label *sentence case*, angka `stone-900 tabular-nums`).
+   - Menerapkan **Grid Asimetris 12-Kolom (`lg:grid-cols-12`)**: menempatkan **Arsip & Draf CV Tersimpan (`lg:col-span-7`)** sebagai fokus utama di sisi kiri (dengan aksen garis kiri `border-l-4 border-l-teal-800` pada draf aktif) dan **Direktori Ruang Kerja (`lg:col-span-5`)** bersekat `divide-y divide-stone-200` di sisi kanan.
+3. **Penyelarasan Navbar & Shell Workspace (`Navbar.tsx`, `App.tsx`):**
+   - Mengganti logo gradasi indigo miring di Navbar menjadi emblem arang editorial (`bg-stone-900 text-stone-50`), menyelaraskan tab aktif (`text-teal-900`), tombol `Unduh` (`bg-teal-800`), serta modal manajemen draf.
+   - Menyelaraskan tab bagian CV, *progress bar* langkah (`bg-teal-800`), kartu evaluasi `#/ats`, dan 18 kartu utilitas di `#/tools` ke palet `stone-*` & `teal-800`.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai penuh dengan code plan Gerbang 3 yang disetujui.
+- Penyimpangan: Tidak ada.
+
+### File Diubah
+- `frontend/src/index.css`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Vitest Full Suite | `npm --prefix frontend test` | PASS | 249/249 tests passed (37 test files; 9/9 `dashboard.test.tsx`, 7/7 `accessibility.test.tsx` 0 axe violations) |
+| Frontend Lint (Oxlint) | `npm --prefix frontend run lint` | PASS | 0 error |
+| Frontend Typecheck & Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` sukses dalam 665ms |
+| Playwright Multi-Viewport & Anti-Purple Gate | `npx --prefix frontend playwright test` | PASS | 1/1 spec PASS (5 viewport `1440, 1024, 820, 768, 390` + zoom `200%`, computed font `>=16px`/`>=13px`, `CLS <= 0.1`, 0 kelas `indigo-/violet-/purple-`) |
+| Git Whitespace Check | `git diff --check` | PASS | 0 whitespace error |
+
+### Acceptance Criteria
+- [x] 0 penggunaan warna `indigo-*`, `violet-*`, atau `purple-*` pada Beranda, Navbar, dan Shell Workspace (`App.tsx`).
+- [x] Pola *AI slop* (hero pill cluster, 4 stat card generik, 3 kartu fitur pelangi + panah otomatis) digantikan oleh tata letak meja kerja dokumen **Editorial Paper & Forest Teal**.
+- [x] Seluruh kontrak pengujian (`data-testid`), aksesibilitas WCAG 2.2 AA (`vitest-axe`), ukuran font (`>= 16px` / `>= 13px`), reflow 5 viewport + zoom `200%`, dan `CLS <= 0.1` lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REDESIGN-EDITORIAL-TEAL-001`).
+
+---
+
+## Hotfix: Sinkronisasi Kontrak Backend ATS Analyzer & Job Matcher — 2026-11-07
+
+**Task:** HOTFIX-BACKEND-CONTRACT-001
+**Requirement:** BUS-004, FR-007, FR-008, FR-036, FR-037
+
+### Ringkasan
+Melakukan sinkronisasi menyeluruh pada engine backend `ats_analyzer.py` dan `job_matcher.py` agar selaras secara deterministik dengan skema payload canonical frontend (`achievements`, `education`, `language`) tanpa merusak backward compatibility untuk draf dan pengujian legacy (`description`, `educations`, `name`):
+1. **Helper Normalisasi Dua Arah (`backend/app/services/job_matcher.py` & `backend/app/services/ats_analyzer.py`):**
+   - `extract_experience_text(exp)`: Menggabungkan butir `achievements` terstruktur (list string) dan `description` lama secara aman, memastikan kedua format terbaca utuh pada ekstraksi token, BM25, pencocokan tanggung jawab, dan kalkulasi metrik terukur.
+   - `get_resume_educations(data)`: Mengambil daftar pendidikan dengan memprioritaskan field canonical frontend `education` dan menyediakan fallback transparan ke field legacy `educations`.
+   - `extract_language_name(lang_item)`: Mengambil nama bahasa dengan memprioritaskan field canonical frontend `language` dan fallback ke alias legacy `name`.
+2. **Evaluasi ATS Analyzer (`backend/app/services/ats_analyzer.py`):**
+   - Pilar 2 (Struktur): Memeriksa keberadaan riwayat pendidikan menggunakan `get_resume_educations(data)` sehingga draf frontend canonical dinilai 5 poin penuh.
+   - Pilar 4 (Dampak Terukur): Mengevaluasi regex metrik/angka (`\d+[\s%kKmMBb]+|\d+\s*persen|\b\d{2,}\b|\$\d+|rp\s*\d+`) pada representasi teks gabungan `extract_experience_text(exp)` sehingga pencapaian terukur yang ditulis di `achievements` tidak lagi terabaikan.
+   - Pilar 5 (Integritas): Memasukkan seluruh teks butir pencapaian ke `all_text_chunks` untuk pengujian densitas kata dan deteksi keyword stuffing yang akurat.
+3. **Evaluasi Job Matcher (`backend/app/services/job_matcher.py`):**
+   - Dimensi Tanggung Jawab & Bukti: Mengekstrak token aksi dari `extract_experience_text(exp)`.
+   - Dimensi Pendidikan: Membaca daftar riwayat dari `get_resume_educations(data)`.
+   - Dimensi Bahasa: Membaca dan menstandarkan kode bahasa dari `extract_language_name(lang_item)`.
+   - Penyusunan `cv_chunks` lengkap: Menggabungkan seluruh data canonical untuk penilaian relevansi teks menyeluruh.
+4. **Pengujian Kontrak & Regresi Backend:**
+   - 2 unit & integration contract test baru di `backend/tests/test_ats.py`: pengujian payload canonical frontend (`achievements` + `education`), serta pengujian fallback legacy `educations`.
+   - 2 unit & integration contract test baru di `backend/tests/test_job_match.py`: pengujian pencocokan dengan canonical frontend schema (`education`, `achievements`, `language`) via modul internal dan endpoint API HTTP `/api/ats/match-job`, serta pengujian alias legacy `educations` dan `name`.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai penuh dengan rencana yang diajukan dan disetujui pengguna.
+- Kontrak publik API FastAPI (`/api/ats/analyze-structure` dan `/api/ats/match-job`) tidak berubah.
+- Backward compatibility 100% terjaga.
+
+### File Diubah
+- `backend/app/services/ats_analyzer.py`
+- `backend/app/services/job_matcher.py`
+- `backend/tests/test_ats.py`
+- `backend/tests/test_job_match.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest Target ATS & Job Match | `backend/.venv/bin/pytest backend/tests/test_ats.py backend/tests/test_job_match.py` | PASS | 16/16 tests passed |
+| Pytest Full Backend Suite | `backend/.venv/bin/pytest backend/tests` | PASS | 145/145 tests passed |
+| Backend Ruff Check | `backend/.venv/bin/ruff check backend/app/services/ats_analyzer.py backend/app/services/job_matcher.py backend/tests/test_ats.py backend/tests/test_job_match.py` | PASS | All checks passed (0 error) |
+| Frontend Vitest Full Suite | `npm run --prefix frontend test` | PASS | 250/250 tests passed (37 test files) |
+| Frontend Build | `npm run --prefix frontend build` | PASS | Vite built in 650ms |
+
+### Acceptance Criteria
+- [x] Backend `ats_analyzer.py` mengevaluasi `achievements` terstruktur untuk deteksi dampak terukur (Pilar 4).
+- [x] Backend `ats_analyzer.py` dan `job_matcher.py` mengenali key canonical `education` dengan fallback transparan ke `educations`.
+- [x] Backend `job_matcher.py` mengenali key canonical `language` dengan fallback transparan ke `name`.
+- [x] Ekstraksi tanggung jawab dan token BM25 menggabungkan `achievements` dan `description`.
+- [x] Endpoint publik API tidak mengalami perubahan kontrak (zero breaking change).
+- [x] Seluruh regression test backend (145 tests) dan frontend (250 tests) lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`HOTFIX-BACKEND-CONTRACT-001`).
+
+---
+
+## Feature: Integrasi Maskot Dokumen Animasi 18 Emosi pada Logo Navbar — 2026-11-07
+
+**Task:** FEATURE-DOCUMENT-MASCOT-001
+**Requirement:** BUS-006, NFR-UX-001, NFR-ACC-001
+
+### Ringkasan
+Mengganti icon dokumen statis pada tombol logo di Navbar (`Navbar.tsx`) dengan maskot dokumen animasi interaktif mandiri yang berukuran lebih besar (48px) dan memiliki animasi gerak frame-by-frame nyata berdasarkan lembar stiker 18 emosi (`Cute Document Mascot Emotion Sticker Sheet.png`):
+1. **Pembuatan Multi-Frame Sprite Sheet Bersih:**
+   - Mengekstrak 18 karakter dokumen secara otomatis via Pillow Python dengan deteksi presisi batas atas pil teks label agar terbebas dari artefak garis bawah.
+   - Merancang koreografi gerak 6 frame per emosi (`ANIM_CHOREOGRAPHY`) dengan squash & stretch, bounce, tremor, dan tilt khas yang menonjolkan ekspresi masing-masing karakter.
+   - Menyusun master sprite sheet berdimensi 6 kolom × 18 baris (144×144 px per frame, total 864×2592 px) di `frontend/src/assets/document-mascot-frames.webp` dan `.png`.
+2. **Ukuran Maskot & Proporsi Navbar:**
+   - Maskot diperbesar menjadi 48px (`w-11 h-11 sm:w-12 sm:h-12`) agar detail ekspresi wajah dan gerakan terlihat jelas.
+   - Tinggi Navbar dinaikkan menjadi 64px (`h-16`) dengan padding seimbang `gap-3.5` dan tipografi logo `text-base`.
+3. **Animasi Frame-by-Frame Nyata & Durasi Dinamis:**
+   - Animasi dijalankan melalui CSS discrete stepping (`steps(5)`) pada keyframe `@keyframes mascot-frame-cycle` yang menggeser `background-position-x` dari 0% ke 100%.
+   - Durasi siklus per emosi diatur dinamis melalui CSS variable `--mascot-duration` di `mascotTypes.ts` (misal tawa 550ms, marah 400ms, lelah 1500ms).
+4. **Pola Respon Kontekstual & Rotasi Idle:**
+   - Hover pada logo memicu ekspresi `berkedip` (*winking*).
+   - Klik pada logo memicu ekspresi `tertawa` (*laughing joyfully*).
+   - Status penyimpanan draf aktif (`isSaving: true`) memicu ekspresi `semangat` (*enthusiastic working*).
+   - Penyimpanan berhasil (`lastSaved` diperbarui) memicu ekspresi `bangga` (*proud*) selama 3 detik.
+   - Pergantian workspace memicu emosi khas: Home (`sapa_salam`), Builder (`siap_membantu`), ATS (`penasaran`), Tools (`semangat`).
+   - Rotasi idle otomatis berputar memilih dari seluruh 18 emosi secara acak tanpa pengulangan berturut-turut setiap interval 5 detik.
+5. **Aksesibilitas & Kualitas:**
+   - Mendukung penuh `prefers-reduced-motion: reduce`: rotasi idle dinonaktifkan, animasi frame stepping dinonaktifkan, dan maskot tetap anggun serta statis.
+   - Mempertahankan aksesibilitas Navbar: tombol `data-testid="btn-logo-home"`, label `aria-label="Buka Beranda Doc-builder"`, dan maskot memiliki `aria-hidden="true"`.
+   - 10 unit test di `frontend/src/components/layout/__tests__/animated_mascot.test.tsx` dan pembaruan test di `navbar_drafts.test.tsx`.
+
+### File Dibuat
+- `frontend/src/assets/document-mascot-frames.png`
+- `frontend/src/assets/document-mascot-frames.webp`
+- `frontend/src/components/layout/mascotTypes.ts`
+- `frontend/src/components/layout/AnimatedDocumentMascot.tsx`
+- `frontend/src/components/layout/__tests__/animated_mascot.test.tsx`
+
+### File Diubah
+- `frontend/src/index.css`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Full Suite | `npm run --prefix frontend test` | PASS | 260/260 tests passed (38 test files, 10 tests baru) |
+| Frontend Lint (Oxlint) | `npm run --prefix frontend lint` | PASS | 0 error, 0 warning pada komponen maskot |
+| Frontend Production Build | `npm run --prefix frontend build` | PASS | `tsc -b && vite build` sukses dalam 740ms |
+| Backend Pytest Suite | `backend/.venv/bin/pytest backend/tests` | PASS | 145/145 tests passed |
+
+### Acceptance Criteria
+- [x] Seluruh 18 emosi dari sticker sheet diekstraksi bersih tanpa label teks pil di bawah.
+- [x] Maskot merespon interaksi hover (`berkedip`), klik (`tertawa`), sedang simpan (`semangat`), selesai simpan (`bangga`), dan pergantian workspace (`sapa_salam`, `siap_membantu`, `penasaran`, `semangat`).
+- [x] Seluruh 18 emosi berotasi secara otomatis pada status idle tanpa pengulangan berurutan.
+- [x] Preferensi `prefers-reduced-motion: reduce` dihormati dengan menonaktifkan rotasi idle dan animasi getar.
+- [x] Fungsi tombol logo (`btn-logo-home`), label aksesibilitas (`Buka Beranda Doc-builder`), dan routing ke `#/home` dipertahankan 100%.
+- [x] Estetika Editorial Paper & Forest Teal dipertahankan tanpa warna ungu/indigo/violet.
+
+### Status
+✅ Selesai dan terverifikasi (`FEATURE-DOCUMENT-MASCOT-001`).

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { axe } from 'vitest-axe'
 import { Navbar } from '../layout/Navbar'
+import { Dashboard } from '../dashboard/Dashboard'
 import { ContactForm } from '../builder/ContactForm'
 import { SummaryForm } from '../builder/SummaryForm'
 import { SkillsForm } from '../builder/SkillsForm'
@@ -27,7 +28,7 @@ const dummyDraft: ResumeDraft = {
   id: '55555555-5555-4555-8555-555555555555',
   title: 'Draft Uji Aksesibilitas',
   templateId: 'ats-clean',
-  colorTheme: '#4338ca',
+  colorTheme: '#0f766e',
   fontFamily: 'sans',
   resumeLanguage: 'id',
   data: {
@@ -76,6 +77,52 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])
+  })
+
+  it('Dashboard bebas pelanggaran aksesibilitas (kondisi kosong & terisi)', async () => {
+    const emptyRender = render(
+      <Dashboard
+        draft={null}
+        draftsList={[]}
+        privateMode={false}
+        onNavigate={vi.fn()}
+        onCreateNewResume={vi.fn()}
+        onOpenImportModal={vi.fn()}
+        onLoadDraft={vi.fn()}
+      />
+    )
+    const emptyResults = await axe(emptyRender.container)
+    expect(emptyResults.violations).toEqual([])
+    emptyRender.unmount()
+
+    const populatedRender = render(
+      <Dashboard
+        draft={dummyDraft}
+        draftsList={[
+          {
+            id: dummyDraft.id,
+            title: dummyDraft.title,
+            templateId: dummyDraft.templateId,
+            createdAt: dummyDraft.createdAt,
+            updatedAt: dummyDraft.updatedAt,
+            favorite: true,
+            targetJobTitle: 'Principal Engineer'
+          }
+        ]}
+        atsScore={92}
+        privateMode={true}
+        storageError="Gagal mengakses penyimpanan lokal browser. Silakan coba lagi."
+        onRetryLoadDrafts={vi.fn()}
+        onNavigate={vi.fn()}
+        onCreateNewResume={vi.fn()}
+        onOpenImportModal={vi.fn()}
+        onLoadDraft={vi.fn()}
+        onOpenAtsScore={vi.fn()}
+        onToggleFavorite={vi.fn()}
+      />
+    )
+    const populatedResults = await axe(populatedRender.container)
+    expect(populatedResults.violations).toEqual([])
   })
 
   it('ContactForm & SummaryForm bebas pelanggaran aksesibilitas', async () => {

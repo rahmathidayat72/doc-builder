@@ -89,17 +89,17 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 animate-fade-in">
+    <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-overlay-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-stone-200 animate-fade-in">
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-3">
+        <div className="flex items-center justify-between border-b border-stone-200 pb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+            <div className="p-2 bg-teal-50 text-teal-800 border border-teal-200 rounded-lg">
               <FileCode className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-800">Konversi DOCX ke PDF</h3>
-              <p className="text-xs text-slate-500">
+              <h3 className="text-base font-bold text-stone-900">Konversi DOCX ke PDF</h3>
+              <p className="text-xs text-stone-600">
                 Ubah dokumen Microsoft Word ke format PDF di sandbox lokal.
               </p>
             </div>
@@ -108,7 +108,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
             type="button"
             onClick={onClose}
             aria-label="Tutup modal konversi Word ke PDF"
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition"
+            className="text-stone-500 hover:text-stone-800 p-1.5 rounded-lg transition"
             data-testid="btn-close-converter"
           >
             <X className="w-5 h-5" />
@@ -120,14 +120,14 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
           <div className="space-y-4">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/20 rounded-xl p-8 text-center cursor-pointer transition space-y-2"
+              className="border-2 border-dashed border-stone-300 hover:border-teal-700 bg-stone-50 hover:bg-teal-50/20 rounded-xl p-8 text-center cursor-pointer transition space-y-2"
               data-testid="dropzone-docx"
             >
-              <Upload className="w-10 h-10 text-indigo-500 mx-auto" />
-              <p className="text-sm font-semibold text-slate-700">
+              <Upload className="w-10 h-10 text-teal-800 mx-auto" />
+              <p className="text-sm font-semibold text-stone-800">
                 {file ? file.name : 'Pilih atau seret berkas Word (.docx) ke sini'}
               </p>
-              <p className="text-xs text-slate-400">Maksimum ukuran 25 MB per berkas</p>
+              <p className="text-xs text-stone-500">Maksimum ukuran 25 MB per berkas</p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -150,7 +150,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
+                className="px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100 rounded-lg transition"
               >
                 Batal
               </button>
@@ -158,7 +158,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
                 type="button"
                 disabled={!file}
                 onClick={handleStartConversion}
-                className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="px-5 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 disabled:opacity-50 rounded-lg transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 data-testid="btn-start-convert"
               >
                 Mulai Konversi
@@ -171,16 +171,16 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
         {isConverting && (
           <div className="py-8 px-4 text-center space-y-4">
             <div className="relative w-16 h-16 mx-auto">
-              <Loader2 className="w-16 h-16 text-indigo-600 animate-spin" />
+              <Loader2 className="w-16 h-16 text-teal-800 animate-spin" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-800">Sedang Memproses Konversi</h4>
-              <p className="text-xs text-slate-500 font-medium">{progressStep}</p>
+              <h4 className="text-sm font-bold text-stone-900">Sedang Memproses Konversi</h4>
+              <p className="text-xs text-stone-600 font-medium">{progressStep}</p>
             </div>
             <button
               type="button"
               onClick={handleCancel}
-              className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg transition"
+              className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-100 border border-stone-200 rounded-lg transition"
             >
               Batalkan
             </button>
@@ -208,14 +208,14 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
                 href="https://www.libreoffice.org/download/download-libreoffice/"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1"
+                className="text-xs font-bold text-teal-800 hover:text-teal-950 flex items-center gap-1"
               >
                 Unduh LibreOffice Gratis <ExternalLink className="w-3.5 h-3.5" />
               </a>
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition"
+                className="px-3 py-1.5 text-xs font-semibold text-stone-800 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg transition"
               >
                 Coba Lagi
               </button>
@@ -226,7 +226,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
         {/* Result: Success */}
         {result?.success && (
           <div className="py-6 px-4 text-center space-y-4 bg-emerald-50/50 border border-emerald-200 rounded-xl">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xs">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-2xs">
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div className="space-y-1">
@@ -239,14 +239,14 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
               <button
                 type="button"
                 onClick={handleReset}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition flex items-center gap-1.5"
+                className="px-4 py-2 text-xs font-semibold text-stone-800 bg-white border border-stone-200 hover:bg-stone-50 rounded-lg transition flex items-center gap-1.5"
               >
                 <RefreshCw className="w-3.5 h-3.5" /> Konversi Berkas Lain
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
+                className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition"
               >
                 Selesai
               </button>

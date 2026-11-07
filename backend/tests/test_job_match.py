@@ -214,3 +214,153 @@ def test_match_resume_experience_and_education_breakdown():
     assert res["score_breakdown"]["education"]["score"] >= 90.0
     assert res["capped_by_required"] is False
     assert res["match_score"] >= 80.0
+
+
+def test_match_resume_with_canonical_frontend_schema():
+    """Memastikan payload canonical frontend (education, achievements, language)
+    berfungsi optimal.
+    """
+    canonical_resume = {
+        "title": "Staff Backend Engineer",
+        "data": {
+            "contact": {
+                "fullName": "Dian Sastro",
+                "headline": "Lead Backend Engineer & Cloud Architect",
+                "email": "dian.sastro@example.com",
+                "phone": "08123456789",
+            },
+            "summary": (
+                "Lead Backend Engineer berpengalaman memimpin microservices "
+                "Python dan Go skala tinggi."
+            ),
+            "experiences": [
+                {
+                    "id": "exp-1",
+                    "jobTitle": "Lead Backend Engineer",
+                    "company": "PT Skala Global",
+                    "startDate": "2020-01",
+                    "endDate": "2024-05",
+                    "achievements": [
+                        (
+                            "Mengembangkan REST API performa tinggi berbasis "
+                            "Python FastAPI dan PostgreSQL."
+                        ),
+                        (
+                            "Mengurangi latensi transaksi hingga 40% menggunakan "
+                            "arsitektur caching Redis."
+                        ),
+                    ],
+                }
+            ],
+            "education": [
+                {
+                    "id": "edu-1",
+                    "institution": "Institut Teknologi Bandung",
+                    "degree": "S1",
+                    "fieldOfStudy": "Teknik Informatika",
+                }
+            ],
+            "skills": [
+                {"id": "1", "name": "Python"},
+                {"id": "2", "name": "FastAPI"},
+                {"id": "3", "name": "PostgreSQL"},
+                {"id": "4", "name": "Redis"},
+            ],
+            "languages": [
+                {"id": "lang-1", "language": "English", "proficiency": "Fluent"},
+                {"id": "lang-2", "language": "Indonesian", "proficiency": "Native"},
+            ],
+        },
+    }
+
+    job_text = """
+    Dibutuhkan Lead Backend Engineer.
+    Kualifikasi Wajib:
+    - Minimal S1 Teknik Informatika atau Ilmu Komputer.
+    - Menguasai Python dan framework FastAPI.
+    - Mahir berbahasa English aktif / fluent.
+    Kualifikasi Tambahan:
+    - Berpengalaman dengan Redis caching dan PostgreSQL.
+    """
+
+    res = match_resume_to_job(canonical_resume, job_text)
+
+    # Verifikasi dimensi pendidikan (canonical 'education')
+    assert res["score_breakdown"]["education"]["status"] == "evaluated"
+    assert res["score_breakdown"]["education"]["score"] >= 90.0
+
+    # Verifikasi dimensi bahasa (canonical 'language')
+    assert res["score_breakdown"]["languages"]["status"] == "evaluated"
+    assert res["score_breakdown"]["languages"]["score"] == 100.0
+
+    # Verifikasi dimensi keahlian & tanggung jawab (dari achievements)
+    assert "python" in res["matched_skills"]
+    assert "fastapi" in res["matched_skills"]
+    assert "redis" in res["matched_skills"]
+    assert res["match_score"] >= 80.0
+    assert res["capped_by_required"] is False
+
+    # Verifikasi via API endpoint
+    client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
+    headers = {CSRF_HEADER_NAME: session_manager.csrf_token, "Origin": "http://localhost:5173"}
+    resp = client.post(
+        "/api/ats/match-job",
+        json={"resume": canonical_resume, "job_text": job_text},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["match_score"] >= 80.0
+    assert data["score_breakdown"]["languages"]["status"] == "evaluated"
+
+
+def test_match_resume_supports_legacy_educations_and_language_name_aliases():
+    """Memastikan payload legacy dengan key 'educations' dan 'name' pada bahasa tetap didukung."""
+    legacy_resume = {
+        "title": "Legacy Backend Engineer",
+        "data": {
+            "contact": {
+                "fullName": "Hendro Pratama",
+                "headline": "Backend Developer",
+            },
+            "summary": "Backend developer handal dengan keahlian Python.",
+            "experiences": [
+                {
+                    "jobTitle": "Backend Developer",
+                    "company": "PT Solusi Kode",
+                    "startDate": "2021-01",
+                    "endDate": "2023-12",
+                    "description": "Membangun sistem API backend dengan Python dan PostgreSQL.",
+                }
+            ],
+            "educations": [
+                {
+                    "degree": "S1",
+                    "fieldOfStudy": "Sistem Informasi",
+                    "school": "Universitas Bina Nusantara",
+                }
+            ],
+            "skills": [
+                {"name": "Python"},
+                {"name": "PostgreSQL"},
+            ],
+            "languages": [
+                {"name": "English", "proficiency": "Professional"},
+            ],
+        },
+    }
+
+    job_text = """
+    Dibutuhkan Backend Developer.
+    Kualifikasi Wajib:
+    - Pendidikan S1 Sistem Informasi atau terkait.
+    - Menguasai Python.
+    - Fasih berbahasa English.
+    """
+
+    res = match_resume_to_job(legacy_resume, job_text)
+    assert res["score_breakdown"]["education"]["status"] == "evaluated"
+    assert res["score_breakdown"]["education"]["score"] >= 90.0
+    assert res["score_breakdown"]["languages"]["status"] == "evaluated"
+    assert res["score_breakdown"]["languages"]["score"] == 100.0
+    assert res["capped_by_required"] is False

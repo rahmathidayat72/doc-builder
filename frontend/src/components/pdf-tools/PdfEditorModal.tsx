@@ -68,7 +68,7 @@ const COLOR_PALETTE = [
   { label: 'Biru', value: '#1e40af' },
   { label: 'Hijau', value: '#047857' },
   { label: 'Kuning', value: '#d97706' },
-  { label: 'Ungu', value: '#7c3aed' },
+  { label: 'Forest Teal', value: '#0f766e' },
   { label: 'Putih', value: '#ffffff' },
 ]
 
@@ -787,29 +787,29 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
   if (!file || pages.length === 0) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/70 backdrop-blur-sm animate-fade-in"
         role="dialog"
         aria-modal="true"
         aria-labelledby="pdf-editor-empty-title"
       >
-        <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+        <div className="bg-white dark:bg-stone-900 w-full max-w-xl rounded-2xl shadow-2xl border border-stone-200 dark:border-stone-800 overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-800/50">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <div className="p-2 rounded-xl bg-teal-50 border border-teal-200 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300">
                 <FileEdit className="w-5 h-5" />
               </div>
               <div>
-                <h2 id="pdf-editor-empty-title" className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                <h2 id="pdf-editor-empty-title" className="font-bold text-stone-900 dark:text-stone-100 text-base">
                   Editor PDF Visual
                 </h2>
-                <p className="text-xs text-slate-500">Edit teks, gambar, tanda tangan, dan halaman PDF</p>
+                <p className="text-xs text-stone-600">Edit teks, gambar, tanda tangan, dan halaman PDF</p>
               </div>
             </div>
             <button
               onClick={onClose}
               data-testid="btn-close-pdf-editor"
               aria-label="Tutup Editor PDF"
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -825,15 +825,15 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
 
             <label
               htmlFor="input-pdf-editor-file"
-              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer bg-slate-50/30 dark:bg-slate-800/30 transition-all group"
+              className="border-2 border-dashed border-stone-300 dark:border-stone-700 hover:border-teal-700 dark:hover:border-teal-400 rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer bg-stone-50 dark:bg-stone-800/30 transition-all group"
             >
-              <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4 group-hover:scale-105 transition-transform">
+              <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 dark:bg-teal-950/60 flex items-center justify-center text-teal-800 dark:text-teal-300 mb-4 group-hover:scale-105 transition-transform">
                 {isLoading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Upload className="w-8 h-8" />}
               </div>
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 text-center mb-1">
+              <span className="text-sm font-semibold text-stone-800 dark:text-stone-200 text-center mb-1">
                 Pilih atau seret berkas PDF ke sini
               </span>
-              <span className="text-xs text-slate-400 text-center">
+              <span className="text-xs text-stone-500 text-center">
                 Mendukung dokumen PDF maksimal 50 MB (tanpa proteksi password)
               </span>
               <input
@@ -860,44 +860,44 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-slate-900 text-slate-100 select-none overflow-hidden animate-fade-in font-sans"
+      className="fixed inset-0 z-50 flex flex-col bg-stone-900 text-stone-100 select-none overflow-hidden animate-fade-in font-sans"
       role="dialog"
       aria-modal="true"
       aria-label="Editor PDF Layar Penuh"
     >
       {/* 1. TOP HEADER TOOLBAR */}
-      <header className="h-14 bg-slate-800/95 border-b border-slate-700 px-4 flex items-center justify-between gap-3 shrink-0 z-20 backdrop-blur">
+      <header className="h-14 bg-stone-800/95 border-b border-stone-700 px-4 flex items-center justify-between gap-3 shrink-0 z-20 backdrop-blur">
         {/* Left: Branding & Page indicator */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onClose}
             data-testid="btn-close-pdf-editor"
             aria-label="Tutup Editor PDF"
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700/60 transition-colors"
+            className="p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-stone-700/60 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2 truncate">
             <span className="font-bold text-sm tracking-tight text-white hidden sm:inline">Editor PDF Visual</span>
-            <span className="text-xs text-slate-400 truncate max-w-[150px] sm:max-w-[220px]" title={file.name}>
+            <span className="text-xs text-stone-400 truncate max-w-[150px] sm:max-w-[220px]" title={file.name}>
               {file.name}
             </span>
-            <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-indigo-300">
+            <span className="text-2xs font-semibold px-2 py-0.5 rounded-full bg-stone-700 text-teal-300">
               Halaman {selectedIndex + 1} dari {pages.length}
             </span>
-            <span className="text-2xs text-slate-400 hidden md:inline">
+            <span className="text-2xs text-stone-400 hidden md:inline">
               (Rotasi: {currentPage ? currentPage.rotation : 0}°)
             </span>
           </div>
         </div>
 
         {/* Center: Tools Toolbar */}
-        <div className="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/80">
+        <div className="flex items-center gap-1 bg-stone-900/60 p-1 rounded-xl border border-stone-700/80">
           <button
             onClick={() => setActiveTool('select')}
             aria-label="Mode Pilih / Kursor"
             className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-              activeTool === 'select' ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              activeTool === 'select' ? 'bg-teal-800 text-white' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
             <MousePointer className="w-4 h-4" />
@@ -912,17 +912,17 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             data-testid="btn-toggle-add-text"
             aria-label="Tambah Teks"
             className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${
-              showAddText ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              showAddText ? 'bg-teal-800 text-white' : 'text-stone-300 hover:bg-stone-800'
             }`}
           >
-            <Type className="w-4 h-4 text-indigo-400" />
+            <Type className="w-4 h-4 text-teal-400" />
             <span className="hidden md:inline">Teks</span>
           </button>
 
           <button
             onClick={() => imageInputRef.current?.click()}
             aria-label="Unggah Gambar"
-            className="p-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 flex items-center gap-1.5 transition-colors"
+            className="p-2 rounded-lg text-xs font-medium text-stone-300 hover:bg-stone-800 flex items-center gap-1.5 transition-colors"
           >
             <ImageIcon className="w-4 h-4 text-emerald-400" />
             <span className="hidden md:inline">Gambar</span>
@@ -938,7 +938,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           <button
             onClick={() => setShowDrawModal(true)}
             aria-label="Coret Bebas"
-            className="p-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 flex items-center gap-1.5 transition-colors"
+            className="p-2 rounded-lg text-xs font-medium text-stone-300 hover:bg-stone-800 flex items-center gap-1.5 transition-colors"
           >
             <PenTool className="w-4 h-4 text-amber-400" />
             <span className="hidden md:inline">Coret</span>
@@ -947,13 +947,13 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           <button
             onClick={() => setShowSignModal(true)}
             aria-label="Tanda Tangan"
-            className="p-2 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 flex items-center gap-1.5 transition-colors"
+            className="p-2 rounded-lg text-xs font-medium text-stone-300 hover:bg-stone-800 flex items-center gap-1.5 transition-colors"
           >
             <FileEdit className="w-4 h-4 text-rose-400" />
             <span className="hidden md:inline">Tanda Tangan</span>
           </button>
 
-          <div className="w-px h-5 bg-slate-700 mx-1" />
+          <div className="w-px h-5 bg-stone-700 mx-1" />
 
           {/* Undo / Redo */}
           <button
@@ -961,7 +961,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             disabled={historyIndex <= 0}
             data-testid="btn-undo"
             aria-label="Urungkan (Undo)"
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="p-2 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <Undo2 className="w-4 h-4" />
           </button>
@@ -970,7 +970,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             disabled={historyIndex >= history.length - 1}
             data-testid="btn-redo"
             aria-label="Ulangi (Redo)"
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:hover:bg-transparent"
+            className="p-2 rounded-lg text-stone-400 hover:text-white hover:bg-stone-800 disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <Redo2 className="w-4 h-4" />
           </button>
@@ -979,12 +979,12 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
         {/* Right: Page actions & Drawer toggles */}
         <div className="flex items-center gap-2">
           {/* Page tools quick pill */}
-          <div className="hidden lg:flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/80">
+          <div className="hidden lg:flex items-center gap-1 bg-stone-900/60 p-1 rounded-xl border border-stone-700/80">
             <button
               onClick={rotateCurrentPage}
               data-testid="btn-rotate-page"
               aria-label="Putar Halaman 90 Derajat"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition-colors"
               title="Putar Halaman 90°"
             >
               <RotateCw className="w-4 h-4" />
@@ -993,7 +993,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               onClick={duplicateCurrentPage}
               data-testid="btn-duplicate-page"
               aria-label="Duplikasi Halaman"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition-colors"
               title="Duplikasi Halaman"
             >
               <Copy className="w-4 h-4" />
@@ -1003,7 +1003,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               disabled={pages.length <= 1}
               data-testid="btn-delete-page"
               aria-label="Hapus Halaman"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-slate-800 disabled:opacity-30 disabled:hover:text-slate-300 transition-colors"
+              className="p-1.5 rounded-lg text-stone-300 hover:text-rose-400 hover:bg-stone-800 disabled:opacity-30 disabled:hover:text-stone-300 transition-colors"
               title="Hapus Halaman"
             >
               <Trash2 className="w-4 h-4" />
@@ -1015,7 +1015,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             onClick={() => setShowLeftSidebar(prev => !prev)}
             aria-label="Buka / Tutup Daftar Halaman"
             className={`p-2 rounded-lg border text-xs lg:hidden ${
-              showLeftSidebar ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300'
+              showLeftSidebar ? 'bg-teal-800 border-teal-700 text-white' : 'border-stone-700 text-stone-300'
             }`}
           >
             Halaman
@@ -1024,7 +1024,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             onClick={() => setShowRightSidebar(prev => !prev)}
             aria-label="Buka / Tutup Panel Layer"
             className={`p-2 rounded-lg border text-xs lg:hidden ${
-              showRightSidebar ? 'bg-indigo-600 border-indigo-500 text-white' : 'border-slate-700 text-slate-300'
+              showRightSidebar ? 'bg-teal-800 border-teal-700 text-white' : 'border-stone-700 text-stone-300'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -1060,18 +1060,18 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
       <div className="flex-1 flex overflow-hidden relative">
         {/* LEFT COLUMN: Page Filmstrip Sidebar */}
         <aside
-          className={`w-56 bg-slate-800/80 border-r border-slate-700 flex flex-col shrink-0 transition-all duration-200 z-10 ${
+          className={`w-56 bg-stone-800/80 border-r border-stone-700 flex flex-col shrink-0 transition-all duration-200 z-10 ${
             showLeftSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 hidden lg:flex'
           }`}
         >
-          <div className="p-3 border-b border-slate-700 flex items-center justify-between text-xs font-semibold text-slate-300">
+          <div className="p-3 border-b border-stone-700 flex items-center justify-between text-xs font-semibold text-stone-300">
             <span>Daftar Halaman ({pages.length})</span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => moveCurrentPage('up')}
                 disabled={selectedIndex <= 0}
                 aria-label="Pindahkan Halaman ke Atas"
-                className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
+                className="p-1 hover:bg-stone-700 rounded disabled:opacity-30"
               >
                 <ChevronUp className="w-3.5 h-3.5" />
               </button>
@@ -1079,7 +1079,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 onClick={() => moveCurrentPage('down')}
                 disabled={selectedIndex >= pages.length - 1}
                 aria-label="Pindahkan Halaman ke Bawah"
-                className="p-1 hover:bg-slate-700 rounded disabled:opacity-30"
+                className="p-1 hover:bg-stone-700 rounded disabled:opacity-30"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
@@ -1097,16 +1097,16 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 }}
                 className={`relative group rounded-xl p-2 cursor-pointer transition-all border text-left ${
                   idx === selectedIndex
-                    ? 'border-indigo-500 bg-indigo-950/40 shadow-lg ring-2 ring-indigo-500/30'
-                    : 'border-slate-700 hover:border-slate-500 bg-slate-900/40'
+                    ? 'border-teal-500 bg-teal-950/40 shadow-lg ring-2 ring-teal-500/30'
+                    : 'border-stone-700 hover:border-stone-500 bg-stone-900/40'
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-2xs font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded">
+                  <span className="text-2xs font-bold text-stone-300 bg-stone-800 px-1.5 py-0.5 rounded">
                     Hal {idx + 1}
                   </span>
                   {p.overlays.length > 0 && (
-                    <span className="text-3xs font-semibold px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+                    <span className="text-3xs font-semibold px-1.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300">
                       {p.overlays.length} elemen
                     </span>
                   )}
@@ -1120,11 +1120,11 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                     style={{ transform: `rotate(${p.rotation}deg)` }}
                   />
                   {p.overlays.length > 0 && (
-                    <div className="absolute inset-0 bg-indigo-500/10 pointer-events-none" />
+                    <div className="absolute inset-0 bg-teal-500/10 pointer-events-none" />
                   )}
                 </div>
 
-                <div className="mt-1 flex items-center justify-between text-3xs text-slate-400">
+                <div className="mt-1 flex items-center justify-between text-3xs text-stone-400">
                   <span>{p.rotation}°</span>
                   <span>
                     {Math.round(p.width)}×{Math.round(p.height)}
@@ -1137,7 +1137,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
 
         {/* CENTER COLUMN: High-Resolution Interactive Canvas Stage */}
         <main
-          className="flex-1 bg-slate-950 flex flex-col items-center justify-center overflow-auto p-4 sm:p-8 relative"
+          className="flex-1 bg-stone-950 flex flex-col items-center justify-center overflow-auto p-4 sm:p-8 relative"
           onClick={() => setSelectedOverlayId(null)}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -1174,8 +1174,8 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                       onPointerDown={e => handlePointerDown(e, overlay, 'move')}
                       className={`absolute pointer-events-auto cursor-move select-none group transition-shadow ${
                         isSelected
-                          ? 'ring-2 ring-indigo-500 bg-indigo-500/10 shadow-lg z-30'
-                          : 'hover:ring-1 hover:ring-indigo-400/60 z-10'
+                          ? 'ring-2 ring-teal-600 bg-teal-500/10 shadow-lg z-30'
+                          : 'hover:ring-1 hover:ring-teal-500/60 z-10'
                       }`}
                       style={{
                         left: `${overlay.xRatio * 100}%`,
@@ -1211,19 +1211,19 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                         <>
                           <div
                             onPointerDown={e => handlePointerDown(e, overlay, 'nw')}
-                            className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-nw-resize z-40"
+                            className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-teal-700 rounded-full cursor-nw-resize z-40"
                           />
                           <div
                             onPointerDown={e => handlePointerDown(e, overlay, 'ne')}
-                            className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-ne-resize z-40"
+                            className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-teal-700 rounded-full cursor-ne-resize z-40"
                           />
                           <div
                             onPointerDown={e => handlePointerDown(e, overlay, 'se')}
-                            className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-se-resize z-40"
+                            className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-white border-2 border-teal-700 rounded-full cursor-se-resize z-40"
                           />
                           <div
                             onPointerDown={e => handlePointerDown(e, overlay, 'sw')}
-                            className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-indigo-600 rounded-full cursor-sw-resize z-40"
+                            className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-white border-2 border-teal-700 rounded-full cursor-sw-resize z-40"
                           />
                         </>
                       )}
@@ -1235,27 +1235,27 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           )}
 
           {/* Floating Zoom and Stage Controls */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800/90 border border-slate-700/80 rounded-full px-4 py-1.5 shadow-xl flex items-center gap-3 backdrop-blur z-20">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-stone-800/90 border border-stone-700/80 rounded-full px-4 py-1.5 shadow-xl flex items-center gap-3 backdrop-blur z-20">
             <button
               onClick={() => setZoom(prev => Math.max(40, prev - 15))}
               aria-label="Perkecil Kanvas"
-              className="p-1 text-slate-300 hover:text-white rounded-full hover:bg-slate-700/60"
+              className="p-1 text-stone-300 hover:text-white rounded-full hover:bg-stone-700/60"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
-            <span className="text-xs font-semibold text-slate-200 min-w-[40px] text-center">{zoom}%</span>
+            <span className="text-xs font-semibold text-stone-200 min-w-[40px] text-center">{zoom}%</span>
             <button
               onClick={() => setZoom(prev => Math.min(200, prev + 15))}
               aria-label="Perbesar Kanvas"
-              className="p-1 text-slate-300 hover:text-white rounded-full hover:bg-slate-700/60"
+              className="p-1 text-stone-300 hover:text-white rounded-full hover:bg-stone-700/60"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
-            <div className="w-px h-4 bg-slate-700" />
+            <div className="w-px h-4 bg-stone-700" />
             <button
               onClick={() => setZoom(100)}
               aria-label="Pas Halaman"
-              className="text-2xs font-semibold text-slate-300 hover:text-white px-2 py-0.5 rounded hover:bg-slate-700/60"
+              className="text-2xs font-semibold text-stone-300 hover:text-white px-2 py-0.5 rounded hover:bg-stone-700/60"
             >
               Fit
             </button>
@@ -1264,15 +1264,15 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
 
         {/* RIGHT COLUMN: Layers & Properties Panel ("Edit PDF") */}
         <aside
-          className={`w-72 bg-slate-800/95 border-l border-slate-700 flex flex-col shrink-0 transition-all duration-200 z-10 ${
+          className={`w-72 bg-stone-800/95 border-l border-stone-700 flex flex-col shrink-0 transition-all duration-200 z-10 ${
             showRightSidebar ? 'translate-x-0' : 'translate-x-full lg:translate-x-0 hidden lg:flex'
           }`}
         >
           {/* Header */}
-          <div className="p-3.5 border-b border-slate-700 flex items-center justify-between">
+          <div className="p-3.5 border-b border-stone-700 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              <h3 className="font-bold text-xs tracking-wider uppercase text-slate-200">Edit PDF</h3>
+              <Layers className="w-4 h-4 text-teal-400" />
+              <h3 className="font-bold text-xs tracking-wider uppercase text-stone-200">Edit PDF</h3>
             </div>
             {currentPage && currentPage.overlays.length > 0 && (
               <button
@@ -1289,10 +1289,10 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
             {/* 1. Element Inspector (if selected) */}
             {selectedOverlay ? (
-              <div className="bg-slate-900/70 border border-slate-700 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="bg-stone-900/70 border border-stone-700 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-stone-800 pb-2">
                   <div className="flex items-center gap-2">
-                    {selectedOverlay.type === 'text' && <Type className="w-4 h-4 text-indigo-400" />}
+                    {selectedOverlay.type === 'text' && <Type className="w-4 h-4 text-teal-400" />}
                     {selectedOverlay.type === 'image' && <ImageIcon className="w-4 h-4 text-emerald-400" />}
                     {selectedOverlay.type === 'drawing' && <PenTool className="w-4 h-4 text-amber-400" />}
                     {selectedOverlay.type === 'signature' && <FileEdit className="w-4 h-4 text-rose-400" />}
@@ -1301,7 +1301,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                   <button
                     onClick={() => removeOverlay(selectedOverlay.id)}
                     aria-label="Hapus Elemen Terpilih"
-                    className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded"
+                    className="p-1 text-stone-400 hover:text-rose-400 hover:bg-stone-800 rounded"
                     title="Hapus elemen"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1312,7 +1312,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 {selectedOverlay.type === 'text' && (
                   <div className="space-y-3">
                     <div>
-                      <label htmlFor="input-edit-overlay-text" className="block text-2xs text-slate-400 mb-1">
+                      <label htmlFor="input-edit-overlay-text" className="block text-2xs text-stone-400 mb-1">
                         Isi Teks
                       </label>
                       <textarea
@@ -1320,12 +1320,12 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                         value={selectedOverlay.text || ''}
                         onChange={e => updateSelectedOverlay({ text: e.target.value })}
                         onBlur={commitOverlayUpdate}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none h-16"
+                        className="w-full bg-stone-950 border border-stone-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-teal-500 focus:outline-none resize-none h-16"
                       />
                     </div>
 
                     <div>
-                      <label htmlFor="select-edit-overlay-font-size" className="block text-2xs text-slate-400 mb-1">
+                      <label htmlFor="select-edit-overlay-font-size" className="block text-2xs text-stone-400 mb-1">
                         Ukuran Font
                       </label>
                       <select
@@ -1335,7 +1335,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                           updateSelectedOverlay({ fontSize: Number(e.target.value) })
                           commitOverlayUpdate()
                         }}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
+                        className="w-full bg-stone-950 border border-stone-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none"
                       >
                         {FONT_SIZES.map(sz => (
                           <option key={sz} value={sz}>
@@ -1346,7 +1346,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                     </div>
 
                     <div>
-                      <span className="block text-2xs text-slate-400 mb-1.5">Warna Teks</span>
+                      <span className="block text-2xs text-stone-400 mb-1.5">Warna Teks</span>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {COLOR_PALETTE.map(c => (
                           <button
@@ -1357,7 +1357,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                               commitOverlayUpdate()
                             }}
                             className={`w-5 h-5 rounded-full border transition-transform ${
-                              selectedOverlay.color === c.value ? 'scale-125 border-indigo-400 ring-2 ring-indigo-500' : 'border-slate-600'
+                              selectedOverlay.color === c.value ? 'scale-125 border-teal-400 ring-2 ring-teal-500' : 'border-stone-600'
                             }`}
                             style={{ backgroundColor: c.value }}
                             title={c.label}
@@ -1369,18 +1369,18 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 )}
 
                 {/* Z-Index Controls */}
-                <div className="pt-2 border-t border-slate-800">
-                  <span className="block text-2xs text-slate-400 mb-1.5">Urutan Layer</span>
+                <div className="pt-2 border-t border-stone-800">
+                  <span className="block text-2xs text-stone-400 mb-1.5">Urutan Layer</span>
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       onClick={() => moveOverlayZIndex('forward')}
-                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-2xs font-medium flex items-center justify-center gap-1"
+                      className="px-2 py-1 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded text-2xs font-medium flex items-center justify-center gap-1"
                     >
                       <ChevronUp className="w-3 h-3" /> Maju
                     </button>
                     <button
                       onClick={() => moveOverlayZIndex('backward')}
-                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-2xs font-medium flex items-center justify-center gap-1"
+                      className="px-2 py-1 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded text-2xs font-medium flex items-center justify-center gap-1"
                     >
                       <ChevronDown className="w-3 h-3" /> Mundur
                     </button>
@@ -1388,8 +1388,8 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 </div>
               </div>
             ) : (
-              <div className="p-3 bg-slate-900/40 border border-dashed border-slate-700 rounded-xl text-center">
-                <p className="text-2xs text-slate-400">
+              <div className="p-3 bg-stone-900/40 border border-dashed border-stone-700 rounded-xl text-center">
+                <p className="text-2xs text-stone-400">
                   Klik elemen di kanvas atau daftar di bawah untuk menyunting posisi dan atributnya.
                 </p>
               </div>
@@ -1397,12 +1397,12 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
 
             {/* 2. Layers List */}
             <div className="space-y-2">
-              <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider">
+              <span className="text-2xs font-semibold text-stone-400 uppercase tracking-wider">
                 Lapisan Halaman ({currentPage ? currentPage.overlays.length : 0})
               </span>
 
               {currentPage && currentPage.overlays.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-500">
+                <div className="py-8 text-center text-xs text-stone-500">
                   Belum ada elemen tambahan.
                   <br />
                   Gunakan toolbar atas untuk menambahkan.
@@ -1415,12 +1415,12 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                       onClick={() => setSelectedOverlayId(item.id)}
                       className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs border transition-all ${
                         item.id === selectedOverlayId
-                          ? 'bg-indigo-900/40 border-indigo-500 text-white shadow-sm'
-                          : 'bg-slate-900/50 border-slate-700/80 text-slate-300 hover:border-slate-600'
+                          ? 'bg-teal-900/40 border-teal-500 text-white shadow-sm'
+                          : 'bg-stone-900/50 border-stone-700/80 text-stone-300 hover:border-stone-600'
                       }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        {item.type === 'text' && <Type className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                        {item.type === 'text' && <Type className="w-3.5 h-3.5 text-teal-400 shrink-0" />}
                         {item.type === 'image' && <ImageIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
                         {item.type === 'drawing' && <PenTool className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
                         {item.type === 'signature' && <FileEdit className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
@@ -1433,7 +1433,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                             removeOverlay(item.id)
                           }}
                           aria-label={`Hapus ${item.name}`}
-                          className="p-1 text-slate-400 hover:text-rose-400 rounded"
+                          className="p-1 text-stone-400 hover:text-rose-400 rounded"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -1446,7 +1446,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           </div>
 
           {/* Bottom Action: Big Red CTA "Terapkan & Unduh PDF" like iLovePDF */}
-          <div className="p-4 border-t border-slate-700 bg-slate-850">
+          <div className="p-4 border-t border-stone-700 bg-stone-850">
             <button
               onClick={handleApplyAndDownload}
               disabled={isApplying}
@@ -1475,15 +1475,15 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
       {/* Modal: Tambah Teks */}
       {showAddText && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm animate-fade-in"
           role="dialog"
           aria-modal="true"
           aria-labelledby="title-add-text-dialog"
         >
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 shadow-2xl text-slate-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-md p-5 shadow-2xl text-stone-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2">
-                <Type className="w-4 h-4 text-indigo-400" />
+                <Type className="w-4 h-4 text-teal-400" />
                 <h3 id="title-add-text-dialog" className="text-sm font-bold text-white">
                   Tambahkan Teks ke Halaman {selectedIndex + 1}
                 </h3>
@@ -1491,14 +1491,14 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               <button
                 onClick={() => setShowAddText(false)}
                 aria-label="Tutup Dialog Tambah Teks"
-                className="text-slate-400 hover:text-white"
+                className="text-stone-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div>
-              <label htmlFor="input-new-text" className="block text-2xs text-slate-400 mb-1 font-medium">
+              <label htmlFor="input-new-text" className="block text-2xs text-stone-400 mb-1 font-medium">
                 Teks yang akan disematkan
               </label>
               <input
@@ -1508,21 +1508,21 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 value={newText}
                 onChange={e => setNewText(e.target.value)}
                 placeholder="Contoh: Disetujui Manajer"
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
                 autoFocus
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="select-font-size" className="block text-2xs text-slate-400 mb-1">
+                <label htmlFor="select-font-size" className="block text-2xs text-stone-400 mb-1">
                   Ukuran Font
                 </label>
                 <select
                   id="select-font-size"
                   value={fontSize}
                   onChange={e => setFontSize(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                 >
                   {FONT_SIZES.map(sz => (
                     <option key={sz} value={sz}>
@@ -1533,14 +1533,14 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               </div>
 
               <div>
-                <label htmlFor="select-text-position" className="block text-2xs text-slate-400 mb-1">
+                <label htmlFor="select-text-position" className="block text-2xs text-stone-400 mb-1">
                   Posisi Awal
                 </label>
                 <select
                   id="select-text-position"
                   value={textPosition}
                   onChange={e => setTextPosition(e.target.value as 'top' | 'center' | 'bottom')}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  className="w-full bg-stone-950 border border-stone-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                 >
                   <option value="top">Atas Halaman</option>
                   <option value="center">Tengah Halaman</option>
@@ -1550,7 +1550,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             </div>
 
             <div>
-              <span className="block text-2xs text-slate-400 mb-1.5">Pilihan Warna</span>
+              <span className="block text-2xs text-stone-400 mb-1.5">Pilihan Warna</span>
               <div className="flex items-center gap-2">
                 {COLOR_PALETTE.map(c => (
                   <button
@@ -1558,7 +1558,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                     type="button"
                     onClick={() => setTextColor(c.value)}
                     className={`w-6 h-6 rounded-full border transition-transform ${
-                      textColor === c.value ? 'scale-125 border-indigo-400 ring-2 ring-indigo-500' : 'border-slate-600'
+                      textColor === c.value ? 'scale-125 border-teal-400 ring-2 ring-teal-500' : 'border-stone-600'
                     }`}
                     style={{ backgroundColor: c.value }}
                     title={c.label}
@@ -1567,11 +1567,11 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
               <button
                 type="button"
                 onClick={() => setShowAddText(false)}
-                className="px-3 py-2 text-xs text-slate-400 hover:text-white rounded-xl"
+                className="px-3 py-2 text-xs text-stone-400 hover:text-white rounded-xl"
               >
                 Batal
               </button>
@@ -1580,7 +1580,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 onClick={handleSaveTextOverlay}
                 disabled={!newText.trim()}
                 data-testid="btn-save-text-overlay"
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors shadow-md shadow-indigo-900/30"
+                className="px-4 py-2 bg-teal-800 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors shadow-md shadow-teal-950/30"
               >
                 Tambahkan Teks
               </button>
@@ -1592,13 +1592,13 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
       {/* Modal: Coret Bebas */}
       {showDrawModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-sm animate-fade-in"
           role="dialog"
           aria-modal="true"
           aria-labelledby="title-draw-dialog"
         >
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-5 shadow-2xl text-slate-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl w-full max-w-lg p-5 shadow-2xl text-stone-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
               <div className="flex items-center gap-2">
                 <PenTool className="w-4 h-4 text-amber-400" />
                 <h3 id="title-draw-dialog" className="text-sm font-bold text-white">
@@ -1608,14 +1608,14 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               <button
                 onClick={() => setShowDrawModal(false)}
                 aria-label="Tutup Dialog Coret Bebas"
-                className="text-slate-400 hover:text-white"
+                className="text-stone-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Drawing Canvas */}
-            <div className="bg-white rounded-xl overflow-hidden border-2 border-dashed border-slate-600 flex items-center justify-center relative">
+            <div className="bg-white rounded-xl overflow-hidden border-2 border-dashed border-stone-600 flex items-center justify-center relative">
               <canvas
                 ref={drawCanvasRef}
                 width={450}
@@ -1628,7 +1628,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                 data-testid="canvas-drawing"
               />
               {!hasDrawn && (
-                <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400 pointer-events-none select-none">
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-stone-400 pointer-events-none select-none">
                   Sentuh atau seret mouse untuk membuat coretan
                 </div>
               )}
@@ -1637,7 +1637,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
             {/* Brush Controls */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-2xs text-slate-400">Warna:</span>
+                <span className="text-2xs text-stone-400">Warna:</span>
                 <div className="flex items-center gap-1.5">
                   {COLOR_PALETTE.slice(0, 5).map(c => (
                     <button
@@ -1645,7 +1645,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
                       type="button"
                       onClick={() => setDrawColor(c.value)}
                       className={`w-5 h-5 rounded-full border ${
-                        drawColor === c.value ? 'scale-125 ring-2 ring-indigo-400' : 'border-slate-600'
+                        drawColor === c.value ? 'scale-125 ring-2 ring-teal-400' : 'border-stone-600'
                       }`}
                       style={{ backgroundColor: c.value }}
                     />
@@ -1654,12 +1654,12 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-2xs text-slate-400">Tebal:</span>
+                <span className="text-2xs text-stone-400">Tebal:</span>
                 <select
                   value={brushWidth}
                   onChange={e => setBrushWidth(Number(e.target.value))}
                   aria-label="Pilih ketebalan kuas"
-                  className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white"
+                  className="bg-stone-950 border border-stone-700 rounded-lg px-2 py-1 text-xs text-white"
                 >
                   <option value={2}>Tipis (2px)</option>
                   <option value={4}>Sedang (4px)</option>
@@ -1670,17 +1670,17 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
               <button
                 type="button"
                 onClick={clearDrawCanvas}
-                className="text-xs text-slate-400 hover:text-rose-400"
+                className="text-xs text-stone-400 hover:text-rose-400"
               >
                 Bersihkan
               </button>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-800">
               <button
                 type="button"
                 onClick={() => setShowDrawModal(false)}
-                className="px-3 py-2 text-xs text-slate-400 hover:text-white rounded-xl"
+                className="px-3 py-2 text-xs text-stone-400 hover:text-white rounded-xl"
               >
                 Batal
               </button>

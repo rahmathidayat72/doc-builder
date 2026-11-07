@@ -69,7 +69,7 @@ describe('CV Builder Form Components & Live Preview', () => {
       id: '55555555-5555-4555-8555-555555555555',
       title: 'Draft Uji Pratinjau',
       templateId: 'ats-clean',
-      colorTheme: '#4338ca',
+      colorTheme: '#0f766e',
       fontFamily: 'sans',
       resumeLanguage: 'id',
       data: {

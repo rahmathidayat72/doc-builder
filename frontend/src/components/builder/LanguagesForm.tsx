@@ -34,20 +34,20 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
 
   return (
     <div className="space-y-4">
-      <div className="border-b pb-2 flex items-center justify-between">
+      <div className="border-b border-stone-200 pb-2 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <Languages className="w-5 h-5 text-indigo-600" />
+          <h3 className="text-lg font-semibold text-stone-900 flex items-center gap-2">
+            <Languages className="w-5 h-5 text-teal-800" />
             Kemampuan Bahasa
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-stone-600">
             Cantumkan bahasa yang dikuasai beserta tingkat kemahiran.
           </p>
         </div>
         <button
           type="button"
           onClick={handleAdd}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-800 hover:bg-teal-900 rounded-lg transition shadow-2xs"
         >
           <Plus className="w-3.5 h-3.5" />
           Tambah Bahasa
@@ -55,12 +55,12 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
       </div>
 
       {languages.length === 0 ? (
-        <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-          <p className="text-xs text-slate-400 font-medium">Belum ada bahasa ditambahkan.</p>
+        <div className="text-center py-6 border-2 border-dashed border-stone-200 rounded-xl bg-stone-50">
+          <p className="text-xs text-stone-500 font-medium">Belum ada bahasa ditambahkan.</p>
           <button
             type="button"
             onClick={handleAdd}
-            className="mt-1 text-xs text-indigo-600 font-semibold"
+            className="mt-1 text-xs text-teal-800 hover:text-teal-950 font-semibold"
           >
             + Tambah Bahasa
           </button>
@@ -70,7 +70,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
           {languages.map(lang => (
             <div
               key={lang.id}
-              className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 bg-white border border-slate-200 rounded-lg shadow-2xs transition-colors hover:border-slate-300 animate-fade-up"
+              className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 bg-white border border-stone-200 rounded-lg shadow-2xs transition-colors hover:border-stone-300 animate-fade-up"
             >
               <input
                 type="text"
@@ -78,14 +78,14 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
                 aria-label="Nama Bahasa"
                 value={lang.language}
                 onChange={e => handleUpdate(lang.id, 'language', e.target.value)}
-                className="min-w-44 flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                className="min-w-44 flex-1 px-3 py-1.5 text-sm border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-700 outline-none transition"
               />
 
               <select
                 value={lang.proficiency}
                 aria-label="Tingkat Kemahiran Bahasa"
                 onChange={e => handleUpdate(lang.id, 'proficiency', e.target.value)}
-                className="flex-1 sm:flex-none px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                className="flex-1 sm:flex-none px-3 py-1.5 text-xs border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-teal-700 outline-none transition"
               >
                 <option value="Native / Bilingual">Penutur Asli (Native)</option>
                 <option value="Professional">Tingkat Profesional (Fluent)</option>
@@ -97,7 +97,7 @@ export const LanguagesForm: React.FC<LanguagesFormProps> = ({ languages, onChang
                 type="button"
                 onClick={() => handleDelete(lang.id)}
                 aria-label="Hapus Bahasa"
-                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition"
+                className="text-stone-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

@@ -81,20 +81,20 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 border-b pb-2">
+      <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-2">
         <div>
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-800">
-            <Layers3 className="h-5 w-5 text-indigo-600" />
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-stone-900">
+            <Layers3 className="h-5 w-5 text-teal-800" />
             Bagian Lain
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-stone-600">
             Proyek, sertifikasi, organisasi, penghargaan, atau bagian tambahan lain.
           </p>
         </div>
         <button
           type="button"
           onClick={addSection}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-teal-800 px-3 py-1.5 text-xs font-medium text-white shadow-2xs transition hover:bg-teal-900"
           data-testid="btn-add-custom-section"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -103,13 +103,13 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
       </div>
 
       {sections.length === 0 ? (
-        <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-8 text-center">
-          <Layers3 className="mx-auto mb-2 h-8 w-8 text-slate-400" />
-          <p className="text-xs font-medium text-slate-500">Belum ada bagian tambahan.</p>
+        <div className="rounded-xl border-2 border-dashed border-stone-200 bg-stone-50 py-8 text-center">
+          <Layers3 className="mx-auto mb-2 h-8 w-8 text-stone-400" />
+          <p className="text-xs font-medium text-stone-600">Belum ada bagian tambahan.</p>
           <button
             type="button"
             onClick={addSection}
-            className="mt-2 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+            className="mt-2 text-xs font-semibold text-teal-800 hover:text-teal-950"
           >
             + Tambah Bagian Pertama
           </button>
@@ -119,18 +119,18 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
           {sections.map((section, sectionIndex) => (
             <section
               key={section.id}
-              className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="space-y-3 rounded-xl border border-stone-200 bg-white p-4 shadow-2xs"
               data-testid={`custom-section-${sectionIndex}`}
             >
               <div className="flex items-end gap-2">
-                <label className="flex-1 text-xs font-medium text-slate-700">
+                <label className="flex-1 text-xs font-medium text-stone-700">
                   Nama Bagian
                   <input
                     type="text"
                     value={section.sectionTitle}
                     onChange={event => updateSection(section.id, event.target.value)}
                     placeholder="Contoh: Sertifikasi atau Proyek"
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-teal-700"
                     data-testid={`input-custom-section-title-${sectionIndex}`}
                   />
                 </label>
@@ -138,7 +138,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                   type="button"
                   onClick={() => deleteSection(section.id)}
                   aria-label={`Hapus bagian ${section.sectionTitle || sectionIndex + 1}`}
-                  className="rounded p-2 text-slate-400 transition hover:text-red-600"
+                  className="rounded p-2 text-stone-400 transition hover:text-red-600"
                   data-testid={`btn-delete-custom-section-${sectionIndex}`}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -149,18 +149,18 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                 {section.items.map((item, itemIndex) => (
                   <div
                     key={item.id}
-                    className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                    className="space-y-2 rounded-lg border border-stone-200 bg-stone-50 p-3"
                     data-testid={`custom-item-${sectionIndex}-${itemIndex}`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-600">
+                      <span className="text-xs font-semibold text-stone-700">
                         Item #{itemIndex + 1}
                       </span>
                       <button
                         type="button"
                         onClick={() => deleteItem(section.id, item.id)}
                         aria-label={`Hapus item ${itemIndex + 1}`}
-                        className="rounded p-1 text-slate-400 transition hover:text-red-600"
+                        className="rounded p-1 text-stone-400 transition hover:text-red-600"
                         data-testid={`btn-delete-custom-item-${sectionIndex}-${itemIndex}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -175,7 +175,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                         }
                         placeholder="Judul item"
                         aria-label={`Judul item ${itemIndex + 1}`}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-teal-700"
                       />
                       <input
                         type="text"
@@ -185,7 +185,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                         }
                         placeholder="Penerbit, organisasi, atau subjudul"
                         aria-label={`Subjudul item ${itemIndex + 1}`}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-teal-700"
                       />
                       <input
                         type="text"
@@ -195,7 +195,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                         }
                         placeholder="Tanggal atau periode"
                         aria-label={`Tanggal item ${itemIndex + 1}`}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500 sm:col-span-2"
+                        className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-teal-700 sm:col-span-2"
                       />
                     </div>
                     <textarea
@@ -206,7 +206,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
                       }
                       placeholder="Deskripsi atau detail penting"
                       aria-label={`Deskripsi item ${itemIndex + 1}`}
-                      className="w-full rounded-lg border border-slate-300 p-2.5 text-xs leading-relaxed outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full rounded-lg border border-stone-300 bg-white p-2.5 text-xs leading-relaxed outline-none focus:ring-2 focus:ring-teal-700"
                     />
                   </div>
                 ))}
@@ -215,7 +215,7 @@ export const CustomSectionsForm: React.FC<CustomSectionsFormProps> = ({ sections
               <button
                 type="button"
                 onClick={() => addItem(section.id)}
-                className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                className="flex items-center gap-1 text-xs font-semibold text-teal-800 hover:text-teal-950"
                 data-testid={`btn-add-custom-item-${sectionIndex}`}
               >
                 <Plus className="h-3.5 w-3.5" />

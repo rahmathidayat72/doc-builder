@@ -15,7 +15,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Plus,
   Settings,
   Layers,
@@ -58,7 +57,7 @@ export interface SignOverlayItem {
 export const SIGNER_PALETTE: { color: string; label: string }[] = [
   { color: '#2563eb', label: 'Biru' },
   { color: '#047857', label: 'Hijau' },
-  { color: '#6d28d9', label: 'Ungu' },
+  { color: '#0f766e', label: 'Forest Teal' },
   { color: '#b45309', label: 'Jingga' },
   { color: '#be123c', label: 'Merah Muda' },
 ]
@@ -1172,12 +1171,12 @@ export const PdfSignModal: React.FC<PdfSignModalProps> = ({ isOpen, onClose }) =
                     onClick={() => setActiveAssetTab('initial')}
                     className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
                       activeAssetTab === 'initial'
-                        ? 'bg-blue-600 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-teal-800 text-white shadow-2xs'
+                        : 'text-stone-600 hover:text-stone-900'
                     }`}
                     data-testid="tab-asset-initial"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    <PenTool className="w-3.5 h-3.5" />
                     <span>Paraf</span>
                   </button>
                   <button
