@@ -185,82 +185,202 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
           {/* Hasil Komparasi */}
           {matchResult && (
             <div className="space-y-4 border-t pt-4">
-              {/* Score Highlight Card */}
-              <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${getScoreColor(matchResult.match_score)}`}>
-                <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center font-black text-xl shadow-xs">
-                    {Math.round(matchResult.match_score)}%
+              {matchResult.analysis_status === 'insufficient_data' ? (
+                <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 space-y-2" data-testid="insufficient-data-alert">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                    Data Kualifikasi Belum Cukup
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Skor Kecocokan Keahlian</h4>
-                    <p className="text-xs text-slate-600">
-                      {matchResult.matched_count} dari {matchResult.total_job_skills} kata kunci kualifikasi lowongan ditemukan di CV Anda.
-                    </p>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    {matchResult.advice[0] || 'Deskripsi lowongan belum memuat informasi kualifikasi atau posisi yang memadai untuk dievaluasi.'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Target Role & Seniority Badge */}
+                  {(matchResult.target_role || matchResult.detected_seniority) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {matchResult.target_role && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <Briefcase className="w-3.5 h-3.5" />
+                          Target: {matchResult.target_role}
+                        </span>
+                      )}
+                      {matchResult.detected_seniority && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          Tingkat: {matchResult.detected_seniority}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Score Highlight Card */}
+                  <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${getScoreColor(matchResult.match_score)}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center font-black text-xl shadow-xs">
+                        {Math.round(matchResult.match_score)}%
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">Skor Kecocokan Profil</h4>
+                        <p className="text-xs text-slate-600">
+                          {matchResult.score_breakdown ? (
+                            'Evaluasi komprehensif mencakup posisi, keahlian, pengalaman, dan kualifikasi lowongan.'
+                          ) : (
+                            `${matchResult.matched_count} dari ${matchResult.total_job_skills} kata kunci kualifikasi lowongan ditemukan di CV Anda.`
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right text-xs">
+                      <span className="text-3xs text-slate-500 block uppercase font-bold">Konteks Relevansi</span>
+                      <span className="font-bold text-slate-800 text-sm">BM25: {matchResult.bm25_score}%</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="text-right text-xs">
-                  <span className="text-3xs text-slate-500 block uppercase font-bold">Konteks Relevansi</span>
-                  <span className="font-bold text-slate-800 text-sm">BM25: {matchResult.bm25_score}%</span>
-                </div>
-              </div>
+                  {/* Peringatan Batas Skor Maksimal 69 */}
+                  {matchResult.capped_by_required && (
+                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-900" role="alert" data-testid="capped-by-required-alert">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold block">Batas Skor Maksimal 69 Aktif</span>
+                        <span className="text-rose-800">
+                          Skor dibatasi maksimal 69 karena ada kualifikasi wajib (required) yang belum terpenuhi di CV.
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Matched Skills */}
-              <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
-                <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  Keahlian yang Cocok ({matchResult.matched_skills.length}):
-                </span>
-                {matchResult.matched_skills.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">Belum ada keahlian yang cocok ditemukan.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {matchResult.matched_skills.map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1"
-                      >
-                        <Check className="w-3 h-3 text-emerald-700" />
-                        {skill}
+                  {/* Rincian Dimensi Evaluasi (Score Breakdown) */}
+                  {matchResult.score_breakdown && (
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-800 block">Rincian Evaluasi Dimensi:</span>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        {matchResult.score_breakdown.role && matchResult.score_breakdown.role.status !== 'not_evaluated' && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Posisi & Peran</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.role.score)}%</span>
+                            {matchResult.score_breakdown.role.evidence && (
+                              <p className="text-3xs text-slate-500 mt-0.5 truncate">{matchResult.score_breakdown.role.evidence}</p>
+                            )}
+                          </div>
+                        )}
+                        {matchResult.score_breakdown.skills && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Keahlian</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.skills.score)}%</span>
+                            <p className="text-3xs text-slate-500 mt-0.5">
+                              {matchResult.matched_skills.length} / {matchResult.total_job_skills} keahlian
+                            </p>
+                          </div>
+                        )}
+                        {matchResult.score_breakdown.responsibilities && matchResult.score_breakdown.responsibilities.status !== 'not_evaluated' && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Tanggung Jawab</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.responsibilities.score)}%</span>
+                            <p className="text-3xs text-slate-500 mt-0.5">Bukti pengalaman kerja</p>
+                          </div>
+                        )}
+                        {matchResult.score_breakdown.experience && matchResult.score_breakdown.experience.status !== 'not_evaluated' && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Durasi Pengalaman</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.experience.score)}%</span>
+                            <p className="text-3xs text-slate-500 mt-0.5">
+                              {matchResult.score_breakdown.experience.cv_years ?? 0} thn terakumulasi
+                            </p>
+                          </div>
+                        )}
+                        {matchResult.score_breakdown.education && matchResult.score_breakdown.education.status !== 'not_evaluated' && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Pendidikan</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.education.score)}%</span>
+                            <p className="text-3xs text-slate-500 mt-0.5">Kualifikasi akademik</p>
+                          </div>
+                        )}
+                        {matchResult.score_breakdown.languages && matchResult.score_breakdown.languages.status !== 'not_evaluated' && (
+                          <div className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70">
+                            <span className="text-3xs uppercase font-bold text-slate-500 block">Bahasa</span>
+                            <span className="font-bold text-slate-900 text-sm">{Math.round(matchResult.score_breakdown.languages.score)}%</span>
+                            <p className="text-3xs text-slate-500 mt-0.5">Kemampuan bahasa</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Kualifikasi Wajib yang Belum Terpenuhi */}
+                  {matchResult.missing_requirements && matchResult.missing_requirements.length > 0 && (
+                    <div className="p-3 bg-rose-50/60 border border-rose-200 rounded-xl space-y-1.5" data-testid="missing-requirements-box">
+                      <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 text-rose-600" />
+                        Kualifikasi Utama yang Belum Ditemukan ({matchResult.missing_requirements.length}):
                       </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <ul className="text-xs text-rose-800 list-disc list-inside space-y-0.5 pt-0.5">
+                        {matchResult.missing_requirements.map((req, idx) => (
+                          <li key={idx} className="leading-relaxed">{req}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
-              {/* Missing Skills */}
-              {matchResult.missing_skills.length > 0 && (
-                <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-1.5">
-                  <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-amber-600" />
-                    Keahlian yang Diminta Lowongan tapi Belum Ada di CV ({matchResult.missing_skills.length}):
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {matchResult.missing_skills.map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-900 border border-amber-300"
-                      >
-                        + {skill}
+                  {/* Matched Skills */}
+                  <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-1.5">
+                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Keahlian yang Cocok ({matchResult.matched_skills.length}):
+                    </span>
+                    {matchResult.matched_skills.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Belum ada keahlian yang cocok ditemukan.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {matchResult.matched_skills.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1"
+                          >
+                            <Check className="w-3 h-3 text-emerald-700" />
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Missing Skills */}
+                  {matchResult.missing_skills.length > 0 && (
+                    <div className="p-3 bg-amber-50/50 border border-amber-200 rounded-xl space-y-1.5">
+                      <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        Keahlian yang Diminta Lowongan tapi Belum Ada di CV ({matchResult.missing_skills.length}):
                       </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {matchResult.missing_skills.map((skill, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-900 border border-amber-300"
+                          >
+                            + {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {/* Actionable Advice */}
-              {matchResult.advice.length > 0 && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    Panduan Penyesuaian CV:
-                  </span>
-                  <ul className="text-xs text-slate-600 list-disc list-inside space-y-1 pt-1">
-                    {matchResult.advice.map((item, idx) => (
-                      <li key={idx} className="leading-relaxed">{item}</li>
-                    ))}
-                  </ul>
-                </div>
+                  {/* Actionable Advice */}
+                  {matchResult.advice.length > 0 && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                        Panduan Penyesuaian CV:
+                      </span>
+                      <ul className="text-xs text-slate-600 list-disc list-inside space-y-1 pt-1">
+                        {matchResult.advice.map((item, idx) => (
+                          <li key={idx} className="leading-relaxed">{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
               )}
 
               {onCreateTargetedDraft && (

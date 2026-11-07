@@ -302,4 +302,55 @@ describe('App integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hapus pencarian alat' }))
     expect(screen.getByRole('heading', { name: 'Split PDF' })).toBeInTheDocument()
   })
+
+  it('mengakses aplikasi tanpa hash membuka Beranda utama (Dashboard)', async () => {
+    window.location.hash = ''
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
+    })
+    expect(window.location.hash).toBe('#/home')
+    expect(screen.getByRole('heading', { name: /Rancang CV Unggul/i })).toBeInTheDocument()
+    expect(screen.getByTestId('card-workspace-builder')).toBeInTheDocument()
+    expect(screen.getByTestId('card-workspace-tools')).toBeInTheDocument()
+  })
+
+  it('dari Beranda dapat berpindah ke Alat Dokumen dan kembali ke Beranda melalui logo', async () => {
+    window.location.hash = '#/home'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('card-workspace-tools'))
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/tools')
+      expect(screen.getByRole('heading', { name: 'Alat Dokumen' })).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('btn-logo-home'))
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/home')
+      expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
+    })
+  })
+
+  it('tidak membuat draft otomatis saat storage kosong dan menampilkan empty state di builder', async () => {
+    await ResumeStorage.clearAllData()
+    window.location.hash = '#/builder'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('builder-empty-state')).toBeInTheDocument()
+    })
+    expect(screen.getByText(/Belum ada CV yang dipilih/i)).toBeInTheDocument()
+
+    // Klik buat CV baru membuat draft
+    fireEvent.click(screen.getByTestId('btn-builder-create-new'))
+    await waitFor(() => {
+      expect(screen.getByTestId('input-draft-title')).toBeInTheDocument()
+    })
+  })
 })

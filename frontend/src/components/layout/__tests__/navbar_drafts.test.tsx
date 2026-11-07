@@ -158,4 +158,18 @@ describe('Navbar draft management', () => {
     })
     expect(screen.queryByText('Draft CV')).not.toBeInTheDocument()
   })
+
+  it('menampilkan tombol navigasi Beranda dan logo mengarahkan ke home', () => {
+    const onNavigate = vi.fn()
+    renderNavbar({ onNavigate })
+
+    const homeNavBtn = screen.getByRole('button', { name: /^Beranda$/i })
+    expect(homeNavBtn).toBeInTheDocument()
+    fireEvent.click(homeNavBtn)
+    expect(onNavigate).toHaveBeenCalledWith('home')
+
+    const logoBtn = screen.getByTestId('btn-logo-home')
+    fireEvent.click(logoBtn)
+    expect(onNavigate).toHaveBeenCalledWith('home')
+  })
 })

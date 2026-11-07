@@ -3235,3 +3235,205 @@ Menyelesaikan implementasi audit trail yang sebelumnya berada di working tree ta
 
 ### Rekomendasi Berikutnya
 Owner review `RISK-SEC-001` untuk penutupan formal, lalu lanjutkan review `RISK-SEC-002` dan `RISK-SEC-003` sebelum release berikutnya.
+
+---
+
+## Task PORTABLE-LIBREOFFICE-001 — Bundling LibreOffice Portable Mandiri & Prioritas Deteksi Lokal — 2026-10-27
+
+**Task:** PORTABLE-LIBREOFFICE-001
+**Requirement:** FR-008, FR-010, NFR-REL-001
+
+### Ringkasan
+Menyelesaikan kebutuhan portabilitas luring aplikasi agar seluruh fitur konversi dokumen dan ekspor PDF tetap berjalan normal saat direktori proyek dipindahkan ke perangkat komputer/laptop lain tanpa perlu menginstal LibreOffice di sistem operasi host.
+1. Direktori instalasi LibreOffice Windows disalin secara utuh ke `backend/bin/libreoffice` (~700 MB).
+2. `.gitignore` diperbarui untuk mengabaikan direktori biner lokal `backend/bin/` dan `bin/` agar repositori Git tidak terbebani artefak binary besar.
+3. Fungsi `detect_libreoffice()` di `backend/app/api/health.py` disempurnakan dengan urutan prioritas:
+   - Prioritas 1: `backend/bin/libreoffice/program/soffice.exe` (lokal repositori).
+   - Prioritas 2: `bin/libreoffice/program/soffice.exe` (root bin alternatif).
+   - Prioritas 3: Environment variable `LIBREOFFICE_PATH` atau `SOFFICE_PATH`.
+   - Prioritas 4: `%LOCALAPPDATA%\Programs\LibreOffice\...`.
+   - Prioritas 5: Standar Windows `C:\Program Files\LibreOffice\...` dan `(x86)`.
+   - Prioritas 6: `PATH` sistem (`shutil.which`).
+4. Endpoint `/api/health` memverifikasi deteksi lokal `backend/bin/libreoffice/program/soffice.exe`.
+5. Uji integrasi 4 konversi dokumen di backend berjalan 100% sukses menghasilkan berkas PDF valid (`%PDF-`).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `.gitignore`, `backend/app/api/health.py`, dan `backend/bin/libreoffice`.
+- Penyimpangan dan persetujuan ulang: Tidak ada.
+- Perbedaan command/expected result: Tidak ada; seluruh verifikasi yang direncanakan berhasil dijalankan.
+
+### File Dibuat
+- `backend/bin/libreoffice/` (Direktori biner runtime lokal Windows, diabaikan Git).
+
+### File Diubah
+- `.gitignore` — Mengabaikan `bin/`, `*/bin/`, dan `backend/bin/`.
+- `backend/app/api/health.py` — Menambahkan prioritas path lokal, env var, dan user AppData ke `detect_libreoffice`.
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Health Check | `GET /api/health` | PASS | `libreoffice_available: true`, path menunjuk ke `backend/bin/libreoffice/...` |
+| CV Export PDF | `POST /api/export/pdf` | PASS | HTTP 200, 15093 bytes, magic bytes `%PDF-` |
+| DOCX to PDF | `POST /api/converter/docx-to-pdf` | PASS | HTTP 200, 15093 bytes, magic bytes `%PDF-` |
+| PPTX to PDF | `POST /api/converter/presentation-to-pdf` | PASS | HTTP 200, 16040 bytes, magic bytes `%PDF-` |
+| XLSX to PDF | `POST /api/converter/spreadsheet-to-pdf` | PASS | HTTP 200, 17298 bytes, magic bytes `%PDF-` |
+| Ruff Lint | `ruff check backend/app` | PASS | All checks passed! |
+| Pytest Backend Suite | `pytest backend/tests` | PASS | 136/136 tests passed in 38.66s |
+| Git Status Hygiene | `git status --short` | PASS | Hanya `.gitignore`, `health.py`, dan `.agent/` tracking files yang terpantau; `backend/bin/` terabaikan bersih |
+
+### Acceptance Criteria
+- [x] Runtime LibreOffice tersimpan secara mandiri di dalam folder proyek (`backend/bin/libreoffice`).
+- [x] `.gitignore` mengabaikan folder biner `backend/bin/` sehingga commit Git tetap bersih.
+- [x] Fungsi `detect_libreoffice()` memprioritaskan path lokal proyek sebelum sistem host.
+- [x] Endpoint `/api/health` langsung mengonfirmasi ketersediaan LibreOffice portable.
+- [x] Seluruh 4 alur konversi dokumen Office ke PDF menghasilkan status HTTP 200 dan payload PDF valid.
+- [x] Seluruh 136 backend unit & integration tests lulus tanpa regresi.
+
+### Keputusan dan Technical Debt
+- Keputusan portabilitas offline: Runtime diekstrak ke dalam repositori lokal khusus host Windows sehingga pemindahan folder proyek antar komputer Windows tidak memerlukan proses instalasi atau hak akses Administrator (UAC).
+- Biner Windows tidak dapat dijalankan di host Linux/macOS; untuk Linux/macOS deteksi otomatis fallback ke sistem `shutil.which` bawaan OS.
+
+### Status
+✅ Selesai dan terverifikasi (`PORTABLE-LIBREOFFICE-001`).
+
+### Rekomendasi Berikutnya
+Layanan backend dan frontend sedang aktif berjalan di background. Pengguna dapat langsung menguji fitur ekspor dan konversi dokumen di browser lokal `http://127.0.0.1:5173`.
+
+---
+
+## Task IMPROVEMENT-JOB-MATCHING-001 — Engine Pencocokan Lowongan Kerja Multidimensi Cerdas — 2026-10-27
+
+**Task:** IMPROVEMENT-JOB-MATCHING-001
+**Requirement:** BUS-004, FR-008, FR-009, NFR-UX-001
+
+### Ringkasan
+Meningkatkan engine evaluasi pencocokan lowongan kerja (`Job Matching`) agar tidak hanya mencocokkan kata kunci keahlian, tetapi mengevaluasi profil kandidat secara komprehensif, terstruktur, deterministik, dan 100% lokal offline tanpa dependensi model AI/cloud eksternal:
+1. **Engine Multidimensi Terbobot (`backend/app/services/job_matcher.py`):**
+   - Evaluasi 6 dimensi: Posisi & Keluarga Peran (25%), Keahlian Wajib vs Preferred (30%), Tanggung Jawab & Bukti Pengalaman (20%), Senioritas & Durasi Pengalaman (10%), Pendidikan & Bidang Studi (10%), dan Bahasa & Kriteria Tambahan (5%).
+   - Normalisasi bobot dinamis: dimensi yang tidak dipersyaratkan oleh lowongan (misalnya pendidikan atau bahasa) ditandai `not_evaluated` dan bobotnya diredistribusikan ke dimensi aktif sehingga kandidat tidak dirugikan atas kriteria yang tidak diminta.
+   - Aturan pembatasan skor maksimal 69: jika lowongan memuat kualifikasi wajib (required) dan ada syarat wajib yang belum terpenuhi di CV, `match_score` dibatasi maksimal 69 dan sistem memunculkan peringatan eksplisit.
+   - Penanganan `insufficient_data`: jika teks lowongan kosong, terlalu pendek (<15 karakter), atau tidak memuat posisi/kualifikasi yang dapat dievaluasi, sistem mengembalikan status `insufficient_data` dengan skor 0 dan pesan informatif, bukan kegagalan acak atau skor palsu 100%.
+2. **Sinkronisasi Fallback Client-Side (`frontend/src/services/ats.ts`):**
+   - Penambahan interface `JobMatchDimensionScore`, `JobMatchBreakdown`, dan perluasan `JobMatchResult`.
+   - Implementasi deteksi peran, kualifikasi wajib, cap skor 69, dan status `insufficient_data` pada fungsi `matchResumeToJobClientFallback` untuk mode offline browser.
+3. **Penyempurnaan Antarmuka Modal (`frontend/src/components/ats/JobMatchModal.tsx`):**
+   - Menampilkan Skor Kecocokan Profil, badge Target Posisi dan Tingkat Senioritas.
+   - Kartu rincian dimensi evaluasi (Posisi, Keahlian, Tanggung Jawab, Durasi Pengalaman, Pendidikan, Bahasa).
+   - Alert peringatan khusus saat skor dibatasi maksimal 69 oleh syarat wajib.
+   - Kotak kualifikasi utama yang belum ditemukan.
+   - Banner informatif saat data deskripsi lowongan belum cukup dievaluasi.
+   - Alur pembuatan draft CV target (`onCreateTargetedDraft`) tetap berfungsi lancar dan kompatibel penuh.
+4. **Pengujian Menyeluruh:**
+   - 5 unit test baru di `backend/tests/test_job_match.py` (total 8/8 tests PASS): teks kosong/pendek, diferensiasi keluarga peran (backend developer vs graphic designer ber-skill python), batas skor 69 syarat wajib, preferred skill tidak membatasi skor, serta evaluasi durasi pengalaman dan pendidikan.
+   - 2 unit test baru di `frontend/src/components/ats/__tests__/job_match.test.tsx` (total 8/8 tests PASS): render alert batas skor 69, missing requirements box, dan alert data belum cukup.
+   - Uji kompatibilitas pembuatan draft target di `frontend/src/components/ats/__tests__/job_target.test.tsx` (PASS).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior tepat sesuai code plan yang disetujui.
+- Tidak ada dependensi baru atau koneksi internet luar.
+- Backward compatibility kontrak output (`match_score`, `bm25_score`, `matched_skills`, `missing_skills`, `matched_count`, `total_job_skills`, `advice`) tetap 100% terjaga.
+
+### File Diubah
+- `backend/app/services/job_matcher.py`
+- `backend/tests/test_job_match.py`
+- `frontend/src/services/ats.ts`
+- `frontend/src/components/ats/JobMatchModal.tsx`
+- `frontend/src/components/ats/__tests__/job_match.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Job Match | `pytest backend/tests/test_job_match.py` | PASS | 8/8 tests passed |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 141/141 tests passed |
+| Backend Ruff Check | `ruff check backend/app/services/job_matcher.py backend/tests/test_job_match.py` | PASS | All checks passed (0 error) |
+| Frontend Vitest Job Match & Target | `npm test -- src/components/ats/__tests__/job_match.test.tsx src/components/ats/__tests__/job_target.test.tsx` | PASS | 8/8 + 1/1 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 236/236 tests passed (36 files) |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm run build` | PASS | Vite bundle built in 535ms |
+
+### Acceptance Criteria
+- [x] Pencocokan lowongan mengevaluasi posisi/peran, keahlian, tanggung jawab, senioritas/durasi, pendidikan, dan bahasa.
+- [x] Posisi identik mendapat nilai penuh, posisi serumpun/terkait mendapat nilai parsial, posisi tidak relevan mendapat nilai rendah.
+- [x] Kualifikasi wajib (required) yang hilang membatasi skor maksimal menjadi 69 dengan pesan peringatan jelas.
+- [x] Kualifikasi nilai tambah (preferred) yang hilang tidak membatasi skor maksimal jika syarat wajib terpenuhi.
+- [x] Lowongan tanpa kriteria yang dapat dievaluasi menghasilkan status `insufficient_data` dan pesan ramah.
+- [x] Modal UI menampilkan Skor Kecocokan Profil, badge target/senioritas, kartu rincian dimensi, dan daftar kualifikasi belum terpenuhi.
+- [x] Alur pembuatan CV target dari hasil pencocokan tetap berjalan tanpa regresi.
+- [x] Seluruh test suite (141 Pytest, 236 Vitest, Ruff, build, lint) lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`IMPROVEMENT-JOB-MATCHING-001`).
+
+---
+
+## Feature: Dashboard & Beranda Utama Aplikasi (Non-Draft Default) — 2026-10-30
+
+**Task:** FEATURE-DASHBOARD-HOME-001
+**Requirement:** BUS-006, FR-001, NFR-UX-001, NFR-ACC-001
+
+### Ringkasan
+Menyediakan antarmuka Dashboard / Beranda Utama saat pengguna membuka Doc-builder alih-alih langsung masuk ke editor CV, serta mengeliminasi pembuatan draft CV kosong secara otomatis saat belum ada draf di storage lokal:
+1. **Komponen Beranda (`frontend/src/components/dashboard/Dashboard.tsx`):**
+   - Hero studio dokumen lokal & privat dengan penanda offline 100% dan status mode privat.
+   - Aksi cepat: Buat CV Baru, Lanjutkan Terakhir (jika ada draf), dan Impor PDF/DOCX.
+   - Kartu 3 workspace utama dengan hover visual dan navigasi langsung: Buat & Edit CV, Optimasi ATS & Job Match, dan Alat Dokumen & Konversi.
+   - Kartu status ringkas: Total CV tersimpan, Skor ATS draft aktif, CV terpilih, dan ketersediaan alat dokumen.
+   - Daftar CV & Draf Tersimpan dengan indikator waktu relatif, penanda favorit, penanda draf aktif, dan aksi edit/favorit langsung.
+   - Empty state informatif jika belum ada CV dengan panduan dan tombol buat/impor.
+2. **Navigasi & Routing (`frontend/src/App.tsx` & `Navbar.tsx`):**
+   - Routing default saat membuka aplikasi tanpa hash mengarah ke `#/home`.
+   - Direct link lama (`#/builder`, `#/ats`, `#/tools`) tetap didukung 100%.
+   - Tab navigasi Navbar diperluas dengan menu Beranda dan logo header Doc-builder mengarahkan navigasi ke Beranda.
+   - Tombol draf pada Navbar tetap dapat diakses di Beranda dan Builder.
+   - Eliminasi pembuatan draf otomatis saat storage kosong: draf baru dibuat hanya setelah pengguna memilih aksi buat CV baru atau impor.
+   - Empty state ramah pada workspace Builder dan ATS jika belum ada draf yang dipilih.
+3. **Pengujian Menyeluruh:**
+   - 3 unit test di `frontend/src/components/dashboard/__tests__/dashboard.test.tsx` (render empty state, render daftar draf + metrik, dan interaksi aksi/kartu/favorit).
+   - 1 test navigasi Beranda di `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`.
+   - 3 test integrasi alur Beranda di `frontend/src/__tests__/app.integration.test.tsx` (buka root -> `#/home`, navigasi antar-workspace via kartu & logo, penanganan empty state builder tanpa auto-create).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada dependensi baru (0 external dependencies added).
+- Seluruh verifikasi lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Vitest Full Suite | `npm --prefix frontend test` | PASS | 243/243 tests passed (37 test files) |
+| Backend Pytest Full Suite | `backend\.venv\Scripts\pytest backend\tests` | PASS | 141/141 tests passed |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Build | `npm --prefix frontend run build` | PASS | Vite built dist bundle in 1.23s |
+| Git Whitespace Check | `git diff --check` | PASS | Bersih tanpa whitespace error |
+
+### Acceptance Criteria
+- [x] Aplikasi dibuka tanpa hash menampilkan Beranda / Dashboard (`#/home`).
+- [x] Beranda memuat aksi cepat (Buat CV Baru, Lanjutkan Terakhir, Impor), kartu 3 workspace, status ringkas, dan daftar draf tersimpan.
+- [x] Draf CV kosong tidak dibuat otomatis saat storage kosong.
+- [x] Empty state pada Builder dan ATS mengarahkan pengguna untuk membuat/memilih CV.
+- [x] Navigasi Navbar memiliki tab Beranda dan klik logo mengarahkan ke Beranda.
+- [x] Kompatibilitas route lama `#/builder`, `#/ats`, `#/tools` tetap 100% terjaga.
+- [x] Seluruh unit dan integration test (243 Vitest, 141 Pytest) lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`FEATURE-DASHBOARD-HOME-001`).
+

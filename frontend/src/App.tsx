@@ -10,6 +10,7 @@ import {
 } from './services/importMerge'
 import { type ResumeData } from './types/resume'
 import { Navbar, type Workspace } from './components/layout/Navbar'
+import { Dashboard } from './components/dashboard/Dashboard'
 import { ImportResumeModal } from './components/builder/ImportResumeModal'
 import {
   ExportResumeModal,
@@ -106,7 +107,9 @@ const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
 
 function workspaceFromHash(): Workspace {
   const value = window.location.hash.replace('#/', '')
-  return value === 'ats' || value === 'tools' ? value : 'builder'
+  return value === 'home' || value === 'builder' || value === 'ats' || value === 'tools'
+    ? value
+    : 'home'
 }
 
 export function App() {
@@ -189,7 +192,7 @@ export function App() {
   useEffect(() => {
     const handleHashChange = () => setActiveWorkspace(workspaceFromHash())
     window.addEventListener('hashchange', handleHashChange)
-    if (!window.location.hash) window.history.replaceState(null, '', '#/builder')
+    if (!window.location.hash) window.history.replaceState(null, '', '#/home')
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
@@ -271,15 +274,31 @@ export function App() {
     setMobileTab('editor')
   }
 
-  // Inisialisasi draft pertama setelah daftar draft selesai dimuat
+  const handleCreateNewFromDashboard = async () => {
+    await createNewDraft('Resume Baru', 'ats-clean')
+    navigateTo('builder')
+  }
+
+  const handleImportFromDashboard = async () => {
+    if (!draft) {
+      await createNewDraft('Resume Baru', 'ats-clean')
+    }
+    navigateTo('builder')
+    setShowImportModal(true)
+  }
+
+  const handleSelectDraft = (id: string) => {
+    loadDraft(id)
+    navigateTo('builder')
+  }
+
+  // Muat draft pertama yang tersimpan jika belum ada draft yang dimuat
   useEffect(() => {
     if (isLoadingDrafts) return
-    if (!draft && draftsList.length === 0) {
-      createNewDraft('Resume Baru', 'ats-clean')
-    } else if (!draft && draftsList.length > 0) {
+    if (!draft && draftsList.length > 0) {
       loadDraft(draftsList[0].id)
     }
-  }, [draft, draftsList, isLoadingDrafts, createNewDraft, loadDraft])
+  }, [draft, draftsList, isLoadingDrafts, loadDraft])
 
   const SECTIONS: { id: ResumeSectionId; label: string; icon: any }[] = [
     { id: 'contact', label: 'Kontak', icon: User },
@@ -513,6 +532,21 @@ export function App() {
         onTogglePrivateMode={togglePrivateMode}
       />
 
+      {activeWorkspace === 'home' && (
+        <Dashboard
+          draft={draft}
+          draftsList={draftsList}
+          atsScore={atsAnalysis?.score}
+          privateMode={privateMode}
+          onNavigate={navigateTo}
+          onCreateNewResume={handleCreateNewFromDashboard}
+          onOpenImportModal={handleImportFromDashboard}
+          onLoadDraft={handleSelectDraft}
+          onOpenAtsScore={() => setShowAtsPanel(true)}
+          onToggleFavorite={toggleDraftFavorite}
+        />
+      )}
+
       {activeWorkspace === 'builder' && (
         <>
       {/* Switcher Tab Mobile (Editor vs Preview) */}
@@ -598,16 +632,37 @@ export function App() {
           <div ref={formScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           <div className="p-4 sm:p-6 max-w-2xl mx-auto w-full">
             {!draft ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in">
-                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-slate-500 font-medium">Menyiapkan editor CV...</p>
-                <button
-                  type="button"
-                  onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
-                  className="mt-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition shadow-xs"
-                >
-                  + Buat CV Baru Sekarang
-                </button>
+              <div
+                className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in"
+                data-testid="builder-empty-state"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div className="max-w-sm">
+                  <h3 className="text-base font-bold text-slate-800">Belum ada CV yang dipilih</h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Mulai buat CV baru dari template atau impor data teks dari berkas PDF/DOCX yang sudah ada.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
+                    className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition shadow-xs cursor-pointer"
+                    data-testid="btn-builder-create-new"
+                  >
+                    + Buat CV Baru Sekarang
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImportFromDashboard}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+                    data-testid="btn-builder-import"
+                  >
+                    Impor Berkas
+                  </button>
+                </div>
               </div>
             ) : (
               <>
@@ -754,46 +809,80 @@ export function App() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-5">
-              <button
-                type="button"
-                onClick={() => setShowAtsPanel(true)}
-                style={{ '--i': 1 } as CSSProperties}
-                className="stagger-item group text-left p-6 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-indigo-300 hover:shadow-lg hover:-translate-y-0.5 transition duration-200"
+            {!draft ? (
+              <div
+                className="p-8 text-center bg-white border border-dashed border-slate-300 rounded-2xl space-y-3 animate-fade-in"
+                data-testid="ats-empty-state"
               >
-                <div className="flex items-start justify-between">
-                  <span className="p-3 rounded-xl bg-indigo-50 text-indigo-600 transition-transform duration-200 group-hover:scale-110"><ShieldCheck className="w-6 h-6" /></span>
-                  <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
-                <h2 className="text-lg font-bold text-slate-900 mt-5">Evaluasi Keterbacaan ATS</h2>
-                <p className="text-sm text-slate-500 mt-2">Audit struktur, informasi kontak, ringkasan, dampak terukur, dan integritas kata kunci.</p>
-                <div className="mt-5 flex items-center gap-3">
-                  <span key={atsAnalysis?.score ?? 0} className="text-3xl font-black text-indigo-700 animate-fade-up">{atsAnalysis?.score ?? 0}</span>
-                  <span className="text-xs text-slate-400">skor dari 100</span>
+                <div className="max-w-md mx-auto">
+                  <h2 className="text-sm font-bold text-slate-800">Belum ada CV yang dipilih untuk dioptimasi</h2>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    Evaluasi struktur ATS dan pencocokan lowongan memerlukan data CV aktif. Buat CV baru atau pilih dari draf tersimpan.
+                  </p>
                 </div>
-                <div className="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-[width] duration-700 ease-out"
-                    style={{ width: `${Math.min(100, Math.max(0, atsAnalysis?.score ?? 0))}%` }}
-                  />
+                <div className="pt-2 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCreateNewFromDashboard}
+                    className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-xs cursor-pointer"
+                    data-testid="btn-ats-create-cv"
+                  >
+                    + Buat CV Baru
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigateTo('home')}
+                    className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    Kembali ke Beranda
+                  </button>
                 </div>
-              </button>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-5">
+                <button
+                  type="button"
+                  onClick={() => setShowAtsPanel(true)}
+                  style={{ '--i': 1 } as CSSProperties}
+                  className="stagger-item group text-left p-6 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-indigo-300 hover:shadow-lg hover:-translate-y-0.5 transition duration-200"
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="p-3 rounded-xl bg-indigo-50 text-indigo-600 transition-transform duration-200 group-hover:scale-110"><ShieldCheck className="w-6 h-6" /></span>
+                    <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900 mt-5">Evaluasi Keterbacaan ATS</h2>
+                  <p className="text-sm text-slate-500 mt-2">Audit struktur, informasi kontak, ringkasan, dampak terukur, dan integritas kata kunci.</p>
+                  <div className="mt-5 flex items-center gap-3">
+                    <span key={atsAnalysis?.score ?? 0} className="text-3xl font-black text-indigo-700 animate-fade-up">{atsAnalysis?.score ?? 0}</span>
+                    <span className="text-xs text-slate-400">skor dari 100</span>
+                  </div>
+                  <div className="mt-3 h-1.5 rounded-full bg-slate-100 overflow-hidden" aria-hidden="true">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-[width] duration-700 ease-out"
+                      style={{ width: `${Math.min(100, Math.max(0, atsAnalysis?.score ?? 0))}%` }}
+                    />
+                  </div>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setShowJobMatchModal(true)}
-                style={{ '--i': 2 } as CSSProperties}
-                className="stagger-item group text-left p-6 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-emerald-300 hover:shadow-lg hover:-translate-y-0.5 transition duration-200"
-              >
-                <div className="flex items-start justify-between">
-                  <span className="p-3 rounded-xl bg-emerald-50 text-emerald-600 transition-transform duration-200 group-hover:scale-110"><FileSearch className="w-6 h-6" /></span>
-                  <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition" />
-                </div>
-                <h2 className="text-lg font-bold text-slate-900 mt-5">Cocokkan dengan Lowongan</h2>
-                <p className="text-sm text-slate-500 mt-2">Bandingkan kata kunci CV dengan deskripsi pekerjaan dan temukan kompetensi yang belum tercantum.</p>
-                <span className="inline-flex mt-5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">Analisis lokal &amp; privat</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setShowJobMatchModal(true)}
+                  style={{ '--i': 2 } as CSSProperties}
+                  className="stagger-item group text-left p-6 bg-white border border-slate-200 rounded-2xl shadow-xs hover:border-emerald-300 hover:shadow-lg hover:-translate-y-0.5 transition duration-200"
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="p-3 rounded-xl bg-emerald-50 text-emerald-600 transition-transform duration-200 group-hover:scale-110"><FileSearch className="w-6 h-6" /></span>
+                    <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900 mt-5">Cocokkan dengan Lowongan</h2>
+                  <p className="text-sm text-slate-500 mt-2">Bandingkan kata kunci CV dengan deskripsi pekerjaan dan temukan kompetensi yang belum tercantum.</p>
+                  <span className="inline-flex mt-5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold">Analisis lokal &amp; privat</span>
+                </button>
+              </div>
+            )}
           </div>
         </main>
       )}

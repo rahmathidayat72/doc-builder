@@ -29,6 +29,28 @@ export interface AtsAnalysisResult {
   disclaimer: string
 }
 
+export interface JobMatchDimensionScore {
+  score: number
+  status: 'evaluated' | 'partial' | 'not_evaluated'
+  weight: number
+  evidence?: string | null
+  target?: string | null
+  matched_count?: number
+  total_job_skills?: number
+  bm25_score?: number
+  cv_years?: number
+  required_years?: number | null
+}
+
+export interface JobMatchBreakdown {
+  role?: JobMatchDimensionScore
+  skills?: JobMatchDimensionScore
+  responsibilities?: JobMatchDimensionScore
+  experience?: JobMatchDimensionScore
+  education?: JobMatchDimensionScore
+  languages?: JobMatchDimensionScore
+}
+
 export interface JobMatchResult {
   match_score: number
   bm25_score: number
@@ -37,6 +59,14 @@ export interface JobMatchResult {
   matched_count: number
   total_job_skills: number
   advice: string[]
+  analysis_status?: 'success' | 'insufficient_data'
+  confidence?: 'high' | 'medium' | 'low'
+  capped_by_required?: boolean
+  target_role?: string | null
+  detected_seniority?: string | null
+  score_breakdown?: JobMatchBreakdown
+  required_criteria?: string[]
+  missing_requirements?: string[]
 }
 
 const DEFAULT_DISCLAIMER =
@@ -353,7 +383,30 @@ export async function analyzeAtsStructure(draft: ResumeDraft): Promise<AtsAnalys
  * Fallback komparasi lowongan murni di browser jika backend offline
  */
 export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: string): JobMatchResult {
-  const normJob = jobText.toLowerCase()
+  const cleanJob = jobText.trim()
+  if (cleanJob.length < 15) {
+    return {
+      match_score: 0,
+      bm25_score: 0,
+      matched_skills: [],
+      missing_skills: [],
+      matched_count: 0,
+      total_job_skills: 0,
+      advice: [
+        'Deskripsi lowongan belum memuat informasi kualifikasi atau posisi yang memadai untuk dievaluasi. Tempel teks deskripsi lowongan yang lebih lengkap.'
+      ],
+      analysis_status: 'insufficient_data',
+      confidence: 'low',
+      capped_by_required: false,
+      target_role: null,
+      detected_seniority: null,
+      score_breakdown: {},
+      required_criteria: [],
+      missing_requirements: []
+    }
+  }
+
+  const normJob = cleanJob.toLowerCase()
   const cvSkills = new Set<string>()
 
   for (const s of draft.data.skills) {
@@ -398,11 +451,93 @@ export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: stri
     }
   }
 
-  const matchScore = detectedJobSkills.size > 0
+  // Deteksi peran target
+  const roleKeywords = [
+    { key: 'backend', title: 'Backend Engineer', regex: /\b(backend|pengembang backend|python developer|golang developer|api developer)\b/i },
+    { key: 'frontend', title: 'Frontend Engineer', regex: /\b(frontend|pengembang frontend|react developer|vue developer|web developer)\b/i },
+    { key: 'fullstack', title: 'Fullstack Engineer', regex: /\b(fullstack|full stack|software engineer|software developer|programmer)\b/i },
+    { key: 'mobile', title: 'Mobile Developer', regex: /\b(mobile|android|ios|flutter|react native)\b/i },
+    { key: 'devops', title: 'DevOps Engineer', regex: /\b(devops|cloud|sre|site reliability|infrastructure)\b/i },
+    { key: 'data', title: 'Data Engineer / Analyst', regex: /\b(data scientist|data analyst|data engineer|machine learning)\b/i },
+    { key: 'qa', title: 'QA Engineer', regex: /\b(qa|quality assurance|software tester|sdet)\b/i },
+    { key: 'ui_ux', title: 'UI/UX Designer', regex: /\b(ui\/ux|ux designer|ui designer|product designer)\b/i },
+    { key: 'product', title: 'Product Manager', regex: /\b(product manager|product owner)\b/i },
+    { key: 'project', title: 'Project Manager', regex: /\b(project manager|scrum master)\b/i }
+  ]
+
+  let detectedTargetRole: string | null = null
+  let targetFamily: string | null = null
+  for (const r of roleKeywords) {
+    if (r.regex.test(normJob)) {
+      detectedTargetRole = r.title
+      targetFamily = r.key
+      break
+    }
+  }
+
+  const cvHeadline = (draft.data.contact.headline || '').toLowerCase()
+  const cvTitles = draft.data.experiences.map(e => e.jobTitle.toLowerCase()).join(' ')
+  const candidateRoleText = `${cvHeadline} ${cvTitles}`
+
+  let roleScore = 70
+  let roleStatus: 'evaluated' | 'not_evaluated' = 'not_evaluated'
+  let roleEvidence: string | null = null
+  const missingRequirements: string[] = []
+  const requiredCriteria: string[] = []
+
+  if (targetFamily) {
+    roleStatus = 'evaluated'
+    requiredCriteria.push(`Posisi: ${detectedTargetRole}`)
+    const targetMatch = roleKeywords.find(r => r.key === targetFamily)
+    if (targetMatch && targetMatch.regex.test(candidateRoleText)) {
+      roleScore = 100
+      roleEvidence = `Jabatan relevan terdeteksi di CV (${detectedTargetRole})`
+    } else {
+      roleScore = 25
+      missingRequirements.push(`Peran '${detectedTargetRole}' belum tampak jelas di riwayat kerja`)
+    }
+  }
+
+  // Deteksi kualifikasi wajib pada baris teks lowongan
+  const jobLines = cleanJob.split('\n')
+  for (const line of jobLines) {
+    const lNorm = line.toLowerCase()
+    if (/\b(wajib|harus|must|required|minimum)\b/.test(lNorm)) {
+      for (const ms of missing) {
+        if (lNorm.includes(ms)) {
+          missingRequirements.push(`Keahlian wajib: ${ms}`)
+        }
+      }
+    }
+  }
+
+  const rawSkillScore = detectedJobSkills.size > 0
     ? Math.round((matched.size / detectedJobSkills.size) * 100)
     : 100
 
+  let rawCalculatedScore: number
+  if (roleStatus === 'evaluated' && detectedJobSkills.size > 0) {
+    rawCalculatedScore = Math.round((roleScore * 0.35) + (rawSkillScore * 0.65))
+  } else if (roleStatus === 'evaluated') {
+    rawCalculatedScore = roleScore
+  } else {
+    rawCalculatedScore = rawSkillScore
+  }
+
+  let cappedByRequired = false
+  let matchScore = rawCalculatedScore
+  if (missingRequirements.length > 0 && rawCalculatedScore > 69) {
+    cappedByRequired = true
+    matchScore = 69
+  }
+
   const advice: string[] = []
+  if (cappedByRequired) {
+    advice.push('Perhatian: Skor dibatasi maksimal 69 karena ada kualifikasi wajib (required) yang belum terpenuhi di CV.')
+  }
+  if (missingRequirements.length > 0) {
+    advice.push(`Kualifikasi belum ditemukan: ${missingRequirements.slice(0, 2).join('; ')}.`)
+  }
   if (missing.size > 0) {
     const sample = Array.from(missing).slice(0, 3).join(', ')
     advice.push(`Lowongan meminta: ${sample}. Cantumkan di CV jika Anda memiliki pengalaman terkait.`)
@@ -411,9 +546,9 @@ export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: stri
   if (matchScore >= 80) {
     advice.push('Tingkat kecocokan sangat tinggi! Profil Anda relevan dengan kualifikasi lowongan.')
   } else if (matchScore >= 50) {
-    advice.push('Kecocokan moderat. Anda dapat menyelaraskan kata kunci keahlian dengan deskripsi pekerjaan.')
+    advice.push('Kecocokan moderat. Anda dapat menyelaraskan istilah jabatan dan kata kunci keahlian dengan deskripsi lowongan.')
   } else {
-    advice.push('Kecocokan rendah. Pastikan Anda menyertakan keahlian inti yang dicari perusahaan.')
+    advice.push('Kecocokan rendah. Pastikan Anda menyertakan keahlian inti dan posisi yang dicari perusahaan.')
   }
 
   return {
@@ -423,7 +558,30 @@ export function matchResumeToJobClientFallback(draft: ResumeDraft, jobText: stri
     missing_skills: Array.from(missing).sort(),
     matched_count: matched.size,
     total_job_skills: detectedJobSkills.size,
-    advice
+    advice,
+    analysis_status: 'success',
+    confidence: detectedTargetRole && detectedJobSkills.size > 0 ? 'high' : 'medium',
+    capped_by_required: cappedByRequired,
+    target_role: detectedTargetRole,
+    detected_seniority: null,
+    score_breakdown: {
+      role: {
+        score: roleScore,
+        status: roleStatus,
+        weight: 0.35,
+        evidence: roleEvidence,
+        target: detectedTargetRole
+      },
+      skills: {
+        score: rawSkillScore,
+        status: detectedJobSkills.size > 0 ? 'evaluated' : 'not_evaluated',
+        weight: 0.65,
+        matched_count: matched.size,
+        total_job_skills: detectedJobSkills.size
+      }
+    },
+    required_criteria: requiredCriteria,
+    missing_requirements: missingRequirements
   }
 }
 

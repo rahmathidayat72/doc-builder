@@ -105,4 +105,50 @@ describe('JobMatchModal & Client-Side Job Matching Suite', () => {
     fireEvent.click(btnClose)
     expect(mockClose).toHaveBeenCalledTimes(1)
   })
+
+  it('matchResumeToJobClientFallback menghasilkan status insufficient_data saat teks lowongan kosong', () => {
+    const result = matchResumeToJobClientFallback(sampleDraft, '')
+    expect(result.analysis_status).toBe('insufficient_data')
+    expect(result.match_score).toBe(0)
+  })
+
+  it('JobMatchModal menampilkan peringatan batas skor 69 dan rincian dimensi setelah analisis', async () => {
+    render(
+      <JobMatchModal draft={sampleDraft} isOpen={true} onClose={vi.fn()} />
+    )
+
+    const textarea = screen.getByTestId('textarea-job-desc') as HTMLTextAreaElement
+    fireEvent.change(textarea, {
+      target: {
+        value: `
+          Dibutuhkan Backend Engineer.
+          Kualifikasi:
+          - Wajib menguasai Golang dan Kubernetes.
+          - Python dan FastAPI.
+        `
+      }
+    })
+
+    const btnRun = screen.getByTestId('btn-run-match')
+    fireEvent.click(btnRun)
+
+    // Tunggu hasil komparasi muncul
+    expect(await screen.findByTestId('capped-by-required-alert')).toBeInTheDocument()
+    expect(screen.getByText(/Skor Kecocokan Profil/i)).toBeInTheDocument()
+    expect(screen.getByTestId('missing-requirements-box')).toBeInTheDocument()
+  })
+
+  it('JobMatchModal menampilkan pesan data belum cukup saat teks lowongan tidak memadai', async () => {
+    render(
+      <JobMatchModal draft={sampleDraft} isOpen={true} onClose={vi.fn()} />
+    )
+
+    const textarea = screen.getByTestId('textarea-job-desc') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'terlalu pendek' } })
+
+    const btnRun = screen.getByTestId('btn-run-match')
+    fireEvent.click(btnRun)
+
+    expect(await screen.findByTestId('insufficient-data-alert')).toBeInTheDocument()
+  })
 })

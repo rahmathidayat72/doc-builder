@@ -46,6 +46,11 @@ temp_workspace/
 backend/logs/
 *.log
 
+# Bundled Portable Binaries & Runtimes
+bin/
+*/bin/
+backend/bin/
+
 # PyInstaller & Build Outputs
 dist/
 build/

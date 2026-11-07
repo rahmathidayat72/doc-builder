@@ -23,13 +23,14 @@ import {
   Pencil,
   Check,
   Search,
+  Home,
 } from 'lucide-react'
 import { type ResumeDraft, type ResumeDraftSummary, type ResumeLanguage } from '../../types/resume'
 import { type PendingDelete } from '../../hooks/useResumeDraft'
 import { TEMPLATES } from '../../templates/registry'
 import { useDismiss } from '../../hooks/useDismiss'
 
-export type Workspace = 'builder' | 'ats' | 'tools'
+export type Workspace = 'home' | 'builder' | 'ats' | 'tools'
 
 interface NavbarProps {
   activeWorkspace?: Workspace
@@ -71,6 +72,7 @@ const THEME_COLORS = [
 ]
 
 const WORKSPACES: { id: Workspace; label: string; icon: typeof FileText }[] = [
+  { id: 'home', label: 'Beranda', icon: Home },
   { id: 'builder', label: 'Buat CV', icon: FileText },
   { id: 'ats', label: 'Optimasi ATS', icon: ShieldCheck },
   { id: 'tools', label: 'Alat Dokumen', icon: Wrench },
@@ -157,9 +159,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="h-14 px-3 sm:px-5 flex items-center gap-3">
           <button
             type="button"
-            onClick={() => onNavigate?.('builder')}
-            className="group flex items-center gap-2 shrink-0 rounded-xl"
+            onClick={() => onNavigate?.('home')}
+            className="group flex items-center gap-2 shrink-0 rounded-xl cursor-pointer"
             aria-label="Buka Beranda Doc-builder"
+            data-testid="btn-logo-home"
           >
             <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white shadow-sm transition-transform duration-200 group-hover:scale-105 group-hover:-rotate-3">
               <FileText className="w-5 h-5" />
@@ -427,7 +430,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
-            {activeWorkspace === 'builder' && (
+            {(activeWorkspace === 'builder' || activeWorkspace === 'home') && (
               <button
                 type="button"
                 onClick={() => setShowDraftsModal(true)}
