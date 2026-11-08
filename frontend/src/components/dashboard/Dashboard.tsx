@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { type ResumeDraft, type ResumeDraftSummary } from '../../types/resume'
 import { type Workspace } from '../layout/Navbar'
+import { Footer } from '../layout/Footer'
 
 interface DashboardProps {
   draft: ResumeDraft | null
@@ -585,6 +586,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </section>
         </div>
+
+        {/* Footer Pengembang */}
+        <Footer className="mt-8" />
       </div>
     </main>
   )

@@ -295,4 +295,28 @@ describe('Dashboard Component Suite', () => {
     expect(appTsxEntry?.[1]).toContain('paper-canvas')
     expect(dashboardTsxEntry?.[1]).toContain('paper-canvas')
   })
+
+  it('merender footer informasi pengembang, tahun 2026, dan link portofolio Rahmat Hidayat', () => {
+    render(
+      <Dashboard
+        draft={sampleDraft}
+        draftsList={sampleSummaries}
+        privateMode={false}
+        onNavigate={vi.fn()}
+        onCreateNewResume={vi.fn()}
+        onOpenImportModal={vi.fn()}
+        onLoadDraft={vi.fn()}
+      />
+    )
+
+    const footer = screen.getByTestId('app-footer')
+    expect(footer).toBeInTheDocument()
+    expect(footer).toHaveTextContent('2026')
+
+    const devLink = screen.getByTestId('footer-developer-link')
+    expect(devLink).toHaveTextContent('Rahmat Hidayat')
+    expect(devLink).toHaveAttribute('href', 'https://porto.rahmath72.cloud/')
+    expect(devLink).toHaveAttribute('target', '_blank')
+    expect(devLink).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })

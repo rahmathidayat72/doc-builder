@@ -10,6 +10,7 @@ import {
 } from './services/importMerge'
 import { type ResumeData } from './types/resume'
 import { Navbar, type Workspace } from './components/layout/Navbar'
+import { Footer } from './components/layout/Footer'
 import { Dashboard } from './components/dashboard/Dashboard'
 import { ImportResumeModal } from './components/builder/ImportResumeModal'
 import {
@@ -888,6 +889,9 @@ export function App() {
                 </button>
               </div>
             )}
+
+            {/* Footer Pengembang */}
+            <Footer className="mt-8" />
           </div>
         </main>
       )}
@@ -981,6 +985,9 @@ export function App() {
                 <p className="text-xs text-stone-600 mt-1">Dokumen diproses melalui server lokal Doc-builder. Berkas sementara dibersihkan otomatis.</p>
               </div>
             </div>
+
+            {/* Footer Pengembang */}
+            <Footer className="mt-8" />
           </div>
         </main>
       )}
