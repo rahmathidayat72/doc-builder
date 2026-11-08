@@ -310,7 +310,7 @@ def test_export_docx_endpoint_with_invalid_photo_returns_400():
 
 
 def test_sanitize_export_filename_menghapus_karakter_berbahaya():
-    assert sanitize_export_filename('CV: Budi/2026', "docx") == "CV Budi 2026.docx"
+    assert sanitize_export_filename("CV: Budi/2026", "docx") == "CV Budi 2026.docx"
     assert sanitize_export_filename("Resume.pdf", "pdf") == "Resume.pdf"
     assert sanitize_export_filename("../../etc/passwd\n", "pdf") == "etc passwd.pdf"
     assert sanitize_export_filename("   ", "pdf") == "resume.pdf"

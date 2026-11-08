@@ -151,9 +151,7 @@ def test_convert_spreadsheet_endpoint_requires_auth():
 
 def test_convert_spreadsheet_endpoint_rejects_wrong_extension():
     files = {"file": ("data.docx", b"PK\x03\x04dummy", "application/vnd.openxmlformats")}
-    response = client.post(
-        "/api/converter/spreadsheet-to-pdf", files=files, headers=auth_headers()
-    )
+    response = client.post("/api/converter/spreadsheet-to-pdf", files=files, headers=auth_headers())
     assert response.status_code == 400
     assert "Harap unggah berkas .xlsx atau .xls" in response.json()["detail"]
 

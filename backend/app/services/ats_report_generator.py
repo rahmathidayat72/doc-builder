@@ -50,7 +50,7 @@ def generate_ats_report_docx(analysis: dict[str, Any], resume_title: str = "Resu
     now_str = datetime.now().strftime("%d %B %Y, %H:%M")
     p_sub = doc.add_paragraph()
     run_sub = p_sub.add_run(
-        f"Dokumen: {resume_title}  |  Dihasilkan: {now_str}  |  Doc-builder Offline Suite"
+        f"Dokumen: {resume_title}  |  Dihasilkan: {now_str}  |  Satukit Suite"
     )
     run_sub.font.size = Pt(9)
     run_sub.font.color.rgb = COLOR_MUTED

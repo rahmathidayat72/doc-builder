@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "docbuilder-backend"
+name = "satukit-backend"
 version = "0.1.0"
-description = "Doc-builder local backend service"
+description = "Satukit local backend service"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -19,6 +19,9 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pypdf>=4.3.0",
     "Pillow>=10.4.0",
+    "argon2-cffi>=23.1.0",
+    "onnxruntime>=1.19.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]

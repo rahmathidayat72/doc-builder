@@ -4,7 +4,7 @@ import { normalizeExportFilename, printResume } from '../export'
 describe('Export filename handling', () => {
   afterEach(() => {
     vi.restoreAllMocks()
-    document.title = 'Doc-builder'
+    document.title = 'Satukit'
   })
 
   it('membersihkan karakter yang tidak valid dan melepas ekstensi duplikat', () => {

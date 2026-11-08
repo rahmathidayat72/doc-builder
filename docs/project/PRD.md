@@ -2,20 +2,37 @@
 
 ## 1. Metadata dan Revision History
 - **Proyek:** Doc-builder
-- **Versi:** 1.0.0
-- **Status:** Approved (Gerbang 1B)
-- **Tanggal:** 2026-10-20
+- **Versi:** 1.1.0
+- **Status:** Pending Approval (Revisi Gerbang 1B)
+- **Tanggal:** 2026-11-08
 - **Referensi BRD:** `docs/project/BRD.md`
-- **Revisi Terakhir:** 2026-10-24 — Dukungan maksimal tiga website/portofolio, live preview 4 template, impor, dan ekspor PDF/DOCX; peningkatan pascarilis: estimasi pagination A4, preflight ekspor, headline profesional, pencapaian terstruktur, reorder bagian/entri, CV target, impor selektif + undo, dan manajemen draft lanjutan.
+- **Revisi Terakhir:** 2026-11-08 — Transformasi online VPS multi-user: otentikasi akun & manajemen kuota CV 90 hari (FR-042 s/d FR-045), fitur penghapus latar belakang gambar lokal CPU-only U2NetP (FR-046, FR-047), dan layanan URL shortener serverless Cloudflare Workers + D1 (FR-048).
 
 ## 2. Product Vision & Persona
-- **Visi:** Menjadi platform dokumen pribadi lokal terdepan yang memberdayakan individu untuk menghasilkan dokumen profesional berkualitas tinggi tanpa mengorbankan privasi atau mengeluarkan biaya langganan.
-- **Persona 1 — Pencari Kerja Fresh Graduate:** Memerlukan panduan struktur CV standar ATS, bantuan pencocokan kata kunci terhadap lowongan, dan foto formal yang ukurannya sesuai batas unggah portal kerja.
-- **Persona 2 — Profesional Berpengalaman:** Memerlukan fleksibilitas bagian kustom, ekspor PDF/DOCX yang rapi, dan konversi dokumen pendukung lamaran tanpa risiko data karier bocor.
-- **Persona 3 — Tim Rekrutmen / Reviewer HR:** Memerlukan verifikasi keterbacaan struktur resume kandidat dan utilitas penggabungan/pemisahan berkas pelamar secara offline.
+- **Visi:** Menjadi platform dokumen pribadi dan produktivitas web modern yang memberdayakan individu untuk menghasilkan dokumen profesional berkualitas tinggi, mengedit file secara instan, menghapus latar belakang foto secara mandiri, dan membagikan tautan ringkas yang aman tanpa mengorbankan privasi atau membebani biaya langganan.
+- **Persona 1 — Pencari Kerja Fresh Graduate:** Memerlukan panduan struktur CV standar ATS, bantuan pencocokan kata kunci terhadap lowongan, penghapus latar belakang foto pasfoto formal yang rapi, dan penyimpanan draft aman di cloud pribadi tanpa biaya.
+- **Persona 2 — Profesional Berpengalaman:** Memerlukan fleksibilitas bagian kustom, ekspor PDF/DOCX yang rapi, konversi dokumen pendukung lamaran secara privat di server terkelola, dan kemampuan menyimpan hingga 5 variasi CV lamaran.
+- **Persona 3 — Tim Rekrutmen / Reviewer HR:** Memerlukan verifikasi keterbacaan struktur resume kandidat dan utilitas pengolahan berkas secara cepat.
+- **Persona 4 — Pemilik Aplikasi / Administrator:** Memerlukan sarana membuat dan mengelola tautan pendek kustom untuk portofolio dan dokumen publik dengan kontrol penuh, analitik agregat, dan penarikan instan jika terjadi kesalahan.
 
 ## 3. Role dan Akses
-- Single User Local Role: Aplikasi berjalan dalam konteks pengguna lokal pada mesin yang sama (`localhost`). Tidak ada multi-tenancy, registrasi akun, atau hierarki izin pengguna online pada MVP.
+1. **Pengguna Anonim (Guest/Public User):**
+   - Mengakses seluruh alat dokumen dasar (PDF converter, merge/split, compress, watermark, protect/unlock, repair, OCR, PDF to Markdown, image resize, dan penghapus latar belakang gambar dasar).
+   - Menyusun dan mengunduh CV secara langsung dalam sesi browser tanpa penyimpanan cloud persisten.
+   - Tidak memerlukan login atau registrasi akun.
+   - Seluruh berkas input/output sementara di VPS dibersihkan otomatis maksimal dalam 1 jam (TTL).
+2. **Pengguna Terdaftar (Registered User):**
+   - Mendapatkan seluruh hak akses Pengguna Anonim.
+   - Berhak menyimpan hingga 5 proyek draf CV terstruktur secara persisten di akun server VPS.
+   - Draf CV disimpan selama 90 hari sejak tanggal pembaruan terakhir.
+   - Menerima notifikasi email peringatan kedaluwarsa dokumen pada H-14, H-7, dan H-1.
+   - Dapat mengedit, menggandakan, mengunduh ulang, atau menghapus draf kapan saja.
+   - Berhak menghapus akun beserta seluruh data tersimpan secara mandiri (eksekusi instan di antarmuka, pembersihan fisik maksimal 24 jam).
+3. **Pemilik Aplikasi / Administrator (Owner Role):**
+   - Mendapatkan seluruh hak akses Pengguna Terdaftar.
+   - Memiliki akses eksklusif ke halaman pengelolaan URL Shortener (membuat tautan, melihat daftar, menyalin, dan mencabut tautan).
+   - Akses halaman admin dilindungi autentikasi Cloudflare Access (email whitelist pemilik) dan backend memverifikasi signature/token HMAC.
+   - Memiliki visibilitas pemantauan kuota penyimpanan server dan antrean pemrosesan ML.
 
 ## 4. Functional Requirements (FR)
 
@@ -71,21 +88,52 @@
 - **FR-023:** Sistem menyediakan fitur ekspor dan impor project file (.docbuilder) dengan opsi enkripsi kata sandi untuk cadangan data portabel.
 - **FR-024:** Penamaan file keluaran digenerasi secara otomatis, dapat disunting pengguna sebelum proses unduh, dan disanitasi di frontend serta backend; ekstensi ganda dilepas, karakter tidak valid/control character dibersihkan, dan nama kosong memakai fallback aman atau ditolak pada preflight.
 
+### 4.6 Modul Akun Pengguna & Penyimpanan Kuota CV Cloud (Online)
+- **FR-042:** Sistem menyediakan alur pendaftaran dan masuk akun pengguna menggunakan Email + Password (dengan verifikasi email wajib dan hashing modern) serta Google OAuth (hanya menerima email terverifikasi). Sistem dilarang melakukan auto-merge akun pada alamat email yang sama; penggabungan akun wajib melalui proses otorisasi eksplisit di pengaturan akun terautentikasi dengan re-authentication.
+- **FR-043:** Pengguna terdaftar dapat menyimpan, menyinkronkan, mengedit, menggandakan, dan menghapus proyek CV di server VPS dengan pembatasan kuota ketat: maksimal 5 dokumen aktif per akun, maksimal 10 MB per dokumen, maksimal 50 MB total per akun, dan ambang batas global 5 GB di server. Data CV disimpan dalam format data terstruktur + konfigurasi template (render PDF/DOCX dibuat on-demand dan dicache sementara).
+- **FR-044:** Dokumen CV memiliki masa retensi 90 hari terhitung sejak tanggal terakhir diedit/disimpan (`updated_at`); membuka atau mengunduh tidak memperpanjang masa retensi. Dokumen yang kedaluwarsa dihapus permanen oleh background worker maksimal dalam 24 jam setelah `expires_at`.
+- **FR-045:** Sistem mengirimkan notifikasi email transaksional via Brevo Free pada H-14, H-7, dan H-1 sebelum dokumen kedaluwarsa dihapus permanen. Email pemberitahuan dilarang memuat rincian isi CV atau PII detail pengguna. Pengguna juga dapat melakukan penghapusan akun mandiri yang seketika mencabut sesi dan menjadwalkan penghapusan seluruh data aktif maksimal 24 jam (dengan backup terenkripsi di Cloudflare R2 otomatis kedaluwarsa maksimal 7 hari).
+
+### 4.7 Modul Penghapus Latar Belakang Gambar Lokal (Remove Background)
+- **FR-046:** Sistem menyediakan alat penghapus latar belakang gambar statis (JPG, PNG, WebP hingga ukuran 10 MB) menjadi berkas PNG RGBA dengan transparansi alpha menggunakan model segmentasi ringan U2NetP yang dijalankan secara lokal di CPU host VPS tanpa mengirim payload ke layanan cloud pihak ketiga.
+- **FR-047:** Proses inferensi remove-background dijalankan dalam subprocess terisolasi dengan timeout keras 30 detik, concurrency 1 job aktif, dan antrean tunggu maksimal 2 job (penolakan dengan HTTP 429/503 saat antrean penuh). Antarmuka web menyediakan panggung pratinjau interaktif (pola catur transparansi / checkerboard dan opsi latar warna pratinjau) sebelum pengguna mengunduh berkas akhir.
+
+### 4.8 Modul Layanan Pemendek URL Serverless (URL Shortener)
+- **FR-048:** Sistem menyediakan layanan pemendek URL publik mandiri yang berjalan di edge Cloudflare Workers + database D1 pada subdomain khusus, dengan ketentuan:
+  1. Pengalihan cepat direct HTTP 302 ke destination URL yang valid (wajib skema HTTPS publik, menolak IP private RFC 1918, menolak loopback/link-local/reserved IP, dan menolak kredensial dalam URL).
+  2. Pembuatan dan pengelolaan tautan (list, create, revoke) khusus untuk pemilik/administrator melalui API yang diverifikasi tanda tangan HMAC + timestamp + nonce untuk mencegah replay attack, serta antarmuka admin terlindungi Cloudflare Access (Zero Trust).
+  3. Tautan aktif bersifat permanen tanpa tanggal kedaluwarsa otomatis; tautan yang dicabut (revoked) mengembalikan HTTP 410 Gone dan dicatat selama 90 hari sebelum destination dihapus menjadi tombstone permanen; slug tautan yang dicabut dilarang keras digunakan kembali (no slug reuse).
+  4. Analitik kunjungan bersifat agregat tanpa pengumpulan PII (hanya mencatat `click_count` dan `last_accessed_at` tanpa menyimpan alamat IP atau fingerprint pengunjung).
+  5. Pencadangan database D1 dilakukan berkala melalui export snapshot bergulir (mingguan disimpan 8 minggu, bulanan disimpan 12 bulan).
+
 ## 5. Nonfunctional Requirements (NFR)
 - **NFR-PERF-001:** Respons interaksi UI pada editor (input form, tab switching, toggle) harus ≤ 200 ms pada perangkat benchmark.
 - **NFR-PERF-002:** Startup backend lokal hingga siap menerima request harus ≤ 5 detik pada perangkat benchmark.
 - **NFR-PERF-003:** Konversi dokumen referensi standar kantor ≤ 60 detik per berkas.
+- **NFR-PERF-004:** Latensi respons pengalihan URL pendek (edge redirect Cloudflare Workers) ≤ 100 ms.
+- **NFR-PERF-005:** Durasi inferensi remove-background (U2NetP pada 1 vCPU) ≤ 15 detik untuk gambar standar (hard timeout 30 detik).
 - **NFR-REL-001:** Error rate pada penggunaan berkas standar < 2%.
-- **NFR-REL-002:** Concurrency dibatasi tepat 1 job konversi aktif pada satu waktu.
-- **NFR-REL-003:** Waktu tunggu maksimum satu job (timeout) adalah 5 menit; sistem membatalkan proses, membersihkan file sementara, dan mengizinkan retry.
+- **NFR-REL-002:** Concurrency dokumen converter dibatasi tepat 1 job aktif pada satu waktu.
+- **NFR-REL-003:** Waktu tunggu maksimum satu job (timeout) converter adalah 5 menit; sistem membatalkan proses, membersihkan file sementara, dan mengizinkan retry.
 - **NFR-REL-004:** Autosave draft harus dapat dipulihkan secara utuh setelah browser atau backend mengalami penghentian mendadak (crash recovery).
-- **NFR-SEC-001:** Backend hanya mengikat pada antarmuka loopback (`127.0.0.1` / `localhost`) dan menolak koneksi dari alamat IP eksternal.
+- **NFR-REL-005:** Concurrency worker remove-background dibatasi tepat 1 job aktif dan antrean tunggu maksimal 2 job; antrean melebihi batas ditolak seketika dengan status HTTP 429/503 dan header `Retry-After`.
+- **NFR-REL-006:** Background sweeper retensi CV menghapus dokumen kedaluwarsa maksimal 24 jam setelah `expires_at`.
+- **NFR-REL-007:** Pembersihan file temporer pengguna anonim (TTL maks 1 jam) berjalan otomatis secara berkala.
+- **NFR-SEC-001:** Backend hanya mengikat pada antarmuka loopback (`127.0.0.1`) di balik reverse proxy lokal (Caddy/Nginx) dan menolak koneksi langsung dari alamat IP publik tanpa melalui proxy.
 - **NFR-SEC-002:** Berkas input pengguna bersifat read-only dan tidak boleh dimodifikasi di tempat asal.
 - **NFR-SEC-003:** Sistem fail-closed dan memicu cleanup otomatis jika kapasitas penyimpanan disk atau memori sistem tidak mencukupi.
-- **NFR-SEC-004:** Alokasi penyimpanan sementara (temp workspace) dibatasi maksimal 500 MB secara global.
-- **NFR-PRIV-001:** Semua modul analisis teks, parsing, dan konversi berjalan 100% offline tanpa mengirim payload ke luar perangkat.
-- **NFR-COMP-001:** Spesifikasi perangkat minimum pengujian: CPU 4-core, RAM 8 GB, ruang kosong disk 2 GB.
-- **NFR-COMP-002:** Dukungan kompatibilitas penuh pada 2 rilis mayor terbaru dari Chrome, Edge, Firefox, dan Safari.
+- **NFR-SEC-004:** Alokasi penyimpanan sementara (temp workspace) dibatasi maksimal 500 MB secara global untuk file operasional.
+- **NFR-SEC-005:** Reverse proxy (Caddy/Nginx) menegakkan TLS 1.3, HSTS, Secure/HttpOnly/SameSite cookies, dan pembatasan laju (rate limiting) per IP.
+- **NFR-SEC-006:** Kata sandi akun disimpan menggunakan modern hashing (Argon2id/bcrypt); token verifikasi dan reset kata sandi bersifat acak, berentropi tinggi, disimpan dalam bentuk hash, single-use, dan berumur pendek (≤ 15 menit).
+- **NFR-SEC-007:** Dilarang melakukan auto-merge akun antara Email/Password dan Google OAuth dengan email yang sama; account linking wajib melalui otorisasi eksplisit di pengaturan akun.
+- **NFR-SEC-008:** Validasi tujuan URL shortener wajib menolak skema non-HTTPS, menolak URL dengan kredensial (`user:pass@`), menolak loopback, private IPv4 (RFC 1918), IPv6 loopback/link-local, serta reserved IP addresses (anti-SSRF).
+- **NFR-SEC-009:** Pembuatan/pengelolaan link URL shortener di Cloudflare Workers dilindungi autentikasi HMAC signature dengan timestamp dan nonce untuk mencegah replay attack, serta antarmuka admin dilindungi Cloudflare Access (Zero Trust).
+- **NFR-SEC-010:** Cadangan database/CV terenkripsi ke Cloudflare R2 Standard wajib menggunakan enkripsi simetris kuat (AES-256-GCM) di VPS sebelum diunggah; bucket R2 bersifat private tanpa akses publik; lifecycle rule menghapus objek cadangan maksimal 7 hari.
+- **NFR-SEC-011:** Analitik URL shortener strictly aggregated tanpa menyimpan IP address, browser fingerprint, atau PII (hanya `click_count` dan `last_accessed_at`).
+- **NFR-SEC-012:** Kebijakan disk fail-closed: peringatan kapasitas disk pada ambang 70% dan penolakan simpan dokumen baru pada ambang 80% atau saat kuota global CV mencapai 5 GB.
+- **NFR-PRIV-001:** Semua modul analisis teks, parsing, konversi, dan remove-background berjalan lokal di server tanpa mengirim berkas atau payload dokumen ke pihak ketiga.
+- **NFR-COMP-001:** Spesifikasi server VPS: 1 vCPU, 2.2 GiB RAM, 4.0 GiB Swap, 40 GB SSD.
+- **NFR-COMP-002:** Dukungan kompatibilitas penuh antarmuka pada 2 rilis mayor terbaru dari Chrome, Edge, Firefox, dan Safari.
 - **NFR-UX-001:** Aksesibilitas antarmuka memenuhi standar WCAG 2.2 AA (kontras, label form, navigasi keyboard penuh).
 
 > **Catatan 2026-10-24:** Desain fitur tidak melakukan transmisi keluar, tetapi egress block OS-level untuk subprocess belum tersedia; jaminan NFR-PRIV-001 belum dapat dinyatakan sebagai kontrol yang ditegakkan (`RISK-SEC-003`). NFR-COMP-002 juga belum diverifikasi (`Q-005`).

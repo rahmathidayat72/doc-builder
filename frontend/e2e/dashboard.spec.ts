@@ -35,8 +35,8 @@ test.describe('Dashboard / Beranda Batched Multi-Viewport & Quality Gate Verific
     const dashboard = page.getByTestId('dashboard-view')
     await expect(dashboard).toBeVisible()
 
-    // Verifikasi jumlah alat dokumen terhubung dinamis (18)
-    await expect(page.getByTestId('stat-tools-count')).toHaveText('18')
+    // Verifikasi jumlah alat dokumen terhubung dinamis (20 utilitas)
+    await expect(page.getByTestId('stat-tools-count')).toHaveText('20')
 
     // Verifikasi arah warna Editorial Paper & Forest Teal (bebas kelas ungu indigo/violet/purple pada Beranda & Navbar)
     const hasPurpleClasses = await page.evaluate(() => {
@@ -173,5 +173,15 @@ test.describe('Dashboard / Beranda Batched Multi-Viewport & Quality Gate Verific
       expect(routeCheck.hasPaperCanvas, `Kanvas .paper-canvas harus aktif pada ${route}`).toBe(true)
       expect(routeCheck.hasPurple, `Tidak boleh ada kelas ungu pada ${route}`).toBe(false)
     }
+    // Verifikasi fitur Dark Mode: sakelar di Navbar mengubah kelas dark pada documentElement dan persisten di localStorage
+    await page.goto('/#/home')
+    const themeBtn = page.getByTestId('theme-toggle-btn')
+    await expect(themeBtn).toBeVisible()
+    const initialIsDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+    await themeBtn.click()
+    const toggledIsDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+    expect(toggledIsDark).toBe(!initialIsDark)
+    const storedTheme = await page.evaluate(() => localStorage.getItem('satukit_theme'))
+    expect(storedTheme).toBe(toggledIsDark ? 'dark' : 'light')
   })
 })

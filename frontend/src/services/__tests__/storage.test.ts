@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { ResumeStorage } from '../storage'
+import { openDB } from 'idb'
+import { ResumeStorage, resetDBPromise } from '../storage'
 import { type ResumeDraft, createEmptyResumeData } from '../../types/resume'
 
 describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
@@ -259,5 +260,40 @@ describe('ResumeStorage Service (IndexedDB & Local Persistence)', () => {
     await expect(ResumeStorage.renameDraft(draft.id, '   ')).rejects.toThrow(
       'Judul draft tidak boleh kosong.'
     )
+  })
+
+  it('melakukan migrasi salin draf secara non-destruktif dari docbuilder_db ke satukit_db saat satukit_db kosong', async () => {
+    // 1. Bersihkan seluruh data terlebih dahulu
+    await ResumeStorage.clearAllData()
+    await resetDBPromise()
+
+    // 2. Siapkan database legacy docbuilder_db dengan satu draft lama
+    const legacyDraft = createSampleDraft(
+      '88888888-8888-4888-8888-888888888888',
+      'Draft Warisan Docbuilder'
+    )
+    const legacyDb = await openDB('docbuilder_db', 1, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains('drafts')) {
+          db.createObjectStore('drafts', { keyPath: 'id' })
+        }
+      }
+    })
+    await legacyDb.put('drafts', legacyDraft)
+    legacyDb.close()
+
+    // 3. Reset promise satukit_db, panggil listDrafts(), verifikasi migrasi otomatis
+    await resetDBPromise()
+    const drafts = await ResumeStorage.listDrafts()
+
+    // 4. Verifikasi draf berhasil disalin ke satukit_db
+    expect(drafts.some(d => d.id === legacyDraft.id && d.title === 'Draft Warisan Docbuilder')).toBe(true)
+
+    // 5. Verifikasi bahwa docbuilder_db lama tetap utuh (non-destructive)
+    const verifyLegacyDb = await openDB('docbuilder_db', 1)
+    const stillInLegacy = await verifyLegacyDb.get('drafts', legacyDraft.id)
+    expect(stillInLegacy).toBeDefined()
+    expect(stillInLegacy.title).toBe('Draft Warisan Docbuilder')
+    verifyLegacyDb.close()
   })
 })

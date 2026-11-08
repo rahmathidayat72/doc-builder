@@ -188,9 +188,7 @@ def test_query_string_and_credentials_are_not_logged(audit_dir):
     client = TestClient(app)
     client.cookies.clear()
 
-    response = client.get(
-        "/api/auth/session?token=super-secret-token&email=user@example.com"
-    )
+    response = client.get("/api/auth/session?token=super-secret-token&email=user@example.com")
     assert response.status_code == 401
 
     raw = _read_raw(audit_dir)

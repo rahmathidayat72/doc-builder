@@ -1,9 +1,67 @@
+from __future__ import annotations
+
+import hashlib
 import hmac
 import secrets
 from pathlib import Path
 
-SESSION_COOKIE_NAME = "docbuilder_session"
+import argon2
+import argon2.exceptions
+
+SESSION_COOKIE_NAME = "satukit_session"
+LEGACY_SESSION_COOKIE_NAME = "docbuilder_session"
 CSRF_HEADER_NAME = "X-CSRF-Token"
+
+# Parameter Argon2id standar OWASP: time_cost=3, memory_cost=64MB (65536 KiB), parallelism=4
+_password_hasher = argon2.PasswordHasher(
+    time_cost=3,
+    memory_cost=65536,
+    parallelism=4,
+    hash_len=32,
+    type=argon2.Type.ID,
+)
+
+
+def hash_password(plain_password: str) -> str:
+    """Melakukan hashing password menggunakan algoritma Argon2id."""
+    return _password_hasher.hash(plain_password)
+
+
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Memverifikasi password terhadap hash Argon2id secara timing-safe."""
+    if not hashed_password or not plain_password:
+        return False
+    try:
+        return _password_hasher.verify(hashed_password, plain_password)
+    except (
+        argon2.exceptions.VerifyMismatchError,
+        argon2.exceptions.VerificationError,
+        argon2.exceptions.InvalidHashError,
+    ):
+        return False
+
+
+def needs_rehash(hashed_password: str) -> bool:
+    """Memeriksa apakah hash password perlu diperbarui parameter keamanannya."""
+    try:
+        return _password_hasher.check_needs_rehash(hashed_password)
+    except Exception:
+        return True
+
+
+def hash_token(raw_token: str) -> str:
+    """Menghasilkan representasi SHA-256 dari token acak untuk penyimpanan aman di database."""
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def generate_secure_token(nbytes: int = 32) -> str:
+    """Menghasilkan token URL-safe acak berentropi tinggi."""
+    return secrets.token_urlsafe(nbytes)
+
+
+def timing_safe_compare(val1: str, val2: str) -> bool:
+    """Membandingkan dua string secara timing-safe (anti timing-attack)."""
+    return hmac.compare_digest(val1, val2)
 
 
 class LocalSessionManager:

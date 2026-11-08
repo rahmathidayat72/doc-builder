@@ -1,5 +1,11 @@
-from fastapi import FastAPI
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.ats import router as ats_router
 from app.api.auth import router as auth_router
@@ -9,9 +15,26 @@ from app.api.health import router as health_router
 from app.api.image_tools import router as image_tools_router
 from app.api.import_cv import router as import_router
 from app.api.pdf_tools import router as pdf_tools_router
+from app.api.shortener import router as shortener_router
 from app.core.config import settings
+from app.core.disk_guard import DiskSpaceExhaustedError
+from app.core.jobs import background_sweeper
 from app.core.middleware import SecurityMiddleware
 from app.core.security import session_manager
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Inisialisasi basis data SQLite dan tabel multi-user
+    init_db()
+    # Startup: jalankan background periodic sweeper
+    background_sweeper.start()
+    try:
+        yield
+    finally:
+        # Shutdown: hentikan background periodic sweeper secara bersih
+        background_sweeper.stop()
 
 
 def create_app() -> FastAPI:
@@ -19,11 +42,27 @@ def create_app() -> FastAPI:
     session_manager.initialize_token_file(settings.BASE_DIR)
 
     app = FastAPI(
-        title=settings.PROJECT_NAME, version=settings.VERSION, docs_url="/docs", redoc_url=None
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        docs_url="/docs",
+        redoc_url=None,
+        lifespan=lifespan,
     )
 
     # Middleware Keamanan (Security Hardening & CSRF)
     app.add_middleware(SecurityMiddleware)
+
+    # Exception handler fail-closed kapasitas disk penuh (BRULE-014 / NFR-SEC-012)
+    @app.exception_handler(DiskSpaceExhaustedError)
+    async def disk_exhausted_handler(_: Request, exc: DiskSpaceExhaustedError) -> JSONResponse:
+        return JSONResponse(
+            status_code=507,
+            content={
+                "success": False,
+                "error": str(exc.detail if hasattr(exc, "detail") else exc),
+                "code": "DISK_SPACE_EXHAUSTED",
+            },
+        )
 
     # Batasi CORS hanya pada origin frontend terdaftar
     app.add_middleware(
@@ -56,6 +95,7 @@ def create_app() -> FastAPI:
     app.include_router(converter_router, prefix="/api")
     app.include_router(pdf_tools_router, prefix="/api")
     app.include_router(image_tools_router, prefix="/api")
+    app.include_router(shortener_router, prefix="/api")
 
     # Sajikan static frontend SPA jika folder dist tersedia (mode rilis / distribusi lokal)
     frontend_dist = settings.BASE_DIR.parent / "frontend" / "dist"
@@ -68,8 +108,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT, reload=True)

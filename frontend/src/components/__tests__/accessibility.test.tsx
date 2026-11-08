@@ -22,6 +22,7 @@ import { PdfWatermarkModal } from '../pdf-tools/PdfWatermarkModal'
 import { PdfPageNumbersModal } from '../pdf-tools/PdfPageNumbersModal'
 import { PdfToMarkdownModal } from '../pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from '../image-tools/ImageResizeModal'
+import { RemoveBackgroundModal } from '../image-tools/RemoveBackgroundModal'
 import { type ResumeDraft, createEmptyResumeData } from '../../types/resume'
 
 const dummyDraft: ResumeDraft = {
@@ -180,6 +181,7 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
         <PdfPageNumbersModal isOpen={true} onClose={vi.fn()} />
         <PdfToMarkdownModal isOpen={true} onClose={vi.fn()} />
         <ImageResizeModal isOpen={true} onClose={vi.fn()} />
+        <RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />
       </div>
     )
     const results = await axe(container)

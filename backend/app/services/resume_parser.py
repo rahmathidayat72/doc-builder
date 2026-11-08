@@ -691,9 +691,7 @@ def parse_education_section(lines: list[str]) -> tuple[list[dict[str, Any]], flo
                 institution = residual
                 extra_parts: list[str] = []
                 if institution and any(sep in institution for sep in ["|", "•", "—"]):
-                    parts = [
-                        p.strip() for p in re.split(r"\s*[|•—–]\s*", institution) if p.strip()
-                    ]
+                    parts = [p.strip() for p in re.split(r"\s*[|•—–]\s*", institution) if p.strip()]
                     institution = parts[0]
                     extra_parts = parts[1:]
                 if not institution and pending:

@@ -1,0 +1,9 @@
+name = "satukit-shortener"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "docbuilder_shortener_db"
+database_id = "local-d1-placeholder"

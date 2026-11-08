@@ -51,6 +51,9 @@ def test_frontend_dist():
 def test_launcher_scripts():
     print("\n[3/5] Memeriksa skrip peluncur distribusi...")
     scripts = [
+        ROOT_DIR / "start-satukit.bat",
+        ROOT_DIR / "start-satukit.ps1",
+        ROOT_DIR / "start-satukit.sh",
         ROOT_DIR / "start-docbuilder.bat",
         ROOT_DIR / "start-docbuilder.ps1",
         ROOT_DIR / "start-docbuilder.sh",
@@ -119,7 +122,7 @@ def test_libreoffice_status():
 
 def main():
     print("=" * 65)
-    print("DOC-BUILDER DISTRIBUTION BUNDLE VERIFICATION")
+    print("SATUKIT DISTRIBUTION BUNDLE VERIFICATION")
     print("=" * 65)
 
     checks = [
@@ -133,7 +136,7 @@ def main():
     print("\n" + "=" * 65)
     if all(checks):
         print("STATUS: SELURUH PRASYARAT DISTRIBUSI TERVERIFIKASI (PASS)")
-        print("Doc-builder siap dirilis dan didistribusikan secara lokal.")
+        print("Satukit siap dirilis dan didistribusikan secara lokal.")
         print("=" * 65)
         return 0
     else:

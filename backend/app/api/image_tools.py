@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.jobs import conversion_job_manager
+from app.services.bg_remover import bg_remover_manager
 from app.services.image_resizer import (
     MAX_IMAGE_FILE_SIZE,
     resize_image_to_target,
@@ -61,3 +62,30 @@ async def resize_image_endpoint(
         raise HTTPException(
             status_code=500, detail=f"Gagal memproses pengubahan ukuran citra: {exc}"
         ) from exc
+
+
+@router.post("/remove-background")
+async def remove_background_endpoint(
+    file: Annotated[UploadFile, File(...)],
+):
+    """Menghapus latar belakang gambar (JPG, PNG, WebP) menggunakan model U2NetP lokal."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nama berkas gambar tidak valid.")
+
+    content = await file.read()
+    output_buf, metrics = bg_remover_manager.remove_background(content, file.filename)
+
+    clean_name = sanitize_filename(file.filename)
+    filename = f"{clean_name}_nobg.png"
+
+    return StreamingResponse(
+        output_buf,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Original-Size": str(metrics.get("original_size_bytes", len(content))),
+            "X-Processed-Size": str(metrics.get("processed_size_bytes", 0)),
+            "X-Inference-Time-Ms": str(metrics.get("inference_time_ms", 0)),
+            "X-Wall-Time-Ms": str(metrics.get("wall_time_ms", 0)),
+        },
+    )

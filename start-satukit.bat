@@ -1,0 +1,39 @@
+@echo off
+setlocal
+title Satukit Local Server
+
+echo ===================================================
+echo                 SATUKIT LAUNCHER
+echo         Satu Tempat, Banyak Solusi Digital
+echo ===================================================
+echo.
+
+cd /d "%~dp0"
+
+:: 1. Tentukan executable Python
+set "PYTHON_EXE=backend\.venv\Scripts\python.exe"
+if not exist "%PYTHON_EXE%" (
+    set "PYTHON_EXE=python"
+)
+
+:: 2. Cek apakah bundel frontend telah di-build
+if not exist "frontend\dist\index.html" (
+    echo [INFO] Membangun bundel produksi antarmuka Satukit...
+    call npm --prefix frontend run build
+    if errorlevel 1 (
+        echo [ERROR] Gagal membangun frontend dist! Pastikan Node.js dan npm terpasang.
+        pause
+        exit /b 1
+    )
+)
+
+:: 3. Buka browser secara otomatis setelah jeda singkat
+start "" cmd /c "timeout /t 2 /nobreak >nul && start http://127.0.0.1:8000"
+
+:: 4. Jalankan backend server FastAPI Satukit
+echo [INFO] Menjalankan backend server Satukit pada http://127.0.0.1:8000...
+echo [INFO] Tekan CTRL+C untuk menghentikan server.
+echo.
+set "PYTHONPATH=%~dp0backend;%PYTHONPATH%"
+"%PYTHON_EXE%" -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+pause

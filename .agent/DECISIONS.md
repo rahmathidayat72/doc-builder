@@ -202,3 +202,63 @@
 - Konsekuensi: Penulisan log bersifat sinkron di event loop; volume lokal rendah sehingga diterima. Log belum tamper-evident terhadap pengguna OS yang sama dan belum memiliki batas ukuran harian. `backend/logs/` diabaikan Git.
 - Risiko: Disk penuh atau permission gagal tidak menggagalkan request, tetapi event audit hilang; kegagalan hanya dilaporkan sebagai tipe error di stderr. `RISK-SEC-001` tetap OPEN sampai owner menyetujui penutupan berdasarkan bukti 10 test `test_audit.py` dan full suite 136/136 Pytest PASS.
 - Requirement terkait: NFR-SEC-001, THR-010, CTRL-010, `RISK-SEC-001`.
+
+## DEC-018 — Adopsi U2NetP ONNX CPU-Only dan Isolasi Subprocess Memory Reclamation
+
+- Tanggal: 2026-11-08
+- Status: Accepted
+- Konteks: Doc-builder membutuhkan fitur remove-background untuk pasfoto/dokumen secara online pada VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM, 4.0 GiB swap) tanpa GPU. Penggunaan library `rembg` standar membawa dependensi torch/torchvision yang berat (>800 MB - 1.5 GB disk) dan konsumsi RAM besar (>800 MB) yang memicu OOM/swap thrashing. Selain itu, model ML in-process dapat meninggalkan residual memory leak di runtime Python/FastAPI.
+- Opsi: (1) Menggunakan `rembg` in-process dengan PyTorch, (2) memanggil API cloud eksternal berbayar (misal remove.bg), (3) mengadopsi model segmentasi ringan U2NetP ONNX CPU-only (`u2netp.onnx` ~4.36 MB) yang dijalankan via runtime terisolasi `onnxruntime` CPUExecutionProvider (single-thread) di dalam subprocess terisolasi per permintaan.
+- Keputusan: Opsi 3 — Menggunakan model bobot mandiri `u2netp.onnx` (~4.36 MB, MD5: `8e83ca70e441ab06c318d82300c84806`) dengan `onnxruntime` CPU-only (`intra_op_num_threads = 1`, `inter_op_num_threads = 1`). Inferensi dijalankan di dalam worker subprocess terpisah yang dihentikan (terminasi) segera setelah gambar selesai diproses, sehingga 100% memori fisik (~356–378 MB peak RSS) dikembalikan ke kernel OS (delta RAM host: 0.00 MB). Arsitektur antrean menerapkan batas ketat: concurrency limit = 1, antrean tunggu maksimal = 2, hard timeout 30 detik, dan penolakan kelebihan beban dengan HTTP 429 + `Retry-After: 30`.
+- Alasan: Hasil spike empiris pada 1 vCPU menunjukkan total wall time 1.63s–1.87s (inferensi murni ~1.05s–1.15s), jauh di bawah target SLA 15.0 detik (8x lebih cepat). Peak memory berada di bawah 400 MB, dan terminasi subprocess menjamin zero long-term memory leak pada proses utama FastAPI. Pola fail-closed antrean melindungi VPS dari serangan exhaustion komputasi.
+- Konsekuensi: Setiap request inferensi menanggung overhead spawn subprocess dan inisialisasi session ONNX (~90–110 ms), yang sepenuhnya dapat diterima dibandingkan jaminan stabilitas memori RAM host. Binary weights `u2netp.onnx` diabaikan oleh Git via `.gitignore`.
+- Risiko: Permintaan serentak tinggi dapat ditolak dengan HTTP 429 jika antrean melebihi 2. Mitigasi: Header `Retry-After: 30` dan penolakan beban lebih deterministik melindungi layanan utama dari kelumpuhan.
+- Requirement terkait: BUS-016, FR-046, FR-047, NFR-PERF-005, NFR-REL-005, THR-004, CTRL-004, `RISK-SEC-004`.
+
+## DEC-019 — Arsitektur Layanan Online Multi-Tier (VPS Ubuntu + Cloudflare Edge)
+
+- Tanggal: 2026-11-08
+- Status: Accepted
+- Konteks: Transformasi dari aplikasi murni desktop lokal menjadi aplikasi hybrid online publik membutuhkan pemisahan concern yang jelas antara komputasi dokumen berat, autentikasi pengguna, dan pengalihan URL berlatensi rendah.
+- Opsi: (1) Menjalankan seluruh komponen (termasuk shortener dan ML) di VPS tunggal, (2) Memindahkan seluruh komponen ke serverless AWS/GCP, (3) Membagi arsitektur: VPS Ubuntu 24.04 untuk FastAPI, ML CPU-only, dan database; Cloudflare Workers + D1 untuk edge URL shortener; Cloudflare R2 untuk disaster recovery offsite terenkripsi.
+- Keputusan: Opsi 3 — Arsitektur hybrid multi-tier.
+- Alasan: VPS tunggal menghemat biaya hosting, sementara edge Workers menjamin latensi 302 redirect < 100 ms tanpa membebani CPU VPS.
+- Konsekuensi: Perlu mengelola dua target runtime (Python/FastAPI di VPS dan TypeScript/Wrangler di Cloudflare).
+- Risiko: Ketergantungan konfigurasi DNS dan token Cloudflare.
+- Requirement terkait: BUS-015, BUS-016, BUS-017, FR-042–FR-048.
+
+## DEC-020 — Rebranding Penuh Satukit, Maskot Kitu, dan Adaptasi Beranda/Dashboard
+
+- Tanggal: 2026-11-08
+- Status: Accepted
+- Konteks: Nama "Doc-builder" terlalu sempit karena platform kini mencakup 20+ alat digital (CV, konversi, kompresi, editor, OCR, remove background, shortener). Identitas baru "Satukit" ("Satu Tempat, Banyak Solusi Digital") dan maskot resmi "Kitu" telah disetujui sebagai arah kreatif.
+- Opsi: (1) Rebranding visual saja (logo dan teks tampilan), (2) Rebranding publik dan identifier internal sekaligus tanpa strategi backward compatibility, (3) Rebranding menyeluruh mencakup nama publik dan identifier internal teknis, dengan strategi dual-read dan backward compatibility penuh.
+- Keputusan: Opsi 3 — Rebranding penuh menyeluruh menjadi Satukit. Beranda/Dashboard diadaptasi menerapkan wajah visual Satukit dan maskot Kitu tanpa merombak alur kerja workspace CV Builder dan Alat Dokumen yang sudah stabil. Peluncuran maskot Kitu dilakukan 2 tahap: Tahap 1 menggunakan aset beresolusi tinggi dan fallback transparan yang layak; Tahap 2 animasi individual transparan menyusul setelah aset frame/SVG produksi siap.
+- Alasan: Memberikan identitas brand yang matang dan konsisten tanpa menimbulkan breaking change atau kehilangan data draf bagi pengguna.
+- Konsekuensi: Perlu memigrasikan IndexedDB, session cookie, localStorage, launcher, package name, dan aset antarmuka secara bertahap.
+- Risiko: Regresi visual atau hilangnya data pengguna jika migrasi storage dilakukan secara destruktif. Mitigasi: Kebijakan dual-read, larangan menghapus database lama pada rilis awal, dan pengujian regresi komprehensif.
+- Requirement terkait: BUS-018, NFR-UX-002, NFR-ACC-002.
+
+## DEC-021 — Adopsi PostgreSQL Co-located di Host VPS yang Sama
+
+- Tanggal: 2026-11-08
+- Status: Accepted
+- Konteks: SQLite lokal pada backend FastAPI memiliki keterbatasan konkurensi tulis dan kemampuan pooling untuk beban multi-user online. Diperlukan database relasional yang kuat untuk autentikasi, kuota CV, dan operasional backend.
+- Opsi: (1) Tetap menggunakan SQLite WAL mode di VPS, (2) Menggunakan Managed PostgreSQL cloud eksternal (Supabase/Neon/AWS RDS), (3) Menginstal dan menjalankan PostgreSQL langsung di VPS Ubuntu 24.04 yang sama (co-located).
+- Keputusan: Opsi 3 — PostgreSQL co-located di host VPS yang sama, dikerjakan sebelum penambahan fitur kuota CV (TASK-11.2) agar tidak terjadi pengerjaan ulang (rework).
+- Alasan: Menjaga biaya operasional tetap nol rupiah tambahan (zero cloud bill) dan meminimalkan latensi jaringan antar-layanan (koneksi local socket/loopback).
+- Konsekuensi: VPS dengan RAM 2.2 GiB harus mengalokasikan memori secara disiplin antara FastAPI, PostgreSQL (`shared_buffers` konservatif, misal 128 MB), dan worker U2NetP.
+- Risiko: Resource contention antara database dan ML worker. Mitigasi: Tuning memori PostgreSQL konservatif, isolasi worker ML dalam subprocess single-thread yang segera terminasi, dan backup berkala terenkripsi ke R2.
+- Requirement terkait: BUS-017, FR-042–FR-045, NFR-PERF-006, NFR-SEC-012.
+
+## DEC-022 — Kebijakan Kompatibilitas Format Berkas Project `.docbuilder`
+
+- Tanggal: 2026-11-08
+- Status: Accepted
+- Konteks: Rebranding menjadi Satukit memunculkan pertanyaan mengenai format berkas proyek ekspor/impor lokal (saat ini berekstensi `.docbuilder` dengan magic `DOCBUILDER_PROJECT`).
+- Opsi: (1) Mengubah ekstensi menjadi `.satukit` dan menolak berkas `.docbuilder`, (2) Mengubah ekstensi baru `.satukit` dengan parser dual-format, (3) Mempertahankan ekstensi resmi `.docbuilder` dan wadah `DOCBUILDER_PROJECT` untuk rilis ini.
+- Keputusan: Opsi 3 — Format berkas project lokal tetap mempertahankan ekstensi `.docbuilder` dan magic header `DOCBUILDER_PROJECT`.
+- Alasan: Berkas proyek yang telah diekspor oleh pengguna sebelumnya tetap dapat diimpor tanpa kendala atau kebingungan kompatibilitas; tidak ada nilai fungsional memecah format berkas pada tahap ini.
+- Konsekuensi: Antarmuka UI dapat menyebutnya "Berkas Proyek Satukit (.docbuilder)" agar tetap selaras dengan identitas merek.
+- Risiko: Tidak ada risiko breaking change pada data berkas pengguna lama.
+- Requirement terkait: BUS-018, FR-017, NFR-COMP-002.

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 import uuid
 from urllib.parse import urlparse
@@ -8,9 +10,26 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core import audit
 from app.core.config import settings
-from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
+from app.core.security import (
+    CSRF_HEADER_NAME,
+    LEGACY_SESSION_COOKIE_NAME,
+    SESSION_COOKIE_NAME,
+    session_manager,
+    timing_safe_compare,
+)
+from app.services.auth_service import auth_service
 
-PUBLIC_PATHS = {"/api/health", "/api/auth/bootstrap", "/docs", "/openapi.json"}
+PUBLIC_PATHS = {
+    "/api/health",
+    "/api/auth/bootstrap",
+    "/api/auth/register",
+    "/api/auth/login",
+    "/api/auth/google",
+    "/api/auth/forgot-password",
+    "/api/auth/reset-password",
+    "/docs",
+    "/openapi.json",
+}
 
 
 def is_allowed_origin(origin: str) -> bool:
@@ -30,7 +49,7 @@ def is_allowed_origin(origin: str) -> bool:
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):
-    """Middleware penegakan keamanan localhost: Origin Allowlist, Session Cookie, dan CSRF."""
+    """Middleware penegakan keamanan: Origin Allowlist, Multi-User / Local Session, dan CSRF."""
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
@@ -49,6 +68,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                 duration_ms=round((time.perf_counter() - started) * 1000, 2),
             )
 
+        # Inisialisasi state konteks autentikasi
+        request.state.current_user = None
+        request.state.csrf_token = None
+
         # 1. Validasi Header Origin
         origin = request.headers.get("origin")
         if origin and not is_allowed_origin(origin):
@@ -60,24 +83,52 @@ class SecurityMiddleware(BaseHTTPMiddleware):
 
         # 2. Periksa Endpoint Terproteksi
         if path.startswith("/api") and path not in PUBLIC_PATHS:
-            # Validasi Session Cookie
-            session_cookie = request.cookies.get(SESSION_COOKIE_NAME)
-            if not session_cookie or not session_manager.verify_session(session_cookie):
+            session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
+                LEGACY_SESSION_COOKIE_NAME
+            )
+            user_session = auth_service.validate_session(session_cookie) if session_cookie else None
+
+            if user_session is not None:
+                # Sesi pengguna terdaftar di basis data
+                user, expected_csrf = user_session
+                request.state.current_user = user
+                request.state.csrf_token = expected_csrf
+
+                if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+                    csrf_header = request.headers.get(CSRF_HEADER_NAME)
+                    if not csrf_header or not timing_safe_compare(csrf_header, expected_csrf):
+                        audit_denial("csrf", 403)
+                        return JSONResponse(
+                            status_code=403,
+                            content={
+                                "success": False,
+                                "error": "Forbidden: Token CSRF tidak valid",
+                            },
+                        )
+            elif session_cookie and session_manager.verify_session(session_cookie):
+                # Fallback sesi lokal (pengujian lokal & guest mode)
+                request.state.csrf_token = session_manager.csrf_token
+
+                if request.method in ("POST", "PUT", "DELETE", "PATCH"):
+                    csrf_header = request.headers.get(CSRF_HEADER_NAME)
+                    if not csrf_header or not session_manager.verify_csrf(csrf_header):
+                        audit_denial("csrf", 403)
+                        return JSONResponse(
+                            status_code=403,
+                            content={
+                                "success": False,
+                                "error": "Forbidden: Token CSRF tidak valid",
+                            },
+                        )
+            else:
                 audit_denial("session", 401)
                 return JSONResponse(
                     status_code=401,
-                    content={"success": False, "error": "Unauthorized: Sesi lokal tidak valid"},
+                    content={
+                        "success": False,
+                        "error": "Unauthorized: Sesi lokal tidak valid",
+                    },
                 )
-
-            # Validasi CSRF Token untuk operasi mutasi
-            if request.method in ("POST", "PUT", "DELETE", "PATCH"):
-                csrf_header = request.headers.get(CSRF_HEADER_NAME)
-                if not csrf_header or not session_manager.verify_csrf(csrf_header):
-                    audit_denial("csrf", 403)
-                    return JSONResponse(
-                        status_code=403,
-                        content={"success": False, "error": "Forbidden: Token CSRF tidak valid"},
-                    )
 
         try:
             response: Response = await call_next(request)

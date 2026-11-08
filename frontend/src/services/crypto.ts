@@ -173,7 +173,7 @@ export class ProjectCryptoService {
       const parsed = JSON.parse(text)
       return ProjectContainerSchema.parse(parsed)
     } catch (err: any) {
-      throw new Error(`Format berkas tidak valid sebagai berkas Doc-builder: ${err.message}`)
+      throw new Error(`Format berkas tidak valid sebagai berkas Satukit (.docbuilder): ${err.message}`)
     }
   }
 }

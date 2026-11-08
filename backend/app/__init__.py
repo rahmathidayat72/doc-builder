@@ -1,4 +1,4 @@
-"""Doc-builder Backend Package"""
+"""Satukit Backend Package"""
 
 import sys
 from pathlib import Path
@@ -8,4 +8,3 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 __version__ = "0.1.0"
-

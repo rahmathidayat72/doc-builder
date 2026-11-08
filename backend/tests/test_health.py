@@ -16,6 +16,10 @@ def test_health_check_returns_ready():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ready"
-    assert data["service"] == "Doc-builder Backend"
+    assert data["service"] == "Satukit Backend API"
     assert data["environment"] == "localhost"
     assert "libreoffice_available" in data
+    assert "disk" in data
+    assert data["disk"]["status"] in ("healthy", "warning", "critical")
+    assert "used_percent" in data["disk"]
+    assert "free_mb" in data["disk"]

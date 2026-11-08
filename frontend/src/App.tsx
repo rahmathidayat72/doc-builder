@@ -42,6 +42,8 @@ import { PdfWatermarkModal } from './components/pdf-tools/PdfWatermarkModal'
 import { PdfPageNumbersModal } from './components/pdf-tools/PdfPageNumbersModal'
 import { PdfToMarkdownModal } from './components/pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from './components/image-tools/ImageResizeModal'
+import { RemoveBackgroundModal } from './components/image-tools/RemoveBackgroundModal'
+import { UrlShortenerModal } from './components/tools/UrlShortenerModal'
 import { ContactForm } from './components/builder/ContactForm'
 import { SectionOrderForm } from './components/builder/SectionOrderForm'
 import { SummaryForm } from './components/builder/SummaryForm'
@@ -72,6 +74,8 @@ import {
   Copy,
   Archive,
   Minimize2,
+  Sparkles,
+  Link2,
   Image as ImageIcon,
   Layers3,
   Unlock,
@@ -174,6 +178,8 @@ export function App() {
   const [pdfSecurityTab, setPdfSecurityTab] = useState<SecurityTab>('unlock')
   const [pdfToolsTab, setPdfToolsTab] = useState<'merge' | 'split' | 'compress' | 'img2pdf' | 'pdf2img'>('merge')
   const [showImageResizeModal, setShowImageResizeModal] = useState(false)
+  const [showRemoveBackgroundModal, setShowRemoveBackgroundModal] = useState(false)
+  const [showUrlShortenerModal, setShowUrlShortenerModal] = useState(false)
   const [importUndo, setImportUndo] = useState<{
     draftId: string
     data: ResumeData
@@ -397,6 +403,15 @@ export function App() {
       }
     },
     {
+      title: 'Hapus Latar Belakang',
+      category: 'image' as ToolCategory,
+      desc: 'Hapus latar belakang foto otomatis menggunakan AI lokal U2NetP dan ganti warna latar pasfoto.',
+      icon: Sparkles,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowRemoveBackgroundModal(true)
+    },
+    {
       title: 'Resize Gambar',
       category: 'image' as ToolCategory,
       desc: 'Kompres ukuran gambar sesuai target KB/MB dan bersihkan metadata EXIF.',
@@ -482,6 +497,15 @@ export function App() {
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
       action: () => setShowPdfToMarkdownModal(true)
+    },
+    {
+      title: 'Pemendek URL',
+      category: 'organize' as ToolCategory,
+      desc: 'Buat tautan singkat berlatensi rendah di edge serverless untuk CV online, dokumen, atau portofolio.',
+      icon: Link2,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowUrlShortenerModal(true)
     }
   ]
   const normalizedToolQuery = toolQuery.trim().toLowerCase()
@@ -500,7 +524,7 @@ export function App() {
   }
 
   return (
-    <div className="app-shell h-dvh overflow-hidden paper-canvas flex flex-col font-sans text-stone-900">
+    <div className="app-shell h-dvh overflow-hidden paper-canvas dark:bg-[#0b1120] flex flex-col font-sans text-stone-900 dark:text-stone-100 transition-colors">
       {/* Navbar & Kontrol Topbar */}
       <Navbar
         activeWorkspace={activeWorkspace}
@@ -556,11 +580,11 @@ export function App() {
       {activeWorkspace === 'builder' && (
         <>
       {/* Switcher Tab Mobile (Editor vs Preview) */}
-      <div className="lg:hidden shrink-0 p-1.5 bg-[#FAF9F6] border-b border-stone-200">
-        <div className="relative grid grid-cols-2 p-1 bg-stone-200/70 rounded-xl">
+      <div className="lg:hidden shrink-0 p-1.5 bg-[#FAF9F6] dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 transition-colors">
+        <div className="relative grid grid-cols-2 p-1 bg-stone-200/70 dark:bg-stone-800 rounded-xl">
           <span
             aria-hidden="true"
-            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-2xs transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white dark:bg-stone-900 shadow-2xs transition-transform duration-300 ease-out ${
               mobileTab === 'preview' ? 'translate-x-full' : 'translate-x-0'
             }`}
           />
@@ -569,7 +593,7 @@ export function App() {
             onClick={() => setMobileTab('editor')}
             aria-pressed={mobileTab === 'editor'}
             className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${
-              mobileTab === 'editor' ? 'text-teal-900' : 'text-stone-600'
+              mobileTab === 'editor' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
             }`}
           >
             <Edit3 className="w-4 h-4" />
@@ -580,7 +604,7 @@ export function App() {
             onClick={() => setMobileTab('preview')}
             aria-pressed={mobileTab === 'preview'}
             className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${
-              mobileTab === 'preview' ? 'text-teal-900' : 'text-stone-600'
+              mobileTab === 'preview' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
             }`}
           >
             <Eye className="w-4 h-4" />
@@ -593,13 +617,13 @@ export function App() {
       <main className="flex-1 min-h-0 flex overflow-hidden animate-fade-in">
         {/* Kolom Kiri: Form Editor */}
         <section
-          className={`w-full lg:w-[44%] min-h-0 flex-col bg-white border-r border-stone-200/90 ${
+          className={`w-full lg:w-[44%] min-h-0 flex-col bg-white dark:bg-stone-900 border-r border-stone-200/90 dark:border-stone-800 transition-colors ${
             mobileTab === 'editor' ? 'flex' : 'hidden lg:flex'
           }`}
         >
           {/* Section Tabs Navigation */}
           <nav
-            className="shrink-0 flex overflow-x-auto border-b border-stone-200 px-2 sm:px-4 gap-0.5 scrollbar-none bg-[#FAF9F6]/60"
+            className="shrink-0 flex overflow-x-auto border-b border-stone-200 dark:border-stone-800 px-2 sm:px-4 gap-0.5 scrollbar-none bg-[#FAF9F6]/60 dark:bg-stone-900/60 transition-colors"
             aria-label="Bagian CV"
           >
             {SECTIONS.map(s => {
@@ -613,19 +637,19 @@ export function App() {
                   onClick={() => setActiveSection(s.id)}
                   aria-current={isActive ? 'step' : undefined}
                   className={`group relative flex items-center gap-1.5 px-3 py-3 text-xs font-semibold whitespace-nowrap transition-colors duration-150 ${
-                    isActive ? 'text-teal-900' : 'text-stone-600 hover:text-stone-900'
+                    isActive ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                   }`}
                   data-testid={`tab-${s.id}`}
                 >
                   <Icon
                     className={`w-3.5 h-3.5 transition-colors ${
-                      isActive ? 'text-teal-800' : 'text-stone-500 group-hover:text-stone-700'
+                      isActive ? 'text-teal-800 dark:text-teal-400' : 'text-stone-500 dark:text-stone-500 group-hover:text-stone-700 dark:group-hover:text-stone-300'
                     }`}
                   />
                   {s.label}
                   <span
                     aria-hidden="true"
-                    className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-teal-800 origin-center transition-transform duration-300 ease-out ${
+                    className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-teal-800 dark:bg-teal-400 origin-center transition-transform duration-300 ease-out ${
                       isActive ? 'scale-x-100' : 'scale-x-0'
                     }`}
                   />
@@ -642,12 +666,12 @@ export function App() {
                 className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in"
                 data-testid="builder-empty-state"
               >
-                <div className="w-12 h-12 rounded-xl bg-stone-100 text-stone-700 border border-stone-200 flex items-center justify-center">
+                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 flex items-center justify-center">
                   <FileText className="w-6 h-6" />
                 </div>
                 <div className="max-w-sm">
-                  <h3 className="text-base font-bold text-stone-900">Belum ada CV yang dipilih</h3>
-                  <p className="mt-1 text-xs text-stone-600">
+                  <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Belum ada CV yang dipilih</h3>
+                  <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
                     Mulai buat CV baru dari template atau impor data teks dari berkas PDF/DOCX yang sudah ada.
                   </p>
                 </div>
@@ -655,7 +679,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition shadow-2xs cursor-pointer"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-xl transition shadow-2xs cursor-pointer"
                     data-testid="btn-builder-create-new"
                   >
                     + Buat CV Baru Sekarang
@@ -663,7 +687,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={handleImportFromDashboard}
-                    className="px-4 py-2 text-xs font-semibold text-stone-800 bg-white border border-stone-300 hover:bg-stone-50 rounded-xl transition cursor-pointer"
+                    className="px-4 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl transition cursor-pointer"
                     data-testid="btn-builder-import"
                   >
                     Impor Berkas
@@ -732,12 +756,12 @@ export function App() {
 
           {/* Footer Navigasi Langkah */}
           {draft && (
-            <div className="shrink-0 border-t border-stone-200 bg-[#FAF9F6]/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3">
+            <div className="shrink-0 border-t border-stone-200 dark:border-stone-800 bg-[#FAF9F6]/95 dark:bg-stone-900/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3 transition-colors">
               <button
                 type="button"
                 onClick={() => goToSection(activeIndex - 1)}
                 disabled={isFirstSection}
-                className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-stone-700 bg-white rounded-lg border border-stone-300 hover:bg-stone-50 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Bagian sebelumnya"
                 data-testid="btn-section-prev"
               >
@@ -746,14 +770,14 @@ export function App() {
               </button>
 
               <div className="flex-1 min-w-0" aria-live="polite">
-                <div className="flex items-center justify-between text-2xs font-medium text-stone-600 mb-1">
+                <div className="flex items-center justify-between text-2xs font-medium text-stone-600 dark:text-stone-400 mb-1">
                   <span className="truncate">
-                    Langkah {activeIndex + 1} dari {SECTIONS.length} · <span className="text-stone-900 font-semibold">{SECTIONS[activeIndex].label}</span>
+                    Langkah {activeIndex + 1} dari {SECTIONS.length} · <span className="text-stone-900 dark:text-stone-100 font-semibold">{SECTIONS[activeIndex].label}</span>
                   </span>
                 </div>
-                <div className="h-1 rounded-full bg-stone-200 overflow-hidden">
+                <div className="h-1 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-teal-800 transition-[width] duration-500 ease-out"
+                    className="h-full rounded-full bg-teal-800 dark:bg-teal-400 transition-[width] duration-500 ease-out"
                     style={{ width: `${((activeIndex + 1) / SECTIONS.length) * 100}%` }}
                   />
                 </div>
@@ -763,7 +787,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => openExportModal('pdf')}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg shadow-2xs transition"
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-lg shadow-2xs transition"
                   data-testid="btn-section-finish"
                 >
                   <Download className="w-4 h-4" />
@@ -773,7 +797,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => goToSection(activeIndex + 1)}
-                  className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg shadow-2xs transition"
+                  className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-lg shadow-2xs transition"
                   aria-label="Bagian berikutnya"
                   data-testid="btn-section-next"
                 >
@@ -798,18 +822,18 @@ export function App() {
       )}
 
       {activeWorkspace === 'ats' && (
-        <main key="ats" className="flex-1 min-h-0 overflow-y-auto paper-canvas custom-scrollbar animate-fade-in">
+        <main key="ats" className="flex-1 min-h-0 overflow-y-auto paper-canvas dark:bg-[#0b1120] custom-scrollbar animate-fade-in transition-colors">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up">
               <div>
-                <span className="text-[13px] font-semibold text-teal-800">Ruang kerja</span>
-                <h1 className="text-2xl font-bold text-stone-900 mt-0.5">Optimasi ATS</h1>
-                <p className="text-base text-stone-600 mt-1">Periksa keterbacaan CV dan cocokkan isi dengan lowongan target.</p>
+                <span className="text-[13px] font-semibold text-teal-800 dark:text-teal-400">Ruang kerja</span>
+                <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-0.5">Optimasi ATS</h1>
+                <p className="text-base text-stone-600 dark:text-stone-400 mt-1">Periksa keterbacaan CV dan cocokkan isi dengan lowongan target.</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigateTo('builder')}
-                className="inline-flex items-center gap-1.5 self-start sm:self-auto px-4 py-2 text-xs font-semibold text-stone-800 bg-white border border-stone-300 rounded-xl hover:bg-stone-100 transition"
+                className="inline-flex items-center gap-1.5 self-start sm:self-auto px-4 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-700 transition"
               >
                 <ChevronLeft className="w-4 h-4" /> Kembali edit CV
               </button>
@@ -817,15 +841,15 @@ export function App() {
 
             {!draft ? (
               <div
-                className="p-8 text-center bg-white border border-stone-200/90 rounded-2xl space-y-3 animate-fade-in"
+                className="p-8 text-center bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl space-y-3 animate-fade-in"
                 data-testid="ats-empty-state"
               >
-                <div className="w-12 h-12 rounded-xl bg-stone-100 text-stone-700 border border-stone-200 flex items-center justify-center mx-auto">
+                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 flex items-center justify-center mx-auto">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div className="max-w-md mx-auto">
-                  <h2 className="text-base font-bold text-stone-900">Belum ada CV yang dipilih untuk dioptimasi</h2>
-                  <p className="text-sm text-stone-600 mt-1 leading-relaxed">
+                  <h2 className="text-base font-bold text-stone-900 dark:text-stone-100">Belum ada CV yang dipilih untuk dioptimasi</h2>
+                  <p className="text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
                     Evaluasi struktur ATS dan pencocokan lowongan memerlukan data CV aktif. Buat CV baru atau pilih dari draf tersimpan.
                   </p>
                 </div>
@@ -833,7 +857,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={handleCreateNewFromDashboard}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-xl transition shadow-2xs cursor-pointer"
+                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-xl transition shadow-2xs cursor-pointer"
                     data-testid="btn-ats-create-cv"
                   >
                     + Buat CV Baru
@@ -841,7 +865,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => navigateTo('home')}
-                    className="px-4 py-2 text-xs font-semibold text-stone-800 bg-stone-100 hover:bg-stone-200 rounded-xl transition cursor-pointer"
+                    className="px-4 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl transition cursor-pointer"
                   >
                     Kembali ke Beranda
                   </button>
@@ -853,21 +877,21 @@ export function App() {
                   type="button"
                   onClick={() => setShowAtsPanel(true)}
                   style={{ '--i': 1 } as CSSProperties}
-                  className="stagger-item group text-left p-6 bg-white border border-stone-200/90 rounded-2xl shadow-2xs hover:border-teal-700 transition duration-150 cursor-pointer"
+                  className="stagger-item group text-left p-6 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-2xs hover:border-teal-700 dark:hover:border-teal-500 transition duration-150 cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
-                    <span className="p-3 rounded-xl bg-stone-100 text-stone-800 border border-stone-200/80 group-hover:bg-teal-50 group-hover:text-teal-900 transition-colors"><ShieldCheck className="w-6 h-6" /></span>
-                    <span className="text-[13px] font-medium text-stone-600 bg-stone-100 px-2.5 py-0.5 rounded-md">Audit struktur</span>
+                    <span className="p-3 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-950 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors"><ShieldCheck className="w-6 h-6" /></span>
+                    <span className="text-[13px] font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2.5 py-0.5 rounded-md">Audit struktur</span>
                   </div>
-                  <h2 className="text-lg font-bold text-stone-900 mt-5">Evaluasi Keterbacaan ATS</h2>
-                  <p className="text-base text-stone-600 mt-2">Audit struktur, informasi kontak, ringkasan, dampak terukur, dan integritas kata kunci.</p>
+                  <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-5">Evaluasi Keterbacaan ATS</h2>
+                  <p className="text-base text-stone-600 dark:text-stone-400 mt-2">Audit struktur, informasi kontak, ringkasan, dampak terukur, dan integritas kata kunci.</p>
                   <div className="mt-5 flex items-baseline gap-2">
-                    <span key={atsAnalysis?.score ?? 0} className="text-3xl font-bold text-stone-900 tabular-nums animate-fade-up">{atsAnalysis?.score ?? 0}</span>
-                    <span className="text-[13px] text-stone-600">skor dari 100</span>
+                    <span key={atsAnalysis?.score ?? 0} className="text-3xl font-bold text-stone-900 dark:text-stone-100 tabular-nums animate-fade-up">{atsAnalysis?.score ?? 0}</span>
+                    <span className="text-[13px] text-stone-600 dark:text-stone-400">skor dari 100</span>
                   </div>
-                  <div className="mt-3 h-1.5 rounded-full bg-stone-200 overflow-hidden" aria-hidden="true">
+                  <div className="mt-3 h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden" aria-hidden="true">
                     <div
-                      className="h-full rounded-full bg-teal-800 transition-[width] duration-700 ease-out"
+                      className="h-full rounded-full bg-teal-800 dark:bg-teal-400 transition-[width] duration-700 ease-out"
                       style={{ width: `${Math.min(100, Math.max(0, atsAnalysis?.score ?? 0))}%` }}
                     />
                   </div>
@@ -877,15 +901,15 @@ export function App() {
                   type="button"
                   onClick={() => setShowJobMatchModal(true)}
                   style={{ '--i': 2 } as CSSProperties}
-                  className="stagger-item group text-left p-6 bg-white border border-stone-200/90 rounded-2xl shadow-2xs hover:border-teal-700 transition duration-150 cursor-pointer"
+                  className="stagger-item group text-left p-6 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-2xs hover:border-teal-700 dark:hover:border-teal-500 transition duration-150 cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
-                    <span className="p-3 rounded-xl bg-stone-100 text-stone-800 border border-stone-200/80 group-hover:bg-teal-50 group-hover:text-teal-900 transition-colors"><FileSearch className="w-6 h-6" /></span>
-                    <span className="text-[13px] font-medium text-stone-600 bg-stone-100 px-2.5 py-0.5 rounded-md">Pencocokan</span>
+                    <span className="p-3 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-950 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors"><FileSearch className="w-6 h-6" /></span>
+                    <span className="text-[13px] font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2.5 py-0.5 rounded-md">Pencocokan</span>
                   </div>
-                  <h2 className="text-lg font-bold text-stone-900 mt-5">Cocokkan dengan Lowongan</h2>
-                  <p className="text-base text-stone-600 mt-2">Bandingkan kata kunci CV dengan deskripsi pekerjaan dan temukan kompetensi yang belum tercantum.</p>
-                  <span className="inline-flex mt-5 px-3 py-1 rounded-lg bg-teal-50 text-teal-900 border border-teal-200 text-xs font-semibold">Analisis lokal &amp; privat</span>
+                  <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-5">Cocokkan dengan Lowongan</h2>
+                  <p className="text-base text-stone-600 dark:text-stone-400 mt-2">Bandingkan kata kunci CV dengan deskripsi pekerjaan dan temukan kompetensi yang belum tercantum.</p>
+                  <span className="inline-flex mt-5 px-3 py-1 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold">Analisis lokal &amp; privat</span>
                 </button>
               </div>
             )}
@@ -897,13 +921,13 @@ export function App() {
       )}
 
       {activeWorkspace === 'tools' && (
-        <main key="tools" className="flex-1 min-h-0 overflow-y-auto paper-canvas custom-scrollbar animate-fade-in">
+        <main key="tools" className="flex-1 min-h-0 overflow-y-auto paper-canvas dark:bg-[#0b1120] custom-scrollbar animate-fade-in transition-colors">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-up">
               <div>
-                <span className="text-[13px] font-semibold text-teal-800">Ruang kerja</span>
-                <h1 className="text-2xl font-bold text-stone-900 mt-0.5">Alat Dokumen</h1>
-                <p className="text-base text-stone-600 mt-1">Konversi dan olah dokumen tanpa memenuhi layar editor CV.</p>
+                <span className="text-[13px] font-semibold text-teal-800 dark:text-teal-400">Ruang kerja</span>
+                <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mt-0.5">Alat Dokumen</h1>
+                <p className="text-base text-stone-600 dark:text-stone-400 mt-1">Konversi dan olah dokumen tanpa memenuhi layar editor CV.</p>
               </div>
               <div className="relative w-full md:w-72">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
@@ -913,14 +937,14 @@ export function App() {
                   onChange={event => setToolQuery(event.target.value)}
                   placeholder="Cari alat, mis. kompres, OCR..."
                   aria-label="Cari alat dokumen"
-                  className="w-full rounded-xl border border-stone-300 bg-white py-2.5 pl-9 pr-9 text-sm shadow-2xs outline-none transition focus:border-teal-700 focus:ring-2 focus:ring-teal-700/30"
+                  className="w-full rounded-xl border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 py-2.5 pl-9 pr-9 text-sm text-stone-900 dark:text-stone-100 shadow-2xs outline-none transition focus:border-teal-700 dark:focus:border-teal-400 focus:ring-2 focus:ring-teal-700/30"
                   data-testid="input-search-tools"
                 />
                 {toolQuery && (
                   <button
                     type="button"
                     onClick={() => setToolQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-stone-500 hover:text-stone-800 hover:bg-stone-100 transition animate-fade-in"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition animate-fade-in"
                     aria-label="Hapus pencarian alat"
                   >
                     <X className="h-4 w-4" />
@@ -932,8 +956,8 @@ export function App() {
             {visibleTools.length === 0 ? (
               <div className="py-16 text-center animate-fade-in" data-testid="tools-empty">
                 <Search className="mx-auto h-8 w-8 text-stone-400" />
-                <p className="mt-3 text-sm font-semibold text-stone-800">Alat tidak ditemukan</p>
-                <p className="mt-1 text-xs text-stone-600">Coba kata kunci lain, misalnya &quot;PDF&quot;, &quot;gambar&quot;, atau &quot;password&quot;.</p>
+                <p className="mt-3 text-sm font-semibold text-stone-800 dark:text-stone-200">Alat tidak ditemukan</p>
+                <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">Coba kata kunci lain, misalnya &quot;PDF&quot;, &quot;gambar&quot;, atau &quot;password&quot;.</p>
               </div>
             ) : (
               TOOL_CATEGORIES.map(category => {
@@ -942,8 +966,8 @@ export function App() {
                 return (
                   <section key={category.id} aria-labelledby={`tools-${category.id}`} className="space-y-3">
                     <div className="flex items-baseline gap-2">
-                      <h2 id={`tools-${category.id}`} className="text-base font-bold text-stone-900">{category.label}</h2>
-                      <span className="text-[13px] font-medium text-stone-600 tabular-nums">{items.length} alat</span>
+                      <h2 id={`tools-${category.id}`} className="text-base font-bold text-stone-900 dark:text-stone-100">{category.label}</h2>
+                      <span className="text-[13px] font-medium text-stone-600 dark:text-stone-400 tabular-nums">{items.length} alat</span>
                     </div>
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {items.map((tool, index) => {
@@ -954,19 +978,19 @@ export function App() {
                             type="button"
                             onClick={tool.action}
                             style={{ '--i': index } as CSSProperties}
-                            className="stagger-item group text-left p-5 bg-white border border-stone-200/90 rounded-2xl shadow-2xs hover:border-teal-700 transition duration-150 min-h-44 flex flex-col relative cursor-pointer"
+                            className="stagger-item group text-left p-5 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-2xs hover:border-teal-700 dark:hover:border-teal-500 transition duration-150 min-h-44 flex flex-col relative cursor-pointer"
                           >
                             <div className="flex items-center justify-between w-full">
-                              <span className={`p-3 rounded-xl self-start border border-stone-200/70 transition-colors ${tool.iconClass}`}><Icon className="w-5 h-5" /></span>
+                              <span className={`p-3 rounded-xl self-start border border-stone-200/70 dark:border-stone-700 transition-colors ${tool.iconClass}`}><Icon className="w-5 h-5" /></span>
                               {tool.isNew && (
-                                <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 text-teal-900 rounded-md border border-teal-200">
+                                <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 rounded-md border border-teal-200 dark:border-teal-800">
                                   Baru
                                 </span>
                               )}
                             </div>
-                            <h3 className="text-base font-bold text-stone-900 mt-4 group-hover:text-teal-900 transition-colors">{tool.title}</h3>
-                            <p className="text-sm leading-relaxed text-stone-600 mt-1.5 flex-1">{tool.desc}</p>
-                            <span className="mt-4 text-xs font-semibold text-teal-800">
+                            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors">{tool.title}</h3>
+                            <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 mt-1.5 flex-1">{tool.desc}</p>
+                            <span className="mt-4 text-xs font-semibold text-teal-800 dark:text-teal-400">
                               Buka utilitas
                             </span>
                           </button>
@@ -978,11 +1002,11 @@ export function App() {
               })
             )}
 
-            <div className="p-4 bg-white border border-stone-200/90 rounded-2xl flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-teal-800 shrink-0 mt-0.5" />
+            <div className="p-4 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-teal-800 dark:text-teal-400 shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-bold text-stone-900">Pemrosesan lokal</h3>
-                <p className="text-xs text-stone-600 mt-1">Dokumen diproses melalui server lokal Doc-builder. Berkas sementara dibersihkan otomatis.</p>
+                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Pemrosesan lokal</h3>
+                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">Dokumen diproses melalui server lokal Satukit. Berkas sementara dibersihkan otomatis.</p>
               </div>
             </div>
 
@@ -1097,6 +1121,18 @@ export function App() {
       <ImageResizeModal
         isOpen={showImageResizeModal}
         onClose={() => setShowImageResizeModal(false)}
+      />
+
+      {/* Modal Hapus Latar Belakang */}
+      <RemoveBackgroundModal
+        isOpen={showRemoveBackgroundModal}
+        onClose={() => setShowRemoveBackgroundModal(false)}
+      />
+
+      {/* Modal Pemendek URL */}
+      <UrlShortenerModal
+        isOpen={showUrlShortenerModal}
+        onClose={() => setShowUrlShortenerModal(false)}
       />
 
       {/* Modal Keamanan PDF (Unlock & Protect) */}

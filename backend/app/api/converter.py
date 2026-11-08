@@ -62,9 +62,7 @@ async def convert_docx_to_pdf(file: Annotated[UploadFile, File()]):
                 )
 
             if not pdf_io or err_code:
-                raise HTTPException(
-                    status_code=500, detail=err_code or "Gagal mengonversi berkas."
-                )
+                raise HTTPException(status_code=500, detail=err_code or "Gagal mengonversi berkas.")
 
             output_filename = f"{file.filename.rsplit('.', 1)[0]}.pdf"
             return StreamingResponse(
@@ -123,8 +121,7 @@ async def convert_pdf_to_docx(file: Annotated[UploadFile, File()]):
             return StreamingResponse(
                 docx_io,
                 media_type=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "wordprocessingml.document"
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 ),
                 headers={
                     "Content-Disposition": f'attachment; filename="{output_filename}"',

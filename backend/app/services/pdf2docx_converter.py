@@ -26,9 +26,9 @@ def convert_pdf_to_docx_sandboxed(
         raise ValueError("Header biner berkas tidak valid sebagai berkas dokumen PDF (%PDF).")
 
     clean_stem = Path(filename).stem
-    safe_stem = "".join(
-        char for char in clean_stem if char.isalnum() or char in ("-", "_")
-    ) or "document"
+    safe_stem = (
+        "".join(char for char in clean_stem if char.isalnum() or char in ("-", "_")) or "document"
+    )
     unique_prefix = f"pdf2docx_{uuid.uuid4().hex[:8]}"
 
     with tempfile.TemporaryDirectory(prefix="docbuilder_p2d_") as tmpdir:
@@ -67,8 +67,6 @@ def convert_pdf_to_docx_sandboxed(
             return output, None
 
         error_message = (
-            result.error_message
-            or result.stderr
-            or "Gagal merekonstruksi berkas PDF ke DOCX."
+            result.error_message or result.stderr or "Gagal merekonstruksi berkas PDF ke DOCX."
         )
         return None, f"PDF2DOCX_ERROR: {error_message}"

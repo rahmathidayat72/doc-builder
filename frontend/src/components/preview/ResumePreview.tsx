@@ -54,7 +54,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
 
   if (!draft) {
     return (
-      <div className="w-full h-full flex items-center justify-center paper-canvas p-8 text-stone-500">
+      <div className="w-full h-full flex items-center justify-center paper-canvas dark:bg-[#0b1120] p-8 text-stone-500 dark:text-stone-400 transition-colors">
         <p className="text-sm">Pilih atau buat draft baru untuk melihat pratinjau.</p>
       </div>
     )
@@ -72,20 +72,20 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
   const pageBreaks = Array.from({ length: Math.max(0, pageCount - 1) }, (_, index) => index + 2)
 
   return (
-    <div className="flex flex-col h-full bg-stone-200/80 border-l border-stone-300">
+    <div className="flex flex-col h-full bg-stone-200/80 dark:bg-stone-950 border-l border-stone-300 dark:border-stone-800 transition-colors">
       {/* Toolbar Zoom & Status */}
-      <div className="no-print bg-white border-b border-stone-300 px-4 py-2 flex items-center justify-between shadow-2xs">
+      <div className="no-print bg-white dark:bg-stone-900 border-b border-stone-300 dark:border-stone-800 px-4 py-2 flex items-center justify-between shadow-2xs transition-colors">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-stone-800">
+          <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
             Pratinjau A4
           </span>
-          <span className="text-2xs px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono">
+          <span className="text-2xs px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-mono">
             {Math.round(zoom * 100)}%
           </span>
           <span
             key={pageCount}
             className={`text-2xs px-2 py-0.5 rounded font-semibold animate-soft-pulse ${
-              pageCount > 2 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-teal-50 text-teal-900 border border-teal-200'
+              pageCount > 2 ? 'bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800' : 'bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800'
             }`}
             data-testid="page-count"
             title={`Perkiraan ${pageCount} halaman A4`}
@@ -98,7 +98,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(prev => Math.max(0.6, prev - 0.1))}
-            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
+            className="p-1.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded transition"
             title="Perkecil"
             aria-label="Perkecil pratinjau"
           >
@@ -107,7 +107,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(1.0)}
-            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
+            className="p-1.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded transition"
             title="Reset Zoom (100%)"
             aria-label="Reset zoom pratinjau"
           >
@@ -116,7 +116,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           <button
             type="button"
             onClick={() => setZoom(prev => Math.min(1.4, prev + 0.1))}
-            className="p-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition"
+            className="p-1.5 text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded transition"
             title="Perbesar"
             aria-label="Perbesar pratinjau"
           >
@@ -163,7 +163,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           </div>
 
           <footer className="pt-8 text-center text-3xs text-stone-300">
-            Dihasilkan secara aman dengan Doc-builder (Offline &amp; Private)
+            Dihasilkan secara aman dengan Satukit (Offline &amp; Privat)
           </footer>
         </div>
       </div>

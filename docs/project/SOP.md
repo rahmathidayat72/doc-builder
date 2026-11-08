@@ -24,6 +24,16 @@
 - **Kompatibilitas Data CV:** `headline`, `achievements`, `sectionOrder`, `favorite`, dan `targetJob` adalah field opsional. Renderer/eksportir wajib memakai helper fallback bersama; draft lama tidak boleh dimigrasi secara destruktif.
 - **Manajemen Draft:** Autosave tertunda harus di-flush sebelum berpindah, menduplikasi, atau membuat draft target. Inisialisasi aplikasi tidak boleh membuat draft baru sebelum daftar draft selesai dimuat.
 
+### 3.1 Aturan Pengoperasian VPS & Arsitektur Online (Fase 10+)
+- **Isolasi & Least Privilege:** Backend FastAPI dan worker ML di VPS wajib dijalankan di bawah user sistem non-root (`docbuilder`).
+- **Secret Management:** Kredensial rahasia (Brevo API Key, Google OAuth Secret, R2 Access Key, HMAC Secret, DB Encryption Key) dilarang keras dicatat di repositori atau file publik; simpan strictly di file `.env` terlindungi dengan izin `0600` di VPS dan Cloudflare Worker Secrets.
+- **Aturan ML U2NetP (Anti-OOM):** Inferensi remove-background wajib dieksekusi dalam subprocess terisolasi dengan concurrency 1, antrean tunggu maksimal 2, timeout keras 30 detik, dan penghentian subprocess pasca inferensi untuk mengembalikan memori fisik ke OS.
+- **Aturan Autentikasi & Akun:** Password wajib di-hash menggunakan Argon2id (atau bcrypt work factor 12). Dilarang keras melakukan auto-merge akun email/password dengan Google OAuth; penggabungan akun wajib melalui otorisasi sadar (re-authentication).
+- **Aturan Retensi & Kuota CV:** Maksimal 5 CV per akun, retensi 90 hari terhitung sejak pembaruan terakhir. Background cleaner harian menghapus dokumen kedaluwarsa maksimal 24 jam pasca `expires_at`. File tamu anonim dibersihkan maksimal TTL 1 jam.
+- **Kebijakan Disk Fail-Closed:** Peringatan pada 70% disk usage; penolakan simpan dokumen baru secara fail-closed pada 80% disk usage atau kuota global CV mencapai 5 GB.
+- **Aturan Cadangan R2:** Backup snapshot database & CV dienkripsi AES-256-GCM di VPS sebelum diunggah ke private bucket Cloudflare R2; lifecycle deletion rule 7 hari wajib aktif.
+- **Aturan URL Shortener Serverless:** Destination URL wajib HTTPS publik, menolak IP private RFC 1918, loopback, link-local, dan reserved. Pembuatan link dilindungi HMAC signature. Link aktif tanpa kedaluwarsa; link dicabut berstatus 410 Gone dan slug dilarang dipakai ulang. Analitik hanya agregat `click_count` dan `last_accessed_at`.
+
 ## 4. Prosedur Pengujian dan Quality Gates
 Setelah kode selesai dimodifikasi, gunakan command aktual berikut (Linux/macOS; Windows memakai `backend\.venv\Scripts\...`):
 1. Frontend lint: `npm --prefix frontend run lint` (Oxlint).

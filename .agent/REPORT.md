@@ -3735,3 +3735,1240 @@ Menambahkan komponen footer reusable `Footer.tsx` untuk menampilkan tahun pengem
 
 ### Status
 ✅ Selesai dan terverifikasi (`FEATURE-DEVELOPER-FOOTER-001`).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-10.1` — Feasibility spike U2NetP CPU-only di VPS (Benchmark latensi, peak RSS, subprocess isolation, queue capacity, timeout)
+**Requirement:** `BUS-016`, `FR-046`, `FR-047`, `NFR-PERF-005`, `NFR-REL-005`
+
+### Ringkasan
+Telah diselesaikan pengujian kelayakan empiris (feasibility spike & benchmark) model segmentasi U2NetP ONNX CPU-only (`u2netp.onnx`) pada lingkungan VPS Ubuntu 24.04 LTS (1 vCPU Intel Xeon Gold 6138, RAM fisik 2.2 GiB) untuk fitur remove-background online Doc-builder:
+1. **Verifikasi Integritas & Ukuran Model:**
+   - Model `u2netp.onnx` (~4.36 MB, 4,574,861 bytes) diunduh dan diverifikasi dengan checksum MD5 `8e83ca70e441ab06c318d82300c84806` (100% MATCH).
+   - `.gitignore` diperbarui untuk mengabaikan bobot biner `*.onnx`, `models/`, `*/models/`, dan `backend/models/`.
+2. **Benchmark Latensi Multi-Resolusi (1 vCPU Thread Tunggal):**
+   - 800x800 (Pasfoto standar): Inferensi murni 1.074s, total wall time **1.635s** (target SLA ≤ 15.0s, **9x lebih cepat**).
+   - 1200x1200 (HD Portrait): Inferensi murni 1.153s, total wall time **1.826s** (target SLA ≤ 15.0s, **8x lebih cepat**).
+   - 1920x1080 (Full HD Landscape): Inferensi murni 1.076s, total wall time **1.871s** (target SLA ≤ 15.0s, **8x lebih cepat**).
+3. **Profil Memori & Subprocess Memory Reclamation (Zero Leak):**
+   - Peak RSS subprocess worker berada di rentang **355.96 MB s/d 375.59 MB** (target SLA < 400 MB).
+   - Baseline RAM host sebelum inferensi: 39.09 MB; RAM host pasca worker selesai & dihentikan: 39.09 MB; Delta RAM host tersisa: **0.00 MB**. Membuktikan bahwa terminasi subprocess mengembalikan 100% memori ke kernel OS dan mengeliminasi risiko memory leak jangka panjang pada proses FastAPI.
+4. **Verifikasi Kualitas Alpha Mask:**
+   - Piksel sudut luar (5, 5): `Alpha = 0` (100% transparan).
+   - Piksel tengah subjek (w/2, h/2): `Alpha = 254` (subjek solid/terdeteksi).
+   - Ukuran keluaran PNG teroptimasi: 78.8 KB – 123.8 KB.
+5. **Simulasi Batas Konkurensi & Antrean Beban:**
+   - Konfigurasi: concurrency = 1, queue max = 2, timeout = 30s.
+   - Request 1: HTTP 200 OK (`started_immediately`).
+   - Request 2: HTTP 202 Accepted (`enqueued`, posisi 1).
+   - Request 3: HTTP 202 Accepted (`enqueued`, posisi 2).
+   - Request 4: HTTP 429 Too Many Requests (`rejected`, header `Retry-After: 30`, fail-closed perlindungan DoS komputasi).
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol/behavior sesuai 100% dengan code plan Gerbang 3 yang diajukan dan disetujui pengguna.
+- Perintah aktual yang dijalankan:
+  1. `chmod +x scripts/spike_u2netp.py`
+  2. `backend/.venv/bin/python scripts/spike_u2netp.py` (eksekusi benchmark dan penulisan JSON summary)
+  3. `backend/.venv/bin/pytest backend/tests` (145/145 PASS)
+  4. `backend/.venv/bin/ruff check backend/app backend/tests scripts/spike_u2netp.py` (All checks passed)
+- Penyimpangan material: Tidak ada.
+- Rollback/cleanup: Berkas citra uji sintetis (`synth_*.jpg`, `synth_*.png`) dibersihkan otomatis pasca uji.
+
+### File Dibuat
+- `scripts/spike_u2netp.py` — Skrip harness spike & benchmark U2NetP ONNX CPU-only terisolasi.
+- `docs/project/benchmarks/U2NETP-SPIKE-REPORT.md` — Laporan komprehensif benchmark latensi, memori, dan SLA U2NetP.
+
+### File Diubah
+- `.gitignore` — Mengabaikan `*.onnx`, `models/`, `*/models/`, dan `backend/models/`.
+- `.agent/DECISIONS.md` — Pencatatan keputusan arsitektur `DEC-018`.
+- `.agent/TASKS.md` — Pembaruan status `TASK-10.1` ke Selesai dan terverifikasi, `TASK-10.2` ke Siap.
+- `.agent/PROJECT-STATE.md` — Pembaruan state proyek dan ringkasan fokus.
+- `.agent/REPORT.md` — Laporan eksekusi task ini.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Model Checksum (MD5) | Python hashlib md5 | PASS | `8e83ca70e441ab06c318d82300c84806` (MATCH) |
+| Latensi Inferensi (1 vCPU) | `scripts/spike_u2netp.py` | PASS | 1.635s - 1.871s wall time (SLA ≤ 15.0s) |
+| Peak Memory RSS | `scripts/spike_u2netp.py` | PASS | 355.96 MB - 375.59 MB (Target < 400 MB) |
+| Host Memory Reclamation | `scripts/spike_u2netp.py` | PASS | Delta host RAM: 0.00 MB (Zero memory leak) |
+| Kualitas Masking Alpha | `scripts/spike_u2netp.py` | PASS | Sudut: Alpha=0, Subjek: Alpha=254 |
+| Antrean & Penolakan Beban | `scripts/spike_u2netp.py` | PASS | Request 4 ditolak HTTP 429 + `Retry-After: 30` |
+| Backend Pytest Suite | `backend/.venv/bin/pytest backend/tests` | PASS | 145/145 tests passed |
+| Backend Ruff Check | `backend/.venv/bin/ruff check backend/app backend/tests scripts/spike_u2netp.py` | PASS | All checks passed (0 error) |
+
+### Acceptance Criteria
+- [x] Model `u2netp.onnx` tersedia dan terverifikasi integritas checksum MD5 resmi.
+- [x] Subprocess terisolasi berjalan stabil dan berhasil keluar secara deterministik.
+- [x] Latensi eksekusi pada 1 vCPU berada di bawah target SLA 15.0 detik (tercapai ~1.63s–1.87s).
+- [x] Peak RSS memori berada di bawah batas aman 400 MB (tercapai ~356–376 MB).
+- [x] Reklamasi memori host terbukti 100% pasca proses keluar (delta 0.00 MB).
+- [x] Penolakan antrean kelebihan beban HTTP 429 + `Retry-After: 30` terbukti.
+- [x] Regresi backend 145/145 Pytest dan linting Ruff lulus 100%.
+
+### Keputusan dan Technical Debt
+- Keputusan `DEC-018` dicatat: adopsi U2NetP ONNX CPU-only thread tunggal di dalam subprocess terisolasi per permintaan.
+- Binary model `u2netp.onnx` disimpan secara lokal di `backend/models/` dan diabaikan dari repositori Git oleh `.gitignore`.
+
+### Risiko Tersisa
+- Permintaan serentak tinggi dapat ditolak dengan HTTP 429 jika antrean melebihi 2. Ini adalah perilaku yang diinginkan (fail-closed) untuk melindungi VPS 2.2 GiB RAM.
+- `RISK-SEC-004` (DoS Beban Komputasi ML) termitigasi secara empiris oleh arsitektur antrean ini; closure formal akan dilakukan saat integrasi API selesai.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-10.1`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `TASK-10.2` (Boundary Hardening `0700`, sweeper TTL 1 jam berkas anonim, dan fail-closed disk guard 70%/80%).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-10.2` — Boundary hardening & cleanup daemon: perbaikan izin workspace `0700`, sweeper TTL 1 jam untuk berkas anonim, disk fail-closed guard 70%/80%
+**Requirement:** `BRULE-003`, `BRULE-014`, `NFR-REL-007`, `NFR-SEC-012`
+
+### Ringkasan
+Telah diimplementasikan boundary hardening sistem berkas lokal, pengawasan kapasitas penyimpanan fail-closed (disk guard), dan daemon sweeper berkala otomatis:
+1. **Pencegahan Disk Exhaustion Fail-Closed (`backend/app/core/disk_guard.py`):**
+   - Implementasi `get_disk_space_info()` berbasis `shutil.disk_usage()`.
+   - Ambang batas: Peringatan (Warning) saat penggunaan disk mencapai **70.0%**, Kritis (Critical) fail-closed saat penggunaan disk mencapai **80.0%** (`BRULE-014`, `NFR-SEC-012`).
+   - Exception `DiskSpaceExhaustedError` (subclass `fastapi.HTTPException` status 507 Insufficient Storage) yang menolak penerimaan berkas baru secara fail-closed sebelum kehabisan inode atau ruang blok disk.
+2. **Perlindungan Hak Akses Ketat `0700` (`backend/app/services/job_manager.py`):**
+   - Helper `_ensure_secure_dir()` memastikan direktori root workspace dan direktori kerja unik UUIDv4 dibuat dengan izin `0o700` (khusus user owner), menutup celah kebocoran residual dokumen antar-pengguna lokal pada host multi-user (`RISK-SEC-002`, `THR-002`, `CTRL-002`).
+   - Penolakan alokasi job baru saat kapasitas disk kritis dan pelepasan lock otomatis agar server tidak deadlock.
+3. **Pembersih Otomatis Daemon Sweeper (`backend/app/services/job_manager.py` & `backend/app/core/jobs.py`):**
+   - Implementasi kelas `BackgroundSweeper` berbasis thread daemon (`docbuilder-background-sweeper`).
+   - Siklus inspeksi berkala setiap 300 detik (5 menit) dengan TTL penghapusan berkas sementara kedaluwarsa 3600 detik (1 jam) (`BRULE-003`, `NFR-REL-007`).
+   - Integrasi `lifespan` FastAPI di `backend/app/main.py` untuk memulai sweeper saat startup aplikasi dan menghentikannya secara bersih (graceful stop) saat shutdown.
+4. **Telemetri Kapasitas Disk pada Endpoint Health (`backend/app/api/health.py`):**
+   - Respon endpoint `/api/health` kini memuat blok `disk`: `status` (`healthy`, `warning`, `critical`), `total_mb`, `used_mb`, `free_mb`, dan `used_percent`.
+5. **Exception Handler 507 di FastAPI (`backend/app/main.py`):**
+   - Menangkap `DiskSpaceExhaustedError` dan mengembalikan payload JSON terstruktur dengan HTTP status `507` dan code `DISK_SPACE_EXHAUSTED`.
+6. **Pengujian Unit & Integrasi Menyeluruh:**
+   - `backend/tests/test_disk_guard.py`: 4 test (verifikasi data disk aktual, klasifikasi status healthy/warning/critical fail-closed, penanganan kegagalan OSError sistem file, dan exception handler HTTP 507).
+   - `backend/tests/test_job_manager.py`: 8 test (termasuk verifikasi izin bit `0700` pada POSIX, pelepasan lock saat disk kritis, siklus hidup daemon sweeper, dan penghapusan folder kedaluwarsa).
+   - `backend/tests/test_health.py`: 1 test (memvalidasi payload telemetri disk pada `/api/health`).
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `backend/app/core/disk_guard.py`, `backend/tests/test_disk_guard.py`.
+- File diubah: `backend/app/core/config.py`, `backend/app/services/job_manager.py`, `backend/app/core/jobs.py`, `backend/app/api/health.py`, `backend/app/main.py`, `backend/tests/test_job_manager.py`, `backend/tests/test_health.py`, `docs/project/SECURITY.md`, `docs/project/TRACEABILITY.md`, `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`.
+- Command aktual:
+  1. `pytest backend/tests/test_disk_guard.py backend/tests/test_job_manager.py backend/tests/test_health.py` -> PASS
+  2. `ruff check backend/app backend/tests` -> PASS (All checks passed)
+  3. `pytest backend/tests` -> PASS (152/152 tests passed in 4.70s)
+- Penyimpangan material: Tidak ada.
+
+### File Dibuat
+- `backend/app/core/disk_guard.py`
+- `backend/tests/test_disk_guard.py`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/services/job_manager.py`
+- `backend/app/core/jobs.py`
+- `backend/app/api/health.py`
+- `backend/app/main.py`
+- `backend/tests/test_job_manager.py`
+- `backend/tests/test_health.py`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Disk Guard Unit Tests | `pytest backend/tests/test_disk_guard.py` | PASS | 4/4 test lulus (healthy, warning, critical 80% fail-closed, HTTP 507) |
+| Job Manager Tests | `pytest backend/tests/test_job_manager.py` | PASS | 8/8 test lulus (izin 0700, sweeper daemon, disk rejection) |
+| Health Check Telemetry | `pytest backend/tests/test_health.py` | PASS | 1/1 test lulus (memuat key `disk` dengan status & used_percent) |
+| Backend Ruff Check | `ruff check backend/app backend/tests` | PASS | All checks passed (0 error) |
+| Backend Full Suite | `pytest backend/tests` | PASS | 152/152 tests passed (4.70s) |
+
+### Acceptance Criteria
+- [x] Direktori `temp_workspace` dan job workspace dibuat dengan izin ketat `0700`.
+- [x] Pengecekan disk usage fail-closed aktif: melempar error saat penggunaan disk >= 80%.
+- [x] HTTP 507 dikembalikan secara elegan ke klien saat disk server kritis.
+- [x] Endpoint `/api/health` memuat informasi status disk server.
+- [x] Background periodic sweeper thread berjalan di latar belakang dan menghapus direktori berumur > 1 jam (3600 detik).
+- [x] Seluruh suite tes backend 152/152 Pytest dan linting Ruff lulus 100%.
+
+### Keputusan dan Technical Debt
+- `RISK-SEC-002` kini berstatus `MITIGATED` (menunggu formal closure approval oleh owner).
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-10.2`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke Phase 11 (`TASK-11.1`: Database Schema & Backend Authentication Service).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-11.1` — Database schema & backend authentication service: user table, session management, Argon2id hashing, Google OAuth handler, anti-auto-merge guard
+**Requirement:** `BUS-017`, `FR-042`, `NFR-SEC-006`, `NFR-SEC-007`
+
+### Ringkasan
+Telah diimplementasikan infrastruktur basis data relasional SQLite dan backend authentication service multi-user untuk Doc-builder:
+1. **Basis Data SQLite Berkinerja Tinggi & Aman (`backend/app/db/session.py`):**
+   - Mode WAL (`PRAGMA journal_mode = WAL;`), `synchronous = NORMAL`, `foreign_keys = ON`, `busy_timeout = 5000`.
+   - Isolasi hak akses sistem berkas: folder data `0700` dan berkas basis data `0600` (`_ensure_secure_db_path`).
+   - Skema tabel: `users` (id, email, password_hash, name, email_verified, created_at, updated_at), `oauth_accounts` (id, user_id, provider, provider_user_id, email, created_at), `user_sessions` (token_hash, user_id, csrf_token, ip_address, user_agent, created_at, expires_at), dan `auth_tokens` (token_hash, user_id, token_type, created_at, expires_at, used_at).
+2. **Kriptografi & Manajemen Sesi (`backend/app/core/security.py`):**
+   - Hashing kata sandi Argon2id menggunakan `argon2-cffi` standar OWASP (`time_cost=3`, `memory_cost=65536 KiB`, `parallelism=4`, `type=argon2.Type.ID`).
+   - Penyimpanan token berbasis hashing SHA-256 (`hash_token`) di basis data, token raw 32-byte URL-safe hanya dikirimkan ke klien.
+   - Komparasi timing-safe (`hmac.compare_digest`) anti timing attack.
+3. **Logika Bisnis Autentikasi & Anti-Auto-Merge Guard (`backend/app/services/auth_service.py`):**
+   - Registrasi pengguna email/password dengan validasi kekuatan password dan normalisasi email.
+   - Penegakan Anti-Auto-Merge (`BRULE-013`, `NFR-SEC-007`): Jika email Google OAuth cocok dengan akun yang telah memiliki kata sandi lokal, sistem MENOLAK penggabungan otomatis dengan melempar `AccountMergeRequiredError` (HTTP 409 + header `X-Error-Code: ACCOUNT_MERGE_REQUIRED`), mencegah Account Takeover.
+   - Penautan akun sadar (`link_google_account`) mewajibkan konfirmasi kata sandi aktif.
+   - Pemutusan tautan Google (`unlink_google_account`) mewajibkan akun memiliki kata sandi lokal terlebih dahulu.
+   - Alur reset kata sandi single-use ber-TTL 15 menit (`NFR-SEC-006`) dan pencabutan seluruh sesi aktif saat kata sandi diperbarui.
+   - Penghapusan mandiri akun secara instan (`delete_user_account`) cascading ke tabel sesi, token, dan OAuth.
+4. **Router & Integrasi Middleware (`backend/app/api/auth.py` & `backend/app/core/middleware.py`):**
+   - Endpoint: `/api/auth/register`, `/api/auth/login`, `/api/auth/google`, `/api/auth/link-google`, `/api/auth/unlink-google`, `/api/auth/me`, `/api/auth/change-password`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/logout`, `DELETE /api/auth/me`.
+   - Endpoint kompatibilitas `/api/auth/bootstrap` dan `/api/auth/session` tetap berfungsi 100% untuk mode guest/pengembang lokal.
+   - `SecurityMiddleware` mendukung dual-session: memvalidasi sesi database pengguna terdaftar dan fallback ke local session token untuk mode guest tanpa merusak backward compatibility.
+   - Cookie sesi `docbuilder_session` disetel dengan atribut `HttpOnly`, `SameSite=Lax`, dan `Path=/`.
+5. **Suite Pengujian Menyeluruh (17 tests baru):**
+   - `backend/tests/test_auth_service.py`: 11 unit test untuk hashing Argon2id, duplikasi email, kekuatan password, kredensial salah, penolakan auto-merge 409, linking/unlinking, siklus sesi, reset password single-use, dan cascade deletion.
+   - `backend/tests/test_auth_api.py`: 6 integration test untuk endpoint auth, proteksi CSRF, penolakan auto-merge 409 pada HTTP layer, dan backward compatibility guest bootstrap.
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `backend/app/db/__init__.py`, `backend/app/db/session.py`, `backend/app/services/auth_service.py`, `backend/tests/test_auth_service.py`, `backend/tests/test_auth_api.py`.
+- File diubah: `backend/pyproject.toml`, `backend/app/core/config.py`, `backend/app/core/security.py`, `backend/app/core/middleware.py`, `backend/app/api/auth.py`, `backend/app/main.py`, `.gitignore`, `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`.
+- Command aktual:
+  1. `backend/.venv/bin/pip install argon2-cffi` -> PASS
+  2. `backend/.venv/bin/pytest backend/tests/test_auth_service.py backend/tests/test_auth_api.py` -> PASS (17/17 tests)
+  3. `backend/.venv/bin/ruff check backend/app backend/tests` -> PASS (0 error)
+  4. `backend/.venv/bin/ruff format backend/app backend/tests` -> PASS (50 files formatted)
+  5. `backend/.venv/bin/pytest backend/tests` -> PASS (169/169 tests)
+- Penyimpangan material: Tidak ada. Dependensi `email-validator` digantikan validasi regex internal RFC-compliant tanpa menambah package eksternal yang tidak diperlukan.
+
+### File Dibuat
+- `backend/app/db/__init__.py`
+- `backend/app/db/session.py`
+- `backend/app/services/auth_service.py`
+- `backend/tests/test_auth_service.py`
+- `backend/tests/test_auth_api.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `backend/app/core/config.py`
+- `backend/app/core/security.py`
+- `backend/app/core/middleware.py`
+- `backend/app/api/auth.py`
+- `backend/app/main.py`
+- `.gitignore`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Auth Service Unit Tests | `pytest backend/tests/test_auth_service.py` | PASS | 11/11 tests (Argon2id, anti-auto-merge, token lifecycle) |
+| Auth API Integration Tests | `pytest backend/tests/test_auth_api.py` | PASS | 6/6 tests (CSRF, cookies, anti-auto-merge 409, guest fallback) |
+| Backend Ruff Check | `ruff check backend/app backend/tests` | PASS | All checks passed (0 error) |
+| Backend Ruff Format | `ruff format --check backend/app backend/tests` | PASS | 50 files checked, 0 unformatted |
+| Backend Full Pytest Suite | `pytest backend/tests` | PASS | 169/169 tests passed in 28.54s |
+| Frontend Full Vitest Suite | `npm test` (di `frontend`) | PASS | 264/264 tests passed in 21.46s (39 test files) |
+
+### Acceptance Criteria
+- [x] Schema SQLite (users, oauth_accounts, user_sessions, auth_tokens) terimplementasi dengan WAL mode dan izin 0700/0600.
+- [x] Password di-hash menggunakan Argon2id (`argon2-cffi`) dengan verifikasi timing-safe.
+- [x] Token sesi dan reset password disimpan dalam bentuk SHA-256 hash di database.
+- [x] Penegakan anti-auto-merge guard: login Google menolak menggabungkan akun dengan email ber-password (HTTP 409 `ACCOUNT_MERGE_REQUIRED`).
+- [x] Alur reset kata sandi single-use ber-TTL 15 menit dan invalidasi sesi saat reset berhasil.
+- [x] Dual-session middleware: sesi database multi-user dan fallback sesi lokal guest mode bekerja harmonis.
+- [x] Seluruh 169 tests backend dan 264 tests frontend lulus 100%.
+
+### Keputusan dan Technical Debt
+- Menggunakan SQLite lokal WAL mode yang efisien, tanpa dependensi server database eksternal (PostgreSQL) demi efisiensi resource VPS 2.2 GiB RAM.
+- Berkas database `docbuilder.db` dan direktori `backend/data/` otomatis diabaikan oleh Git via `.gitignore`.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-11.1`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `TASK-11.2`: CV quota engine & retention cleaner (maksimal 5 CV per user, maksimal 10MB per dokumen, maksimal 50MB per user, 5GB global cap, retensi 90 hari dari `updated_at`, dan daily sweeper CV kedaluwarsa).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-13.1` — Frontend modal remove-background: upload dialog 10MB JPG/PNG/WebP, checkerboard transparent canvas preview, color background picker, download transparent PNG  
+**Requirement:** `BUS-016`, `FR-046`, `FR-047`, `NFR-UX-001`
+
+### Ringkasan
+Telah diimplementasikan layanan backend dan frontend terpadu untuk utilitas AI Penghapus Latar Belakang Foto secara 100% lokal berbasis model U2NetP ONNX:
+1. **Worker Subprocess Inferensi U2NetP Terisolasi (`backend/app/services/bg_remover.py`):**
+   - Menjalankan inferensi CPU-only dalam subprocess terisolasi per permintaan CLI mode (`app.services.bg_remover --worker ...`).
+   - Normalisasi tensor citra (320x320, mean & std ImageNet), eksekusi ONNX Runtime CPUExecutionProvider dengan batas ketat 1 intra-op & 1 inter-op thread.
+   - Downscale otomatis untuk citra beresolusi ekstrem (> 6.25 MP / 2500x2500) guna mempertahankan konsumsi memori puncak < 400 MB.
+   - Postprocess alpha mask dengan resizing LANCZOS ke dimensi citra asal dan merakit citra RGBA transparan tanpa metadata EXIF.
+   - Manajer konkurensi thread-safe: batas konkurensi 1, antrean 2, hard timeout 30 detik (HTTP 504), dan penolakan beban lebih deterministik HTTP 429 (`Retry-After: 30`, header `X-Error-Code: CONCURRENCY_LIMIT_REACHED`).
+   - Pembersihan otomatis workspace sementara berizin `0700` pasca eksekusi selesai.
+2. **Endpoint REST API Backend (`backend/app/api/image_tools.py`):**
+   - Endpoint `POST /api/image-tools/remove-background`.
+   - Validasi payload berkas: wajib ada nama berkas, ukuran maks 10 MB (HTTP 413), dan validasi magic bytes JPG/PNG/WebP (HTTP 422).
+   - Pengembalian streaming `image/png` dengan header metadata latensi inferensi (`X-Inference-Time-Ms`), wall time (`X-Wall-Time-Ms`), dan ukuran citra.
+3. **API Client & Utilitas Unduh Frontend (`frontend/src/services/imageTools.ts`):**
+   - Fungsi `removeBackground(file: File)` dan `downloadImageBlob(blob: Blob, filename: string)`.
+   - Penanganan respons HTTP 429 yang ramah dengan pesan antrean sibuk 30 detik.
+4. **Komponen Modal & Pratinjau Interaktif (`frontend/src/components/image-tools/RemoveBackgroundModal.tsx`):**
+   - Dialog modal ramah keyboard (`Escape`, klik latar) dan drag-and-drop dropzone hingga 10 MB.
+   - Panggung pratinjau kanvas berpola checkerboard transparan saat latar transparan dipilih.
+   - Preset pemilih warna latar belakang instan: Transparan, Putih, Merah Pasfoto (`#D32F2F`), Biru Pasfoto (`#1976D2`), Abu-abu (`#E5E7EB`), serta pemilih warna kustom (`<input type="color">`).
+   - Komposit dinamis canvas pada saat unduh: jika warna latar dipilih, subjek transparan digambar di atas latar belakang solid canvas dan diunduh sebagai PNG; jika transparan, blob RGBA asli diunduh langsung.
+   - Metrik ukuran berkas asli, ukuran berkas hasil, dan waktu proses inferensi.
+   - Tombol "Ganti Foto Lain" untuk kembali ke dropzone awal.
+5. **Integrasi Meja Kerja Alat Dokumen (`frontend/src/App.tsx`):**
+   - Menambahkan kartu alat "Hapus Latar Belakang" (kategori `image`, icon `Sparkles`, badge `Baru`).
+   - Total alat dokumen pada workspace `#/tools` meningkat dari 18 menjadi 19 utilitas.
+   - Rendering modal `<RemoveBackgroundModal />`.
+6. **Pengujian Suite Komprehensif:**
+   - `backend/tests/test_bg_remover.py`: 4 test (validasi payload/magic bytes, inferensi model u2netp.onnx nyata, penolakan antrean 429, dan endpoint API).
+   - `frontend/src/components/image-tools/__tests__/remove_background.test.tsx`: 9 test (render, dialog keyboard, batas ukuran 10MB, inferensi sukses, ganti warna latar & unduh, penanganan 429, reset, dan bebas pelanggaran WCAG 2.2 AA axe).
+   - Pembaruan `frontend/src/components/__tests__/accessibility.test.tsx` dengan penambahan `RemoveBackgroundModal`.
+
+### Kesesuaian dengan Code Plan
+- File dibuat: `backend/app/services/bg_remover.py`, `backend/tests/test_bg_remover.py`, `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`, `frontend/src/components/image-tools/__tests__/remove_background.test.tsx`.
+- File diubah: `backend/pyproject.toml`, `backend/app/core/config.py`, `backend/app/api/image_tools.py`, `frontend/src/services/imageTools.ts`, `frontend/src/App.tsx`, `frontend/src/components/__tests__/accessibility.test.tsx`, `.agent/TASKS.md`, `.agent/PROJECT-STATE.md`.
+- Command aktual:
+  1. `pytest backend/tests/test_bg_remover.py` -> PASS (4/4 tests)
+  2. `ruff check backend/app backend/tests` -> PASS (All checks passed)
+  3. `ruff format backend/app backend/tests` -> PASS
+  4. `npm test -- --run src/components/image-tools/__tests__/remove_background.test.tsx` -> PASS (9/9 tests)
+  5. `npm test -- --run src/components/__tests__/accessibility.test.tsx` -> PASS (7/7 tests)
+  6. `npm test -- --run` -> PASS (273/273 tests in 40 test files)
+  7. `pytest backend/tests` -> PASS (173/173 tests)
+  8. `npm run build` -> PASS (`tsc -b && vite build` built in 652ms)
+  9. `npm run lint` -> PASS (0 error)
+- Penyimpangan material: Tidak ada.
+
+### File Dibuat
+- `backend/app/services/bg_remover.py`
+- `backend/tests/test_bg_remover.py`
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/image-tools/__tests__/remove_background.test.tsx`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `backend/app/core/config.py`
+- `backend/app/api/image_tools.py`
+- `frontend/src/services/imageTools.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend U2NetP Tests | `pytest backend/tests/test_bg_remover.py` | PASS | 4/4 tests (magic bytes, inferensi nyata, kuota 429, API) |
+| Frontend Modal Unit Tests | `vitest run remove_background.test.tsx` | PASS | 9/9 tests (dropzone, preview, warna latar, download, WCAG) |
+| Accessibility Test Suite | `vitest run accessibility.test.tsx` | PASS | 7/7 tests (0 axe violations termasuk RemoveBackgroundModal) |
+| Backend Ruff Check & Format | `ruff check backend/app backend/tests` | PASS | 0 error, formatting bersih |
+| Full Backend Pytest Suite | `pytest backend/tests` | PASS | 173/173 tests passed in 32.68s |
+| Full Frontend Vitest Suite | `vitest run` | PASS | 273/273 tests passed in 22.21s (40 test files) |
+| Frontend TypeScript & Build | `tsc -b && vite build` | PASS | Built in 652ms, 0 type errors |
+| Frontend Linter | `oxlint` | PASS | 0 error pada komponen baru |
+
+### Acceptance Criteria
+- [x] Model `u2netp.onnx` dijalankan CPU-only dalam subprocess terisolasi per permintaan dengan batas memori < 400 MB.
+- [x] Batas konkurensi 1, antrean 2, timeout 30s ditegakkan dengan fail-closed HTTP 429 dan `Retry-After: 30`.
+- [x] Validasi unggahan gambar maks 10 MB (JPG, PNG, WebP) dengan verifikasi magic bytes dan EXIF stripping.
+- [x] Modal frontend menampilkan preview checkerboard transparan untuk citra keluaran PNG RGBA.
+- [x] Preset warna latar belakang (transparan, putih, merah pasfoto, biru pasfoto, abu-abu, kustom) berfungsi dan dapat dikompositkan sebelum unduh.
+- [x] Kartu alat terdaftar di kategori "Gambar" dengan badge "Baru" dan dapat dicari di workspace Alat Dokumen.
+- [x] Seluruh 173 pengujian backend dan 273 pengujian frontend lulus 100%.
+
+### Keputusan dan Technical Debt
+- Keputusan `DEC-018` terealisasi penuh pada layer produksi aplikasi.
+- Eksekusi model U2NetP menggunakan dependensi `onnxruntime` dan `numpy` di backend. Model biner `u2netp.onnx` tetap berada di `backend/models/` dan tidak di-commit ke Git.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-13.1`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke fitur prioritas kedua: **Layanan Pemendek URL Mandiri (Cloudflare Workers + D1 Database)** pada Phase 12 (`TASK-12.1`, `TASK-12.2`, `TASK-12.3`).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-12.1` — Cloudflare Workers routing & D1 database setup: schema `urls`, direct 302 redirect, 404 handler, 410 Gone for revoked, no slug reuse, aggregate analytics  
+**Requirement:** `BUS-015`, `FR-048`, `NFR-PERF-004`, `NFR-SEC-011`
+
+### Ringkasan
+Telah diimplementasikan edge router Cloudflare Workers dan skema basis data SQLite D1 untuk layanan pemendek URL mandiri berlatensi rendah:
+1. **Struktur Proyek Serverless Mandiri (`shortener/`):**
+   - Inisialisasi package TypeScript dengan konfigurasi `wrangler.toml` (database binding `DB`, compatibility date `2024-11-01`), `tsconfig.json`, dan dependensi Vitest.
+2. **Skema Basis Data D1 (`shortener/migrations/0001_initial_schema.sql`):**
+   - Tabel `urls`: `id`, `slug` (UNIQUE, NOT NULL), `destination_url` (NOT NULL), `status` (CHECK `active`, `revoked`, `tombstone`), `click_count`, `created_at`, `revoked_at`, `last_accessed_at`.
+   - Indeks unik pada `slug` dan indeks pencarian pada `status`.
+3. **Edge Redirection Router (`shortener/src/index.ts`):**
+   - Endpoint `GET /:slug`: Query parameter binding D1 `SELECT destination_url, status FROM urls WHERE slug = ?`.
+   - Pengalihan cepat direct HTTP 302 dengan header `Cache-Control: private, max-age=60` ke `destination_url`.
+   - Respons HTTP 410 Gone (`Cache-Control: public, max-age=86400`) saat tautan berstatus `revoked` atau `tombstone`.
+   - Respons HTTP 404 jika slug tidak terdaftar atau merupakan berkas statis fiktif (`favicon.ico`).
+   - Respons HTTP 400 untuk format slug tidak valid (hanya huruf, angka, `-`, `_`, 1-100 karakter).
+   - Agregasi analitik non-blocking via `ctx.waitUntil()` yang menginkremen `click_count` dan memperbarui `last_accessed_at` tanpa merekam alamat IP atau User-Agent pengunjung (`NFR-SEC-011`).
+   - Endpoint pemeriksaan kesehatan `GET /health` (`status: "ok"`).
+
+### File Dibuat
+- `shortener/package.json`
+- `shortener/tsconfig.json`
+- `shortener/wrangler.toml`
+- `shortener/migrations/0001_initial_schema.sql`
+- `shortener/src/index.ts`
+- `shortener/test/router.test.ts`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Edge Router Unit Tests | `npm test` (di `shortener/`) | PASS | 9/9 tests passed (302 redirect, 404, 410 Gone, click_count increment, D1 failure fallback) |
+| TypeScript Typecheck | `npm run typecheck` (di `shortener/`) | PASS | 0 type error (`tsc --noEmit`) |
+
+### Acceptance Criteria
+- [x] Edge router mengalihkan slug aktif dengan status HTTP 302 ke destination URL.
+- [x] Slug yang dicabut (`revoked` / `tombstone`) mengembalikan HTTP 410 Gone.
+- [x] Slug tidak terdaftar mengembalikan HTTP 404 Not Found.
+- [x] Agregasi analitik (`click_count` & `last_accessed_at`) berjalan asinkron dan bebas PII.
+- [x] Endpoint `/health` merespons status operasional.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-12.1`).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-12.2` — Anti-SSRF validation & HMAC authenticated management API: public HTTPS check, private/loopback/reserved IP rejection, HMAC signature + timestamp + nonce auth  
+**Requirement:** `BUS-015`, `FR-048`, `NFR-SEC-008`, `NFR-SEC-009`
+
+### Ringkasan
+Telah diimplementasikan filter validasi Anti-SSRF tingkat tinggi dan Management API terotentikasi HMAC-SHA256 untuk pengelolaan tautan pendek:
+1. **Filter Validasi Anti-SSRF Menyeluruh (`shortener/src/validation.ts`):**
+   - Membatasi skema hanya pada `https://` publik (`NFR-SEC-008`).
+   - Menolak URL yang mengandung kredensial pengguna (`user:pass@`).
+   - Menolak hostname lokal/internal (`localhost`, `*.localhost`, `*.local`, `*.internal`, `*.lan`, `*.home`, `*.corp`, `*.test`).
+   - Menolak seluruh rentang IPv4 privat RFC 1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`).
+   - Menolak loopback IPv4 (`127.0.0.0/8`) dan IPv6 (`::1`, `[::1]`).
+   - Menolak link-local dan endpoint metadata cloud AWS/GCP/Azure/Cloudflare (`169.254.169.254`, `169.254.0.0/16`, `fe80::/10`).
+   - Menolak Carrier-Grade NAT (`100.64.0.0/10`), multicast (`224.0.0.0/4`), dan reserved Class E (`240.0.0.0/4`).
+   - Menolak obfuski alamat IP dalam bentuk bilangan bulat desimal (mis. `2130706433`) atau heksadesimal (mis. `0x7f000001`).
+   - Menolak IPv6 unique local (`fc00::/7`, `fd00::/8`) dan IPv4-mapped IPv6 (`::ffff:127.0.0.1`).
+2. **Modul Kriptografi Autentikasi HMAC (`shortener/src/auth.ts`):**
+   - Menggunakan Web Crypto API bawaan Cloudflare Workers (`crypto.subtle`).
+   - Menghitung dan memverifikasi tanda tangan HMAC-SHA256 pada payload canonical `${method}:${pathname}:${timestamp}:${nonce}:${body}` (`NFR-SEC-009`).
+   - Perlindungan anti-replay: stempel waktu `X-Timestamp` wajib berada dalam rentang toleransi maksimal 5 menit (300 detik) dari waktu server.
+   - Nonce acak `X-Nonce` wajib minimal 8 karakter.
+   - Verifikasi string signature menggunakan perbandingan aman anti-timing-attack (`timingSafeEqual`).
+3. **Management API Endpoints (`shortener/src/index.ts`):**
+   - `POST /api/links`: Membuat tautan baru. Memvalidasi tanda tangan HMAC, format slug, dan filter Anti-SSRF. Mencegah daur ulang slug yang telah dicabut (`no slug reuse`) dengan penolakan HTTP 409 Conflict.
+   - `GET /api/links`: Mengambil daftar tautan pendek beserta metrik `click_count`, status, dan stempel waktu.
+   - `POST /api/links/:slug/revoke`: Mencabut tautan secara deterministik, mengubah status menjadi `revoked` dan menetapkan `revoked_at`. Permintaan publik selanjutnya ke slug tersebut langsung mengembalikan status HTTP 410 Gone.
+
+### File Dibuat
+- `shortener/src/validation.ts`
+- `shortener/src/auth.ts`
+- `shortener/test/ssrf.test.ts`
+- `shortener/test/api.test.ts`
+
+### File Diubah
+- `shortener/src/index.ts`
+- `shortener/package.json`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Anti-SSRF Negative Matrix Tests | `vitest run ssrf.test.ts` | PASS | 10/10 test lulus (skema non-https, kredensial, loopback, private RFC1918, metadata cloud, obfuski IP, IPv6) |
+| Management API & HMAC Tests | `vitest run api.test.ts` | PASS | 10/10 test lulus (HMAC missing, expired timestamp, tampered signature, create link, SSRF rejection, duplicate 409, no slug reuse 409, revoke link) |
+| Edge Router Suite | `vitest run router.test.ts` | PASS | 9/9 test lulus |
+| Full Shortener Vitest Suite | `npm test` (di `shortener/`) | PASS | **29/29 tests passed** in 717ms (3 test files) |
+| TypeScript Typecheck | `npm run typecheck` (di `shortener/`) | PASS | 0 error (`tsc --noEmit`) |
+| Full Backend Regression | `pytest backend/tests` | PASS | 173/173 tests passed |
+| Full Frontend Regression | `npm test` (di `frontend/`) | PASS | 273/273 tests passed |
+
+### Acceptance Criteria
+- [x] Validasi anti-SSRF menolak skema non-HTTPS, kredensial, IP private RFC 1918, loopback, link-local metadata cloud, dan obfuski IP.
+- [x] Autentikasi HMAC signature dengan timestamp dan nonce diverifikasi sebelum mengizinkan akses ke Management API.
+- [x] Replay attack dan timestamp usang (> 5 menit) ditolak dengan status HTTP 401 Unauthorized.
+- [x] Slug yang telah dicabut dilarang keras untuk digunakan kembali (`no slug reuse`, HTTP 409 Conflict).
+- [x] Tautan berhasil dibuat (HTTP 201) dan dialihkan (HTTP 302) secara instan.
+- [x] Tautan berhasil dicabut (HTTP 200) dan seketika merespons HTTP 410 Gone pada permintaan berikutnya.
+- [x] Seluruh 29 unit/integration test shortener, 173 backend test, dan 273 frontend test lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-12.2`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `TASK-12.3`: Admin UI & Cloudflare Access integration (Portal antarmuka manajemen tautan, verifikasi header Zero Trust, dan script export backup snapshot D1 bergulir).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-12.3` — Admin UI & Cloudflare Access integration: management portal behind Zero Trust, link listing, creation, revocation, rolling D1 backup export script  
+**Requirement:** `BUS-015`, `FR-048`, `NFR-UX-001`, `NFR-SEC-008`, `NFR-SEC-009`, `NFR-SEC-011`
+
+### Ringkasan
+Telah diimplementasikan portal web administrasi interaktif responsif modern di edge Cloudflare Workers yang terlindungi oleh Cloudflare Access Zero Trust, integrasi otorisasi terpadu pada Management API, serta script otomatisasi pencadangan snapshot basis data D1 bergulir dengan rotasi retensi:
+1. **Modul Verifikasi Zero Trust Cloudflare Access (`shortener/src/access.ts`):**
+   - Menginspeksi header `Cf-Access-Authenticated-User-Email` dari Cloudflare Access edge.
+   - Memvalidasi email terhadap allowlist konfigurasi `CF_ACCESS_ALLOWED_EMAILS` secara case-insensitive.
+   - Mengembalikan status autentikasi fail-closed: jika header tidak ada atau email tidak terdaftar, akses langsung ditolak dengan HTTP 403 Forbidden.
+2. **Portal Web Admin Responsif di Edge (`shortener/src/admin.ts` & `GET /admin`):**
+   - Menghasilkan markup HTML/CSS/JS mandiri berbobot sangat ringan (< 15 KB, tanpa external CDN dependency).
+   - Menampilkan badge status otentikasi Zero Trust dengan email admin aktif.
+   - 4 Kartu metrik analitik real-time: Total Tautan, Tautan Aktif, Tautan Dicabut, dan Akumulasi Klik.
+   - Form pembuatan tautan pendek baru: Validasi HTTPS publik Anti-SSRF, input slug kustom dengan tombol generator slug acak otomatis 6 karakter.
+   - Tabel interaktif daftar tautan: Tombol salin tautan cepat ke clipboard, badge warna status (`active` hijau, `revoked` merah), stempel waktu lokal, dan tombol aksi "Cabut Tautan" (Revoke) yang dilengkapi modal dialog konfirmasi pengaman.
+   - Dilengkapi security headers ketat pada HTTP response: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, dan `Cache-Control: no-store`.
+3. **Otorisasi Terpadu Management API (`shortener/src/index.ts`):**
+   - Endpoint `/api/links` kini mendukung autentikasi ganda:
+     - Sesi browser administrator melalui Cloudflare Access Zero Trust.
+     - Permintaan otomatisasi / script eksternal melalui HMAC-SHA256 signature (`X-Signature`, `X-Timestamp`, `X-Nonce`).
+4. **Script Cadangan Snapshot D1 Bergulir & Rotasi Retensi (`shortener/scripts/backup-d1.mjs` & `backup-d1.sh`):**
+   - Menegakkan `FR-048` poin 5:
+     - Tier `weekly`: retensi 8 minggu (maks 8 snapshot mingguan).
+     - Tier `monthly`: retensi 12 bulan (maks 12 snapshot bulanan).
+   - Penamaan berkas otomatis berstempel waktu ISO (`d1_snapshot_YYYYMMDD_HHMMSS.sql`).
+   - Fungsi `verifySnapshotContent`: validasi integritas struktur file SQL dump sebelum rotasi.
+   - Pemangkasan berkas berlebih tertua secara otomatis jika jumlah snapshot melampaui batas retensi.
+   - Menambahkan `backups/` dan `shortener/backups/` pada `.gitignore`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, behavior, contract, dan security control sesuai dengan rencana eksekusi kode yang disetujui.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `shortener/src/access.ts`
+- `shortener/src/admin.ts`
+- `shortener/scripts/backup-d1.mjs`
+- `shortener/scripts/backup-d1.sh`
+- `shortener/test/access.test.ts`
+- `shortener/test/admin.test.ts`
+- `shortener/test/backup.test.ts`
+
+### File Diubah
+- `shortener/src/index.ts`
+- `shortener/tsconfig.json`
+- `shortener/package.json`
+- `.gitignore`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Cloudflare Access Unit Tests | `vitest run access.test.ts` | PASS | 6/6 test lulus (parsing allowlist, missing header rejection, email matching, case-insensitive, non-allowed rejection) |
+| Admin Portal & Endpoint Tests | `vitest run admin.test.ts` | PASS | 7/7 test lulus (XSS escaping, 403 rejection, 200 HTML render, security headers, CF Access API bypass, 403 API rejection) |
+| D1 Backup & Retention Tests | `vitest run backup.test.ts` | PASS | 5/5 test lulus (SQL content validator, weekly 8-file retention, monthly 12-file retention, mock backup execution, corrupt file rollback) |
+| Full Shortener Vitest Suite | `npm test` (di `shortener/`) | PASS | **47/47 tests passed** in 816ms (6 test files) |
+| TypeScript Typecheck | `npm run typecheck` (di `shortener/`) | PASS | 0 error (`tsc --noEmit`) |
+| Full Backend Regression | `pytest backend/tests` | PASS | 173/173 tests passed in 32s |
+| Full Frontend Regression | `npm test -- --run` (di `frontend/`) | PASS | 273/273 tests passed in 26s |
+
+### Acceptance Criteria
+- [x] Portal admin web `/admin` disajikan di edge dengan tampilan modern responsif dan metrik real-time.
+- [x] Header Cloudflare Access Zero Trust diverifikasi dengan fail-closed behavior (HTTP 403).
+- [x] Security headers (`X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`) ditegakkan pada respons `/admin`.
+- [x] Management API `/api/links` mendukung autentikasi fleksibel (Cloudflare Access session atau HMAC signature).
+- [x] Script pencadangan snapshot D1 bergulir menegakkan batas retensi 8 minggu dan 12 bulan serta verifikasi integritas SQL.
+- [x] Seluruh 47 pengujian shortener, 173 pengujian backend, dan 273 pengujian frontend lulus 100% (Total: 493/493 tests PASS).
+
+### Keputusan dan Technical Debt
+- Phase 12 (Standalone Serverless URL Shortener) telah **SELESAI 100%** (`TASK-12.1`, `TASK-12.2`, `TASK-12.3`).
+- Fitur prioritas penghapusan background AI (`TASK-13.1`) dan pemendek URL serverless (`Phase 12`) telah terimplementasi dan terverifikasi penuh di repositori.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-12.3`).
+
+---
+
+## Hasil Task
+
+**Task:** `TASK-12.4` — Frontend URL shortener modal & backend integration adapter: Shortener tool card in App.tsx (20 tools), interactive modal dialog, local history storage, backend API proxy  
+**Requirement:** `BUS-015`, `FR-048`, `NFR-UX-001`, `NFR-SEC-008`
+
+### Ringkasan
+Telah diintegrasikan layanan pemendek URL ke antarmuka web utama Doc-builder dan backend FastAPI:
+1. **Pendaftaran Kartu Alat Dokumen (`frontend/src/App.tsx`):**
+   - Menambahkan kartu alat "Pemendek URL" di kategori `organize` (menggenapkan menjadi 20 alat aktif pada Beranda dan tab Alat Dokumen).
+   - Dilengkapi badge visual "Baru" dan ikon `Link2` bernuansa Forest Teal.
+2. **Komponen Modal Interaktif Pemendek URL (`frontend/src/components/tools/UrlShortenerModal.tsx`):**
+   - Sesuai standar Editorial Paper & Forest Teal dan WCAG 2.2 AA.
+   - Form input URL tujuan dengan validasi skema HTTPS publik dan anti-SSRF di client-side.
+   - Pilihan slug kustom dengan tombol generator slug acak otomatis 6 karakter.
+   - Kartu hasil tautan singkat siap pakai dengan tombol salin satu-klik (`navigator.clipboard`) dan tombol uji langsung di tab baru.
+   - Riwayat lokal tautan yang baru saja dibuat di browser pengguna (`localStorage`), lengkap dengan waktu pembuatan dan tombol salin cepat.
+   - Tautan navigasi pintas ke Portal Admin Zero Trust di footer modal.
+3. **Backend Adapter API (`backend/app/api/shortener.py` & `backend/app/core/config.py`):**
+   - Endpoint `POST /api/shortener/create`: Menerima permintaan pembuatan tautan, memvalidasi Anti-SSRF (skema HTTPS, larangan kredensial, larangan localhost dan IP RFC 1918/loopback/cloud metadata), meneruskan ke Cloudflare Workers edge via HMAC signature, atau menggunakan basis data SQLite fallback lokal jika offline.
+   - Endpoint `GET /api/shortener/config`: Menyediakan konfigurasi URL pengalihan dan portal admin.
+
+### File Dibuat
+- `frontend/src/services/shortener.ts`
+- `frontend/src/components/tools/UrlShortenerModal.tsx`
+- `frontend/src/components/tools/__tests__/url_shortener.test.tsx`
+- `backend/app/api/shortener.py`
+- `backend/tests/test_shortener_api.py`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `backend/app/main.py`
+- `backend/app/core/config.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Modal Unit Tests | `vitest run url_shortener.test.tsx` | PASS | 7/7 test passed (modal open/close, non-https validation, random slug generator, create link result, API failure handling, copy to clipboard) |
+| Frontend Accessibility Tests | `vitest run accessibility.test.tsx` | PASS | 7/7 test passed (0 axe violations) |
+| Full Frontend Vitest Suite | `npm test -- --run` (di `frontend/`) | PASS | **280/280 tests passed** in 24s (41 test files) |
+| Frontend Production Build | `npm run build` (di `frontend/`) | PASS | `tsc -b` and `vite build` clean |
+| Backend Shortener API Tests | `pytest backend/tests/test_shortener_api.py` | PASS | 6/6 test passed (config endpoint, non-https rejection, credential rejection, anti-SSRF IP rejection, custom slug, random slug) |
+| Full Backend Pytest Suite | `pytest backend/tests` | PASS | **179/179 tests passed** in 33s |
+| Backend Linter & Formatting | `ruff check backend` | PASS | All checks passed clean |
+| Full Shortener Edge Suite | `npm test` (di `shortener/`) | PASS | **47/47 tests passed** |
+| **Total Test Suite Repositori** | Seluruh Layer | PASS | **506/506 tests passed (100%)** |
+
+### Acceptance Criteria
+- [x] Kartu alat "Pemendek URL" terpasang di katalog Alat Dokumen (`App.tsx`) dengan total 20 alat aktif.
+- [x] Modal interaktif `UrlShortenerModal` berfungsi penuh dan dapat diakses langsung oleh pengguna.
+- [x] Validasi Anti-SSRF menolak URL non-HTTPS dan IP lokal/private di frontend dan backend.
+- [x] Generator slug acak dan slug kustom berfungsi.
+- [x] Tautan berhasil dibuat, ditampilkan, dapat disalin satu-klik, dan tersimpan di riwayat sesi lokal.
+- [x] Seluruh 506 pengujian otomatis di seluruh repositori lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`TASK-12.4`).
+
+### Rekomendasi Berikutnya
+Kini kedua fitur prioritas telah terintegrasi penuh di antarmuka web Doc-builder maupun di layer backend/edge:
+1. **Penghapus Latar Belakang Foto AI (U2NetP ONNX)**: Tersedia di kartu alat kategori Gambar (`TASK-13.1`).
+2. **Pemendek URL Mandiri (Cloudflare Workers + D1 + Zero Trust)**: Tersedia di kartu alat kategori Alat Dokumen (`TASK-12.4`).
+
+Langkah selanjutnya:
+- Melanjutkan fitur akun pengguna Phase 11 (`TASK-11.2`, `TASK-11.3`, `TASK-11.4`).
+- Atau setup pencadangan terenkripsi R2 (`TASK-13.2`) dan persiapan deployment VPS produksi (`Phase 14`).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-001` — Governance, CR-015, Requirements, Decisions, Inventaris Identifier, dan Kontrak Kompatibilitas Rebranding  
+**Requirement:** `BUS-018`, `NFR-UX-002`, `NFR-COMP-002`
+
+### Ringkasan
+Telah dilakukan penetapan tata kelola formal, pendaftaran change request `CR-015`, pencatatan keputusan arsitektur baru (`DEC-019`, `DEC-020`, `DEC-021`, `DEC-022`), serta penyusunan roadmap terukur untuk Rebranding Satukit (Phase 15) dan Fondasi PostgreSQL (Phase 16):
+1. **Pendaftaran `CR-015` di `.agent/CHANGE-REQUESTS.md`:**
+   - Mendefinisikan ruang lingkup rebranding menyeluruh dari Doc-builder menjadi Satukit ("Satu Tempat, Banyak Solusi Digital") dengan maskot Kitu.
+   - Menetapkan arsitektur adaptasi Beranda/Dashboard, peluncuran maskot Kitu dua tahap, pemeliharaan ekstensi berkas `.docbuilder`, dan migrasi identifier internal yang aman.
+2. **Pencatatan Keputusan Arsitektur di `.agent/DECISIONS.md`:**
+   - `DEC-019`: Arsitektur Layanan Online Multi-Tier (VPS Ubuntu + Cloudflare Workers D1 Edge).
+   - `DEC-020`: Rebranding Penuh Satukit, Maskot Kitu, dan Adaptasi Beranda/Dashboard.
+   - `DEC-021`: Adopsi Database PostgreSQL Co-located di Host VPS yang Sama sebelum kuota CV.
+   - `DEC-022`: Kebijakan Kompatibilitas Format Berkas Project `.docbuilder` dan Wadah `DOCBUILDER_PROJECT`.
+3. **Penyusunan Rencana Task Terinci di `.agent/TASKS.md`:**
+   - Phase 15: 11 task berurutan terukur (`REBRAND-SATUKIT-001` s/d `REBRAND-SATUKIT-011`).
+   - Phase 16: 7 task fondasi PostgreSQL (`DB-POSTGRES-001` s/d `DB-POSTGRES-007`).
+   - Pembaruan dependensi `TASK-11.2` dan `TASK-13.2` agar berjalan di atas PostgreSQL tanpa pengerjaan ulang.
+4. **Pembaruan Dokumen Implementasi (`docs/project/IMPLEMENTATION-PLAN.md`):**
+   - Menambahkan Bagian 5 yang merinci sasaran, task, dan kriteria keluar Phase 15 dan Phase 16.
+5. **Pembaruan State Mesin Proyek (`.agent/PROJECT-STATE.md`):**
+   - `project_name: "Satukit (sebelumnya Doc-builder)"`, `current_phase: "phase-15"`, `current_task: "REBRAND-SATUKIT-001"`, `status: "IN_PROGRESS"`.
+
+### Kesesuaian dengan Rencana
+- File diubah: `.agent/CHANGE-REQUESTS.md`, `.agent/DECISIONS.md`, `.agent/TASKS.md`, `docs/project/IMPLEMENTATION-PLAN.md`, `.agent/PROJECT-STATE.md`, `.agent/REPORT.md`.
+- File source code yang diubah: 0 (tahap tata kelola dan kontrak kompatibilitas murni).
+- Penyimpangan material: Tidak ada.
+
+### File Diubah
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `docs/project/IMPLEMENTATION-PLAN.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Konsistensi CR-015 | File inspection | PASS | Terdaftar di CHANGE-REQUESTS.md dengan scope jelas |
+| Konsistensi DEC-019 s/d DEC-022 | File inspection | PASS | Tercatat di DECISIONS.md dengan status Accepted |
+| Roadmap Task Phase 15 & 16 | File inspection | PASS | Terdata di TASKS.md & IMPLEMENTATION-PLAN.md |
+| Project State | File inspection | PASS | Status IN_PROGRESS, current_phase phase-15 |
+
+### Acceptance Criteria
+- [x] Dokumen CR-015 mendefinisikan perubahan branding, maskot Kitu, dan arsitektur database.
+- [x] Keputusan DEC-020, DEC-021, DEC-022 disepakati dan terdokumentasi lengkap.
+- [x] Kontrak kompatibilitas `.docbuilder` dan `DOCBUILDER_PROJECT` ditegaskan.
+- [x] Roadmap Phase 15 dan Phase 16 tersusun dengan dependensi dan acceptance criteria yang jelas.
+- [x] Tracking `.agent/` dan dokumen proyek tersinkronisasi 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-001`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-002` (Produksi Aset Visual Baseline: Logo horizontal, Logomark, Favicon SVG, dan Fallback Kitu Transparan Statis).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-002` — Produksi Aset Visual Baseline: Logo horizontal, Logomark, Favicon SVG, dan Fallback Kitu Transparan Statis  
+**Requirement:** `BUS-018`, `NFR-UX-002`
+
+### Ringkasan
+Telah diekstrak, diproduksi, dan dioptimasi paket aset visual resmi Satukit beresolusi tinggi, berlatar transparan bersih (RGBA), dan siap pakai pada bundler Vite dan runtime web:
+1. **Logo Horizontal Satukit (`frontend/src/assets/satukit-logo.png` & `frontend/public/satukit-logo.png`):**
+   - Resolusi web retina bersih 703×336 px, format PNG teroptimasi dan WebP (`satukit-logo.webp`).
+   - Memuat logomark pita S di kiri, wordmark Satukit dan tagline di kanan dengan rasio aspek akurat dan transparan.
+2. **Logomark Mandiri Satukit (`frontend/src/assets/satukit-icon.png`, `satukit-icon.webp`, `satukit-icon.svg`):**
+   - Simbol huruf S geometri terlipat diekstrak ke kanvas persegi transparan 512×512 px.
+   - Varian PWA/App Icon dengan latar belakang squircle teal gelap (`frontend/src/assets/satukit-app-icon.png` dan `frontend/public/satukit-app-icon.png`).
+3. **Favicon SVG (`frontend/public/favicon.svg`):**
+   - Vektor SVG modern logomark pita huruf S Satukit dengan kurva bezier halus, gradasi palet Satukit (lime-green `#A3E635` / `#84CC16` dan teal `#14B8A6` / `#0F766E`), serta drop shadow halus.
+   - Favicon ICO multi-resolusi 16×16, 32×32, 48×48 (`frontend/public/favicon.ico`).
+4. **Maskot Kitu Transparan Statis (`frontend/src/assets/kitu-mascot.png` & `kitu-mascot.webp`):**
+   - Pose menyapa/acungan jempol Kitu resmi beresolusi 512×549 px dengan transparansi RGBA bersih tanpa halo putih, siap untuk companion Beranda/Dashboard.
+   - Avatar kepala Kitu tersenyum (`frontend/src/assets/kitu-avatar.png` & `kitu-avatar.webp`, 256×256 px) untuk kebutuhan header/navbar.
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan: Ya, seluruh aset direncanakan dibuat di `frontend/src/assets/` dan `frontend/public/`.
+- Perbedaan command/expected result: Tidak ada perbedaan, seluruh command verifikasi berjalan sukses.
+
+### File Dibuat
+- `frontend/src/assets/satukit-logo.png`
+- `frontend/src/assets/satukit-logo.webp`
+- `frontend/public/satukit-logo.png`
+- `frontend/src/assets/satukit-icon.png`
+- `frontend/src/assets/satukit-icon.webp`
+- `frontend/src/assets/satukit-icon.svg`
+- `frontend/public/satukit-icon.png`
+- `frontend/src/assets/satukit-app-icon.png`
+- `frontend/public/satukit-app-icon.png`
+- `frontend/public/favicon.svg`
+- `frontend/public/favicon.ico`
+- `frontend/src/assets/kitu-mascot.png`
+- `frontend/src/assets/kitu-mascot.webp`
+- `frontend/src/assets/kitu-avatar.png`
+- `frontend/src/assets/kitu-avatar.webp`
+
+### File Diubah
+- `frontend/public/favicon.svg` (diganti dari logo ungu Vite)
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Dimensi & Kanal Alpha Logo | Python PIL inspection | PASS | Mode RGBA, resolusi proporsional, bounding box bersih |
+| Dimensi & Transparansi Kitu | Python PIL inspection | PASS | Kitu hero 512×549 RGBA, Kitu avatar 256×256 RGBA |
+| Favicon SVG Vector Validation | Image preview & XML inspect | PASS | Vektor kurva bezier halus, gradasi teal-lime, viewBox 512×512 |
+| Favicon ICO Multi-size | Python PIL inspection | PASS | Format ICO memuat ukuran 16x16, 32x32, 48x48 |
+| Frontend Vite Build Check | `npm run --prefix frontend build` | PASS | Built in 676ms, 0 error bundling |
+| Frontend Vitest Test Suite | `npm run --prefix frontend test` | PASS | 280/280 tests passed (41 test files) |
+
+### Acceptance Criteria
+- [x] File SVG logo/favicon dan WebP/PNG transparan Kitu tersedia di `frontend/public` & `frontend/src/assets`.
+- [x] Logo horizontal Satukit memiliki resolusi tajam dengan background transparan.
+- [x] Logomark huruf S mandiri tersedia dalam format 512×512 px dan SVG vektor.
+- [x] Maskot Kitu transparan statis memiliki alpha channel bersih untuk integrasi Beranda.
+- [x] Bundler frontend Vite berhasil melakukan build tanpa kesalahan dependensi aset.
+
+### Keputusan dan Technical Debt
+- Aset visual baseline resmi Satukit kini sepenuhnya mandiri di dalam repositori frontend dan tidak lagi bergantung pada folder raw concept `Satukit_Brand_Assets/`.
+- Maskot Kitu tahap 1 (statis transparan resolusi tinggi) telah siap digunakan pada Beranda dan Navbar.
+
+### Risiko Tersisa
+- Tidak ada risiko teknis. Aset belum dipasang ke komponen UI (akan dilakukan pada `REBRAND-SATUKIT-003` s/d `REBRAND-SATUKIT-005`).
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-002`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-003` (Brand Foundation & Design Tokens: CSS variables warna Satukit teal, lime, amber, charcoal, tipografi, metadata title `index.html`, dan komponen `BrandLogo`).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-003` — Brand Foundation & Design Tokens: CSS variables warna Satukit, tipografi, metadata title `index.html`, dan komponen `BrandLogo` / `BrandMascot`  
+**Requirement:** `BUS-018`, `NFR-UX-002`, `NFR-ACC-002`
+
+### Ringkasan
+Fondasi desain, token warna, tipografi, dan metadata resmi Satukit telah diimplementasikan:
+1. **Metadata Dokumen (`frontend/index.html`):**
+   - Title tab browser diperbarui menjadi `"Satukit — Satu Tempat, Banyak Solusi Digital"`.
+   - Atribut bahasa disetel ke `lang="id"`.
+   - Menambahkan deskripsi meta resmi dan tautan rel icon: `/favicon.svg` (vektor), `/favicon.ico` (multi-size desktop fallback), dan `/satukit-app-icon.png` (Apple touch icon).
+2. **Token Desain & Warna (`frontend/src/index.css`):**
+   - Token palet warna resmi Satukit didaftarkan pada `@theme` Tailwind v4:
+     - `--color-satukit-teal` (`#0f766e`), `--color-satukit-teal-light` (`#14b8a6`), `--color-satukit-teal-dark` (`#042f2e`).
+     - `--color-satukit-lime` (`#84cc16`), `--color-satukit-lime-light` (`#a3e635`), `--color-satukit-lime-dark` (`#4d7c0f`).
+     - `--color-satukit-amber` (`#f59e0b`).
+     - `--color-satukit-charcoal` (`#0f172a`).
+     - `--color-satukit-surface` (`#fafaf9`).
+   - Variabel CSS root `--satukit-*` didaftarkan pada `:root`.
+3. **Komponen Modular Brand (`frontend/src/components/brand/`):**
+   - `BrandLogo.tsx`: Mendukung varian `horizontal` (logo + teks), `icon` (logomark huruf S mandiri), dan `app-icon` (squircle app icon), dilengkapi `<picture>` WebP/PNG dan alt text aksesibel.
+   - `BrandMascot.tsx`: Mendukung varian `hero` (pose utuh Kitu dengan acungan jempol) dan `avatar` (kepala tersenyum Kitu untuk bar kompak), responsive picture source, caption opsional, dan mode interaktif.
+4. **Verifikasi & Aksesibilitas (`brand.test.tsx`):**
+   - 8 unit tests mencakup seluruh varian, ukuran, dan audit aksesibilitas axe (0 violations).
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui tanpa deviasi material.
+
+### File Dibuat
+- `frontend/src/components/brand/BrandLogo.tsx`
+- `frontend/src/components/brand/BrandMascot.tsx`
+- `frontend/src/components/brand/__tests__/brand.test.tsx`
+
+### File Diubah
+- `frontend/index.html`
+- `frontend/src/index.css`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Test Brand Components | `npm run --prefix frontend test -- src/components/brand` | PASS | 8/8 tests passed |
+| WCAG 2.1 AA Accessibility | Axe audit di `brand.test.tsx` | PASS | 0 axe violations |
+| Frontend Full Test Suite | `npm run --prefix frontend test` | PASS | 288/288 tests passed (42 files) |
+| Frontend Lint | `npm run --prefix frontend lint` | PASS | Oxlint clean |
+| Frontend Production Build | `npm run --prefix frontend build` | PASS | Vite bundle built in 884ms |
+
+### Acceptance Criteria
+- [x] Metadata `index.html` memuat judul Satukit dan rel icons resmi.
+- [x] Token warna Satukit terdaftar di `@theme` Tailwind dan `:root`.
+- [x] Komponen `BrandLogo` dan `BrandMascot` tersedia dan dapat digunakan kembali.
+- [x] 0 pelanggaran aksesibilitas WCAG pada komponen brand.
+- [x] Seluruh test suite frontend lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-003`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-004` (Adaptasi Beranda/Dashboard: Wajah baru Satukit, hero tagline "Satu Tempat, Banyak Solusi Digital", kartu studio, draf CV, Kitu companion).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-004` — Adaptasi Beranda/Dashboard: Wajah baru Satukit, hero tagline "Satu Tempat, Banyak Solusi Digital", kartu studio, draf CV, Kitu companion  
+**Requirement:** `BUS-018`, `NFR-UX-002`, `NFR-ACC-002`
+
+### Ringkasan
+Beranda/Dashboard (`#/home`) telah diadaptasi penuh menghadirkan identitas visual baru Satukit tanpa mengganggu alur kerja produktivitas draf dan alat dokumen:
+1. **Hero Header Satukit:**
+   - Menyematkan badge resmi Satukit dengan aksen lime: *"Satu Tempat, Banyak Solusi Digital"*.
+   - Judul utama: *"Rancang CV Unggul & Kelola Dokumen di Satukit"*.
+   - Deskripsi mengartikulasikan nilai lengkap platform: resume ATS A4 langsung, audit job match, 20+ utilitas dokumen PDF, konversi berkas Office, dan AI hapus background.
+   - Mengintegrasikan kartu pendamping maskot resmi Kitu (`BrandMascot` pose hero utuh) dengan balon sapaan interaktif.
+2. **Aksi Meja Kerja & Status Ledger:**
+   - Mempertahankan 100% fungsionalitas tombol aksi: Buat CV Baru, Lanjutkan Terakhir, Impor PDF/DOCX, dan ringkasan metrik tabular (draf tersimpan, skor ATS, dokumen aktif, utilitas dokumen).
+3. **Arsip Draf & Direktori Ruang Kerja:**
+   - Direktori kerja tetap membagi modul secara rapi (CV Builder, Optimasi ATS, dan Alat Dokumen & Konversi) dengan kontras warna yang nyaman dan fokus keyboard yang jelas.
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui. Seluruh test ID dan fungsionalitas lama tetap utuh tanpa regresi.
+
+### File Diubah
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Dashboard Unit Tests | `npm test -- src/components/dashboard/__tests__/dashboard.test.tsx` | PASS | 10/10 tests passed |
+| Dashboard Accessibility Audit | `npm test -- src/components/__tests__/accessibility.test.tsx` | PASS | 7/7 tests passed (0 axe violations) |
+| Frontend Full Test Suite | `npm test` | PASS | 288/288 tests passed (42 files) |
+| Frontend Production Build | `npm run build` | PASS | Vite bundle built in 690ms |
+
+### Acceptance Criteria
+- [x] Beranda menampilkan tagline "Satu Tempat, Banyak Solusi Digital" dan identitas Satukit.
+- [x] Maskot Kitu terintegrasi sebagai visual companion yang ramah di Beranda.
+- [x] Tidak ada regresi pada daftar draf, tombol aksi, dan navigasi ruang kerja.
+- [x] Bebas pelanggaran aksesibilitas WCAG 2.1 AA.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-004`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-005` (Navbar, Footer Developer, & Shell Workspace: Penggantian wordmark Satukit, footer Satukit, integrasi Kitu tahap 1).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-005` — Navbar, Footer Developer, & Shell Workspace: Penggantian wordmark Satukit, footer Satukit, integrasi Kitu tahap 1  
+**Requirement:** `BUS-018`, `NFR-UX-002`, `NFR-ACC-002`
+
+### Ringkasan
+Komponen navigasi atas (Navbar) dan navigasi bawah (Footer Developer) telah diperbarui mengadopsi identitas merek Satukit:
+1. **Navbar (`frontend/src/components/layout/Navbar.tsx`):**
+   - Wordmark teks header diperbarui dari `"Doc-builder"` menjadi `"Satukit"`.
+   - Atribut aksesibilitas tombol beranda diperbarui: `aria-label="Buka Beranda Satukit"`.
+   - Maskot animasi interaktif dipertahankan dengan mulus mendukung 18 state emosi responsif dan ramah.
+2. **Footer Developer (`frontend/src/components/layout/Footer.tsx`):**
+   - Hak cipta diperbarui: `"© 2026 Satukit · Satu Tempat, Banyak Solusi Digital"`.
+   - Link atribusi pengembang portofolio `Rahmat Hidayat` dipertahankan dengan aman dan rapi.
+3. **Pengujian Regresi (`footer.test.tsx`, `navbar_drafts.test.tsx`, `animated_mascot.test.tsx`):**
+   - Seluruh 19 pengujian tata letak lulus 100%.
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan rencana tanpa deviasi material.
+
+### File Diubah
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/Footer.tsx`
+- `frontend/src/components/layout/__tests__/footer.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Layout Test Suite | `npm test -- src/components/layout` | PASS | 19/19 tests passed (3 test files) |
+| Frontend Full Test Suite | `npm test` | PASS | 288/288 tests passed (42 test files) |
+| Production Build | `npm run build` | PASS | Vite built in 616ms |
+
+### Acceptance Criteria
+- [x] Navbar menampilkan wordmark "Satukit" dan link aksesibel ke beranda.
+- [x] Footer memuat nama "Satukit" dan tagline "Satu Tempat, Banyak Solusi Digital".
+- [x] Link portofolio pengembang terverifikasi utuh.
+- [x] Seluruh test suite layout dan frontend lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-005`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-006` (Rename Runtime Publik: Teks UI frontend, judul backend FastAPI, OpenAPI docs, pesan error pengguna, nama default berkas ekspor).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-006` — Rename Runtime Publik: Teks UI frontend, judul backend FastAPI, OpenAPI docs, pesan error pengguna, nama default berkas ekspor  
+**Requirement:** `BUS-018`, `NFR-UX-002`
+
+### Ringkasan
+Seluruh representasi nama produk dan teks yang terlihat oleh pengguna di runtime frontend dan backend telah dimigrasikan menjadi Satukit:
+1. **Frontend Teks Publik & Template Ekspor:**
+   - Notice pemrosesan dokumen lokal di `App.tsx`: *"Dokumen diproses melalui server lokal Satukit. Berkas sementara dibersihkan otomatis."*
+   - Watermark pratinjau resume di `ResumePreview.tsx`: *"Dihasilkan secara aman dengan Satukit (Offline & Privat)"*.
+   - Template resume eksekutif di `VisualExecutive.tsx`: *"Satukit Executive"* dan footer ekspor *"Dihasilkan secara aman dengan Satukit"*.
+   - Pesan error layanan shortener di `shortener.ts`: *"Layanan pemendek URL belum aktif di backend server. Silakan muat ulang (restart) server backend Satukit (port 8000)."*
+   - Pesan validasi impor di `crypto.ts`: *"Format berkas tidak valid sebagai berkas Satukit (.docbuilder)"*.
+2. **Backend FastAPI Metadata & Pesan:**
+   - Judul aplikasi FastAPI dan metadata `/docs` di `config.py`: `PROJECT_NAME: str = "Satukit Backend API"`.
+   - Modul `backend/app/__init__.py`: `"""Satukit Backend Package"""`.
+   - Laporan PDF ATS di `ats_report_generator.py`: *"Satukit Suite"*.
+   - Pesan error penolakan auto-merge OAuth di `auth_service.py`: *"Akun Google ini telah ditautkan ke akun Satukit lainnya."*
+3. **Verifikasi:**
+   - 179/179 Pytest backend lulus (termasuk verifikasi endpoint `/api/health` yang merespons `service: "Satukit Backend API"`).
+   - 288/288 Vitest frontend lulus.
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui tanpa penyimpangan.
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/__init__.py`
+- `backend/app/services/auth_service.py`
+- `backend/app/services/ats_report_generator.py`
+- `backend/tests/test_health.py`
+- `backend/tests/test_auth_service.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/preview/ResumePreview.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/services/shortener.ts`
+- `frontend/src/services/crypto.ts`
+- `frontend/src/services/__tests__/export.test.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 179/179 tests passed |
+| Backend Ruff Check | `ruff check backend/app backend/tests` | PASS | All checks passed (0 error) |
+| Frontend Vitest Full Suite | `npm test` | PASS | 288/288 tests passed |
+| Frontend Lint | `npm run lint` | PASS | 0 error (oxlint clean) |
+| Frontend Production Build | `npm run build` | PASS | Vite bundle built in 849ms |
+
+### Acceptance Criteria
+- [x] Seluruh penyebutan publik di frontend beridentitas Satukit.
+- [x] Judul backend FastAPI dan `/api/health` merespons "Satukit Backend API".
+- [x] Pesan otentikasi dan laporan dokumen menggunakan identitas Satukit.
+- [x] Seluruh pengujian backend dan frontend lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-006`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-007` (Migrasi Browser Storage & Session: IndexedDB `satukit_db` dual-read copy, transisi cookie `satukit_session`, localStorage prefix).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-007` — Migrasi Browser Storage & Session: IndexedDB `satukit_db` dual-read copy, transisi cookie `satukit_session`, localStorage prefix  
+**Requirement:** `BUS-018`, `NFR-COMP-002`, `NFR-SEC-001`
+
+### Ringkasan
+Mekanisme penyimpanan browser dan sesi telah dimigrasikan dengan dual-read backward compatibility penuh:
+1. **IndexedDB Browser (`frontend/src/services/storage.ts`):**
+   - Nama database baru resmi: `satukit_db` (versi 1).
+   - Mengimplementasikan `migrateFromLegacyDB`: jika `satukit_db` masih kosong dan terdeteksi `docbuilder_db` memiliki data draf, seluruh draf disalin ke `satukit_db` secara non-destruktif tanpa menghapus `docbuilder_db`.
+   - `clearAllData()` membersihkan `satukit_db` sekaligus `docbuilder_db` agar privasi pengguna terjamin bersih menyeluruh.
+   - Menambahkan pengujian otomatis di `storage.test.ts` (12 tests PASS).
+2. **LocalStorage Shortener (`frontend/src/services/shortener.ts`):**
+   - Key penyimpanan lokal baru: `satukit_shortened_links`.
+   - Menambahkan fallback dual-read: jika key baru kosong, sistem membaca dari `docbuilder_shortened_links` dan memigrasikannya ke key baru.
+   - Menambahkan unit test di `url_shortener.test.tsx` (8 tests PASS).
+3. **Cookie Sesi Backend (`backend/app/core/security.py`, `middleware.py`, `auth.py`, `config.py`):**
+   - Nama cookie baru: `satukit_session`.
+   - Nama cookie legacy: `docbuilder_session`.
+   - `SecurityMiddleware` mengimplementasikan dual-read: `request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(LEGACY_SESSION_COOKIE_NAME)`.
+   - `_clear_session_cookie` membersihkan kedua nama cookie.
+   - Menambahkan unit test otentikasi dual-read di `test_auth_api.py` (180 tests PASS).
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui tanpa penyimpangan.
+
+### File Diubah
+- `frontend/src/services/storage.ts`
+- `frontend/src/services/__tests__/storage.test.ts`
+- `frontend/src/services/shortener.ts`
+- `frontend/src/components/tools/__tests__/url_shortener.test.tsx`
+- `backend/app/core/security.py`
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `backend/app/api/auth.py`
+- `backend/tests/test_auth_api.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| IndexedDB Migration Tests | `npm test -- src/services/__tests__/storage.test.ts` | PASS | 12/12 tests passed |
+| LocalStorage Fallback Tests | `npm test -- src/components/tools/__tests__/url_shortener.test.tsx` | PASS | 8/8 tests passed |
+| Backend Dual-read Cookie Tests | `pytest backend/tests/test_auth_api.py` | PASS | 7/7 tests passed (termasuk dual-read test) |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 180/180 tests passed |
+| Backend Ruff Check | `ruff check backend/app backend/tests` | PASS | All checks passed (0 error) |
+| Frontend Vitest Full Suite | `npm test` | PASS | 290/290 tests passed (42 test files) |
+| Frontend Production Build | `npm run build` | PASS | Vite bundle built in 709ms |
+
+### Acceptance Criteria
+- [x] IndexedDB menggunakan `satukit_db` dan menyalin draf lama dari `docbuilder_db` jika ada.
+- [x] LocalStorage link shortener termigrasi ke `satukit_shortened_links` dengan fallback dual-read.
+- [x] Cookie sesi backend menggunakan `satukit_session` dan mendukung dual-read `docbuilder_session`.
+- [x] 100% tes frontend (290) dan backend (180) lulus.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-007`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-008` (Rename Package, Project Manifests, & Scripts: `package.json`, `frontend/package.json`, `pyproject.toml`, script launcher `start-satukit.*` dengan alias kompatibilitas `start-docbuilder.*`).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-008` — Rename Package, Launcher Script, & Service: `package.json`, launcher `start-satukit.*` + alias `start-docbuilder.*`  
+**Requirement:** `BUS-018`, `NFR-REL-001`
+
+### Ringkasan
+Nama paket, manifest konfigurasi, dan script peluncur aplikasi telah dimigrasikan ke identitas Satukit dengan menjaga kompatibilitas backward:
+1. **Manifest Proyek:**
+   - `package.json` (root): Diperbarui ke `satukit-root` dengan deskripsi resmi *"Satukit — Satu Tempat, Banyak Solusi Digital"*.
+   - `frontend/package.json`: Diperbarui ke `satukit-frontend` (v0.1.0).
+   - `backend/pyproject.toml`: Diperbarui ke `satukit-backend` (v0.1.0).
+2. **Script Peluncur Mandiri Satukit (`start-satukit.*`):**
+   - `start-satukit.sh` (Linux/macOS): Banner ASCII Satukit resmi, deteksi otomatis lingkungan Python venv/sistem, auto-build bundel frontend Satukit jika belum ada, auto-launch browser di background, dan eksekusi uvicorn server.
+   - `start-satukit.ps1` (Windows PowerShell): Banner Satukit cyan, Start-Job browser background, dan eksekusi uvicorn.
+   - `start-satukit.bat` (Windows Command Prompt): Batch launcher dengan banner Satukit.
+3. **Alias Kompatibilitas (`start-docbuilder.*`):**
+   - `start-docbuilder.sh`, `start-docbuilder.ps1`, dan `start-docbuilder.bat` menampilkan notice resmi: *"Doc-builder kini resmi berganti nama: SATUKIT — Satu Tempat, Banyak Solusi Digital"* dan secara otomatis meneruskan eksekusi ke `start-satukit.*`.
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui.
+
+### File Dibuat
+- `start-satukit.sh`
+- `start-satukit.ps1`
+- `start-satukit.bat`
+
+### File Diubah
+- `package.json`
+- `frontend/package.json`
+- `backend/pyproject.toml`
+- `start-docbuilder.sh`
+- `start-docbuilder.ps1`
+- `start-docbuilder.bat`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Bash Script Syntax Validation | `bash -n start-satukit.sh && bash -n start-docbuilder.sh` | PASS | Sintaks valid tanpa error |
+| Root NPM Script Execution | `npm run build:frontend` | PASS | `satukit-root` memicu `satukit-frontend` build |
+| Backend Pytest Suite | `pytest backend/tests` | PASS | 180/180 tests passed |
+| Frontend Vitest Suite | `npm test` | PASS | 290/290 tests passed |
+
+### Acceptance Criteria
+- [x] `package.json` dan `pyproject.toml` menggunakan nama paket Satukit.
+- [x] Launcher `start-satukit.*` tersedia di ketiga format (sh, ps1, bat).
+- [x] Legacy launcher `start-docbuilder.*` meneruskan ke Satukit dengan notice ramah.
+- [x] Seluruh build dan test suite tetap 100% lulus.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-008`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-009` (Migrasi Identitas Cloudflare Worker Shortener: nama worker Satukit, domain routing, branding portal admin Zero Trust).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-009` — Migrasi Identitas Cloudflare Worker Shortener: nama worker Satukit, domain routing, branding portal admin Zero Trust  
+**Requirement:** `BUS-015`, `BUS-018`
+
+### Ringkasan
+Identitas layanan serverless edge URL shortener Cloudflare Workers telah diselaraskan penuh dengan merek Satukit:
+1. **Manifest & Konfigurasi Worker (`shortener/package.json`, `shortener/wrangler.toml`):**
+   - Nama paket worker diperbarui menjadi `satukit-shortener`.
+   - Nama worker Cloudflare diperbarui menjadi `name = "satukit-shortener"`.
+   - Binding basis data `database_name = "docbuilder_shortener_db"` dipertahankan secara utuh tanpa reset agar seluruh data tautan pendek aktif yang sudah terdaftar di D1 tidak hilang/terputus.
+2. **Branding Edge Runtime & Portal Admin Web (`shortener/src/index.ts`, `shortener/src/admin.ts`):**
+   - Health check endpoint `/health` merespons identitas `service: 'satukit-url-shortener'`.
+   - Beranda root `/` menyajikan teks identitas `Satukit URL Shortener • Edge Redirection Service`.
+   - Portal Admin (`/admin`) menyajikan header `⚡ Satukit Shortener` dan judul tab `Satukit Shortener • Portal Admin` di bawah perlindungan Zero Trust Cloudflare Access.
+3. **Konfigurasi Backend Adapter (`backend/app/core/config.py`, `backend/app/api/shortener.py`):**
+   - `SHORTENER_EDGE_URL` diselaraskan ke domain default `https://s.satukit.local`.
+   - `SHORTENER_ADMIN_HMAC_SECRET` diselaraskan ke `satukit-shortener-secret-local`.
+4. **Verifikasi:**
+   - 47/47 pengujian Vitest di folder `shortener/test/` (router, api, admin, access, ssrf, backup) lulus 100%.
+   - Seluruh pengujian backend adapter `test_shortener_api.py` lulus 100%.
+
+### Kesesuaian dengan Rencana
+- Sesuai dengan code plan yang disetujui.
+
+### File Diubah
+- `shortener/package.json`
+- `shortener/wrangler.toml`
+- `shortener/src/index.ts`
+- `shortener/src/admin.ts`
+- `shortener/test/router.test.ts`
+- `shortener/test/admin.test.ts`
+- `backend/app/core/config.py`
+- `backend/app/api/shortener.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Edge Shortener Vitest Suite | `npm --prefix shortener test` | PASS | 47/47 tests passed (6 test files) |
+| Backend Shortener Adapter Test | `pytest backend/tests/test_shortener_api.py` | PASS | 6/6 tests passed |
+| Frontend Shortener Modal Test | `npm test -- src/components/tools/__tests__/url_shortener.test.tsx` | PASS | 8/8 tests passed |
+
+### Acceptance Criteria
+- [x] Worker name berlabel `satukit-shortener`.
+- [x] UI Admin Portal berlabel `⚡ Satukit Shortener`.
+- [x] Database binding D1 tidak dihapus / kompatibilitas data terjaga.
+- [x] Seluruh unit test shortener lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-009`).
+
+### Rekomendasi Berikutnya
+Lanjutkan ke `REBRAND-SATUKIT-010` (Full Rebranding Verification & Compatibility Gate: regression test frontend/backend, import `.docbuilder`, verifikasi magic header, audit status akhir Phase 15).
+
+---
+
+## Hasil Task
+
+**Task:** `REBRAND-SATUKIT-011` s/d `REBRAND-SATUKIT-015` — Pixel-Perfect Landing Page Satukit Mockup, Engine Dark Mode Global, Penyelarasan Nuansa Seluruh Halaman, dan Verifikasi Penuh Testing Gates  
+**Requirement:** `BUS-018`, `NFR-UX-002`, `NFR-COMP-002`, `NFR-ACC-002`
+
+### Ringkasan
+1. **Kurasi Aset Visual WebP/PNG Transparan (`REBRAND-SATUKIT-011`):**
+   - Mengekstrak maskot Kitu wadah besek bambu resolusi tinggi (`kitu-mascot.webp`), 4 ilustrasi fitur Kitu (`kitu-feature-cv.webp`, `kitu-feature-photo.webp`, `kitu-feature-convert.webp`, `kitu-feature-shortener.webp`), siluet candi lanskap (`satukit-scenic-temple.webp`), dan ornamen batik Kawung kiri-kanan (`satukit-batik-left.webp`, `satukit-batik-right.webp`).
+2. **Engine Dark Mode Global & Persistensi (`REBRAND-SATUKIT-012`):**
+   - Mengimplementasikan `ThemeContext.tsx` dan hook `useTheme` dengan persistensi `localStorage` key `satukit_theme`.
+   - Mengonfigurasi `@variant dark (&:where(.dark, .dark *));` pada `index.css` Tailwind v4 serta skrip anti-FOUC inline pada `<head>` di `index.html`.
+   - Komponen sakelar `ThemeToggle.tsx` ☀️/🌙 di Navbar dengan animasi micro-interaction halus dan aksesibilitas `aria-label`.
+3. **Pixel-Perfect Landing Page Satukit (`REBRAND-SATUKIT-013`):**
+   - Menyesuaikan tampilan Beranda `Dashboard.tsx` sama persis dengan konsep visual mockup `Satukit_Landing_Page_Concept.png`.
+   - Hero lanskap budaya siluet candi & batik Kawung, tagline brush underline "Satu Tempat, Banyak Solusi Digital", maskot Kitu wadah besek + speech bubble interaktif + 3 floating badges (100% Gratis, Super Cepat, Tanpa Login & Aman).
+   - Quick category bar (7 utilitas terhubung dinamis), 4 kartu fitur unggulan Kitu (CV Builder ATS, Edit & Sentuh Foto, Konversi & Kelola PDF, Pendekkan Tautan), banner 3 langkah mudah, serta integrasi draf CV lokal.
+4. **Penyelarasan Nuansa Seluruh Halaman & Dark Mode (`REBRAND-SATUKIT-014`):**
+   - Menyelaraskan seluruh tampilan halaman lain (CV Builder sidebar form & canvas preview A4 studio, ATS Optimizer workspace, direktori Alat Dokumen, modal-modal utilitas, dan Footer) dengan nuansa toska-bambu serasi dalam mode terang dan gelap.
+   - Kanvas A4 `ResumePreview.tsx` dipertahankan putih bersih sebagai simulasi cetak fisik, dengan latar studio `dark:bg-stone-950`.
+   - Memastikan standar tipografi dashboard minimum 13px (`text-[13px]`) demi keterbacaan optimal.
+5. **Verifikasi Menyeluruh & Testing Gates (`REBRAND-SATUKIT-015`):**
+   - Eksekusi Playwright E2E batched multi-viewport (1440, 1024, 820, 768, 390 px), zoom 200%, CLS <= 0.1, anti-purple check, dan sakelar dark mode lulus 100%.
+   - Eksekusi 293 Vitest unit tests pada 43 file pengujian lulus 100%.
+   - Eksekusi 180 Pytest backend tests lulus 100%.
+   - Eksekusi build produksi `tsc -b && vite build` lulus 100%.
+   - Audit kontras aksesibilitas WCAG 2.2 AA (0 axe violations) dan secret scan 0 leak.
+
+### File Dibuat / Diubah
+- `frontend/src/context/ThemeContext.tsx`
+- `frontend/src/components/layout/ThemeToggle.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/Footer.tsx`
+- `frontend/src/components/preview/ResumePreview.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/index.css`
+- `frontend/index.html`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Playwright E2E Multi-Viewport & Dark Mode | `npm run --prefix frontend test:e2e` | PASS | 1 passed (6.0s) lintas 5 viewport, zoom 200%, CLS <= 0.1, dark mode toggle |
+| Vitest Frontend Unit Tests | `npm run --prefix frontend test` | PASS | 293/293 passed (43 test files) |
+| Accessibility Test Suite | `npm run --prefix frontend test -- accessibility.test.tsx` | PASS | 7/7 passed, 0 axe violations |
+| Frontend Production Build | `npm run --prefix frontend build` | PASS | `tsc -b && vite build` sukses dalam 671ms |
+| Backend Pytest Suite | `backend/.venv/bin/pytest backend/tests` | PASS | 180/180 passed in 32.36s |
+| Secret Scan | Repository regex inspection | PASS | 0 secret / private key / token leak |
+
+### Acceptance Criteria
+- [x] Landing page Beranda Satukit identik dengan konsep mockup `Satukit_Landing_Page_Concept.png`.
+- [x] Seluruh halaman lain (CV Builder, ATS, Tools, Footer) memiliki nuansa toska-bambu yang serasi.
+- [x] Fitur Dark Mode global terpasang, persisten di `localStorage` (`satukit_theme`), dan memiliki sakelar di Navbar.
+- [x] 100% verifikasi pengujian lulus (Vitest, Pytest, Playwright E2E, accessibility, build, scan).
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-011` s/d `REBRAND-SATUKIT-015`).
+

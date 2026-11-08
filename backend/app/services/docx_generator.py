@@ -54,6 +54,7 @@ def parse_and_validate_photo(photo_url: str) -> io.BytesIO:
     except Exception as e:
         raise ValueError(f"Gambar foto profil tidak dapat diproses: {e}") from e
 
+
 RESUME_LABELS = {
     "id": {
         "full_name": "Nama Lengkap",
@@ -187,9 +188,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
         websites = []
 
     legacy_website = contact.get("website")
-    has_website_value = any(
-        isinstance(site, str) and site.strip() for site in websites
-    )
+    has_website_value = any(isinstance(site, str) and site.strip() for site in websites)
     if not has_website_value and isinstance(legacy_website, str) and legacy_website.strip():
         websites = [legacy_website]
 
@@ -236,11 +235,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
     section_order: list[str] = []
     if isinstance(raw_order, list):
         for value in raw_order:
-            if (
-                isinstance(value, str)
-                and value in valid_sections
-                and value not in section_order
-            ):
+            if isinstance(value, str) and value in valid_sections and value not in section_order:
                 section_order.append(value)
     for value in valid_sections:
         if value not in section_order:
@@ -268,9 +263,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
                 run_title.bold = True
                 run_title.font.size = Pt(10)
 
-                end_date = (
-                    labels["present"] if exp.get("current") else exp.get("endDate", "")
-                )
+                end_date = labels["present"] if exp.get("current") else exp.get("endDate", "")
                 period = f"{exp.get('startDate', '')} - {end_date}"
                 if period.strip() != "-":
                     run_period = p_job.add_run(f"\t{period}")
@@ -317,9 +310,7 @@ def generate_resume_docx(resume: dict[str, Any]) -> io.BytesIO:
                 p_edu.paragraph_format.space_before = Pt(4)
                 p_edu.paragraph_format.space_after = Pt(1)
 
-                run_school = p_edu.add_run(
-                    edu.get("institution", labels["institution"])
-                )
+                run_school = p_edu.add_run(edu.get("institution", labels["institution"]))
                 run_school.bold = True
                 run_school.font.size = Pt(10)
 

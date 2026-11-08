@@ -2,72 +2,219 @@
 
 ## 1. Metadata dan Revision History
 - **Proyek:** Doc-builder
-- **Versi Arsitektur:** 1.1.0
-- **Tanggal Persetujuan:** 2026-10-20
-- **Revisi Terakhir:** 2026-10-24 — sinkronisasi stack aktual, engine PDF pascarilis, kebijakan cookie `SameSite=Lax`, model data CV terstruktur, alur preflight ekspor/import/target draft, dan pencatatan gap observability.
-- **Status:** Approved (Gerbang 2)
+- **Versi Arsitektur:** 2.0.0
+- **Tanggal Persetujuan Awal:** 2026-10-20
+- **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi Sistem Hybrid Online Multi-Tier: Hosting VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM) dengan Reverse Proxy (Caddy/Nginx), Autentikasi Pengguna & Kuota Cloud CV (max 5 CV, retensi 90 hari, backup terenkripsi Cloudflare R2 7 hari, email Brevo), Penghapus Latar Belakang Gambar Lokal (U2NetP CPU-only, antrean max 2, timeout 30s), serta Layanan URL Shortener Mandiri Serverless (Cloudflare Workers + D1).
+- **Status:** Pending Approval (Revisi Gerbang 2)
 
 ## 2. Gambaran Umum Sistem & Topologi
 
-Doc-builder menggunakan arsitektur **Hybrid Client-Server Lokal** yang berjalan sepenuhnya pada mesin pengguna (`localhost`):
+Doc-builder v2.0 menggunakan arsitektur **Hybrid Multi-Tier** yang memisahkan pemrosesan dokumen/ML dan otentikasi di VPS terkelola dengan layanan pengalihan URL berlatensi rendah di edge serverless Cloudflare:
 
 ```text
-+------------------------------------------------------------------------+
-| Mesin Pengguna (Localhost Environment)                                 |
-|                                                                        |
-|  +------------------------+             +---------------------------+  |
-|  | Web Browser (Frontend) |             | Local Backend (FastAPI)   |  |
-|  |                        |  HTTP/REST  |                           |  |
-|  | - React 19 + TS        | ----------> | - FastAPI Server (uvicorn)|  |
-|  | - Vite, Tailwind CSS   |  (Loopback  | - Dynamic Port + Session  |  |
-|  | - Zod validation       |   Auth)     | - REST API & OpenAPI Spec |  |
-|  | - IndexedDB (Drafts)   |             +-------------+-------------+  |
-|  +------------------------+                           |                |
-|                                                       | Process Pool   |
-|                                                       v                |
-|                                         +---------------------------+  |
-|                                         | Isolated Worker Sandbox   |  |
-|                                         |                           |  |
-|                                         | - LibreOffice Headless    |  |
-|                                         | - PDF->DOCX Engine        |  |
-|                                         | - PyPDF / Pillow / NLP    |  |
-|                                         | - No-Network & ResourceCap|  |
-|                                         +-------------+-------------+  |
-|                                                       |                |
-|                                                       v                |
-|                                         +---------------------------+  |
-|                                         | Local Temp Workspace      |  |
-|                                         | (Max 500 MB, TTL 5 Menit) |  |
-|                                         +---------------------------+  |
-+------------------------------------------------------------------------+
+                                 [ Pengguna Publik / Browser ]
+                                              │
+                     ┌────────────────────────┴────────────────────────┐
+                     │                                                 │
+            (Subdomain Web Utama)                            (Subdomain URL Shortener)
+                     │                                                 │
+                     ▼                                                 ▼
+      ┌─────────────────────────────┐                  ┌──────────────────────────────┐
+      │   Cloudflare Edge Network   │                  │   Cloudflare Edge Network    │
+      │  - DNS, WAF, DDoS Shield    │                  │  - Workers Edge Execution    │
+      │  - Origin TLS Routing       │                  │  - Direct 302 Redirect       │
+      └──────────────┬──────────────┘                  │  - Cloudflare D1 (Database)  │
+                     │                                 │  - HMAC Signature Auth       │
+                     ▼                                 │  - Admin via CF Access       │
+      ┌─────────────────────────────┐                  └──────────────┬───────────────┘
+      │ VPS Host (Ubuntu 24.04)     │                                 │
+      │ 1 vCPU / 2.2 GiB RAM        │                   (Admin API Sync via HMAC)
+      │                             │                                 │
+      │  ┌───────────────────────┐  │                                 │
+      │  │ Reverse Proxy (Caddy) │  │                                 │
+      │  │ - TLS 1.3 Termination │  │                                 │
+      │  │ - Rate Limiting per IP│  │                                 │
+      │  │ - Static Assets Serve │  │                                 │
+      │  └───────────┬───────────┘  │                                 │
+      │              │ 127.0.0.1    │                                 │
+      │              ▼              │                                 │
+      │  ┌───────────────────────┐  │                                 │
+      │  │ FastAPI App (Port 8000│◄─┼─────────────────────────────────┘
+      │  │ - REST API & Session  │  │
+      │  │ - Auth (Argon2/OAuth) │  │
+      │  │ - CV Quota & Retention│  │
+      │  │ - Storage Engine      │  │
+      │  └─────┬───────────┬─────┘  │
+      │        │           │        │
+      │        ▼           ▼        │
+      │  ┌───────────┐ ┌──────────┐ │
+      │  │ Doc Engine│ │U2NetP ML │ │
+      │  │ LibreOff, │ │CPU-Only  │ │
+      │  │ PyMuPDF   │ │Queue max2│ │
+      │  └───────────┘ └──────────┘ │
+      │        │                    │
+      │        ▼                    │
+      │  ┌────────────────────────┐ │
+      │  │ Background Sweeper     │ │
+      │  │ - Expired CV (>90d)    │ │
+      │  │ - Anon Files (>1h)     │ │
+      │  │ - Encrypted R2 Backup  │ │
+      │  └───────────┬────────────┘ │
+      └──────────────┼──────────────┘
+                     │
+                     ▼
+      ┌─────────────────────────────┐
+      │ Cloudflare R2 (Private)     │
+      │ - Encrypted Snapshot Backup │
+      │ - Object Lifecycle: 7 Days  │
+      └─────────────────────────────┘
 ```
 
 ## 3. Komponen Arsitektur Utama
 
-### 3.1 Frontend (Presentation & Draft Storage) — ARCH-01
+### 3.1 Frontend Web Client — ARCH-01
 - **Teknologi:** React 19, TypeScript, Vite, Tailwind CSS, Lucide icons.
-- **State Management & Form:** State React lokal dan validasi skema Zod; tidak memakai React Hook Form atau Radix UI pada implementasi saat ini.
-- **Penyimpanan Lokal:** IndexedDB (melalui wrapper `idb`) untuk autosave draft CV, preferensi, dan template state.
-- **Model Draft:** `ResumeDraft` menyimpan data CV, `favorite`, dan `targetJob` opsional. `ResumeData` mendukung `headline`, `achievements[]`, dan `sectionOrder[]` opsional; draft lama tetap kompatibel melalui fallback `description` dan normalisasi urutan bagian.
-- **Pagination Preview:** `ResumePreview` mengestimasi tinggi konten A4 dan menampilkan jumlah halaman serta overlay batas halaman. Template full-bleed memakai tinggi A4 penuh; template reguler mengurangi padding kertas.
-- **Preflight Ekspor:** `resumeQuality` memisahkan error/warning; `ExportResumeModal` memblokir error, mewajibkan acknowledgment warning, dan meneruskan nama berkas yang sudah disanitasi ke service ekspor.
-- **Responsivitas:** Layout responsif untuk desktop dan layar sentuh, optimasi visual desktop untuk preview side-by-side.
+- **State Management & Form:** State React lokal, Zod schema validation, modular tool dialogs.
+- **Dua Jalur Penyimpanan CV:**
+  1. *Mode Anonim / Tamu:* Penyimpanan draf lokal di IndexedDB (offline-capable).
+  2. *Mode Akun Terdaftar:* Sinkronisasi draf proyek CV terstruktur ke backend VPS (maksimal 5 CV per akun, retensi 90 hari).
+- **Halaman & Dialog Tambahan Online:**
+  - Modal Autentikasi (Masuk, Daftar, Lupa Kata Sandi, Verifikasi Email, Masuk via Google).
+  - Manajemen Akun & Pengaturan Profil (daftar CV tersimpan, indikator kuota 5 dokumen, sisa hari retensi, tombol hapus akun mandiri, tombol sambung/lepas Google OAuth dengan re-authentication).
+  - Modal Remove Background dengan live preview interaktif (checkerboard transparansi dan color picker background preview).
+  - Portal Pemendek URL (khusus Owner/Admin).
 
-### 3.2 Backend Service (Local Orchestrator) — ARCH-02
-- **Teknologi:** Python 3.11+, FastAPI, Uvicorn, pip/venv (virtual environment proyek). `uv` tidak digunakan sebagai package manager utama saat ini.
-- **Protokol:** REST API dengan kontrak formal berbasis OpenAPI/Swagger.
-- **Bind Network:** Terkunci keras hanya pada `127.0.0.1` (loopback). Dilarang mengikat ke `0.0.0.0`.
-- **Port:** Port default `8000` dari launcher; belum ada alokasi port dinamis saat runtime.
-- **Autentikasi Sesi:** Token bootstrap acak yang disimpan sebagai Cookie `HttpOnly` dengan `SameSite=Lax` pada loopback HTTP. Validasi header CSRF token pada setiap mutasi POST/PUT/DELETE. Lihat `DEC-013`.
+### 3.2 Edge Infrastructure & Reverse Proxy — ARCH-02
+- **Cloudflare Edge:**
+  - Menyediakan proteksi DDoS, DNS manajemen, dan WAF edge rules.
+  - Subdomain Shortener didelegasikan ke Cloudflare Workers.
+- **Reverse Proxy VPS (Caddy):**
+  - Mengikat port 80/443 dengan sertifikat TLS otomatis.
+  - Menyajikan static bundle frontend hasil build Vite (`dist/`).
+  - Mem-proxy request `/api/*` ke backend FastAPI lokal (`127.0.0.1:8000`).
+  - Menegakkan rate limiting per client IP: misal 60 req/menit untuk API umum, 5 req/menit untuk endpoint autentikasi, dan 2 req/menit untuk pemrosesan ML berat.
+  - Menginjeksi security headers: `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, dan `Content-Security-Policy`.
 
-### 3.3 Conversion & Processing Engine (Isolated Workers) — ARCH-03
-- **Worker Management:** Subprocess terpisah per job dengan maksimal satu job aktif, untuk mencegah crash pada web server saat memproses file korup.
-- **DOCX ke PDF:** Eksekusi LibreOffice headless via subprocess dengan parameter `--headless --convert-to pdf`.
-- **PDF ke DOCX:** `pdf2docx` terisolasi sesuai `DEC-004`, dengan mode best-effort.
-- **PDF & Image Tools:** PyMuPDF (`fitz`) untuk Protect/Unlock, Repair, OCR orchestration, Watermark, Page Numbers, dan ekstraksi Markdown; `pypdf` tersedia untuk operasi tertentu; Pillow untuk image conversion dan EXIF sanitization. Lihat `DEC-012`.
-- **ATS & NLP Engine:** Aturan deterministik berbasis regex dan NLP bilingual ringan (ekstraksi kata kunci, frekuensi, segmentasi kalimat) tanpa external cloud call.
+### 3.3 Backend API & User Management Service (FastAPI) — ARCH-03
+- **Teknologi:** Python 3.11+, FastAPI, Uvicorn (internal loopback binding `127.0.0.1:8000`).
+- **Autentikasi & Otorisasi:**
+  - Password hashing menggunakan **Argon2id** (atau bcrypt work factor 12).
+  - Google OAuth 2.0 flow: penukaran kode authorization di backend, memverifikasi `email_verified=true`, mencocokkan `sub` ID unik Google.
+  - **Account Linking Guard:** Menolak auto-merge jika email sama ditemukan. Pengguna wajib login dengan kredensial lama terlebih dahulu, lalu menghubungkan Google via re-authentication.
+  - Session management menggunakan Cookie `HttpOnly`, `Secure`, `SameSite=Lax`, dengan token sesi berumur terbatas dan invalidasi instan saat logout/hapus akun.
+- **Penyimpanan Dokumen CV & Kuota:**
+  - Database relasional SQLite (dengan WAL mode) di VPS untuk data akun, sesi, dan draf terstruktur CV.
+  - Satu proyek CV disimpan sebagai entitas data terstruktur JSON + template ID (ukuran rata-rata < 100 KB); berkas upload pendukung (seperti foto formal) divalidasi dan dioptimasi.
+  - Enforce kuota: max 5 CV per akun, max 10 MB per dokumen, max 50 MB total per akun, dan kuota global penyimpanan 5 GB.
+  - Dokumen mencatat timestamp `updated_at` dan `expires_at` (`updated_at` + 90 hari). Aksi baca atau render unduhan tidak memicu pembaruan `updated_at`.
+- **Integrasi Email Transaksional (Brevo Free):**
+  - Adapter modular Python untuk Brevo REST API v3.
+  - Template email transaksional berbahasa Indonesia untuk verifikasi email pendaftaran, token reset password, dan pemberitahuan kedaluwarsa dokumen pada H-14, H-7, dan H-1.
+  - Email tidak memuat konten CV atau data pribadi sensitif.
+
+### 3.4 Isolated Document & ML Processing Engine — ARCH-04
+- **Engine Dokumen:**
+  - Konversi DOCX↔PDF: LibreOffice Headless via sandboxed subprocess.
+  - Utilitas PDF: PyMuPDF (`fitz`) untuk protect, unlock, repair, OCR, watermark, page numbers, dan markdown.
+  - Utilitas Gambar: Pillow untuk kompresi dan sanitasi EXIF.
+- **Engine Remove-Background (U2NetP CPU-Only):**
+  - Model inferensi berbasis `onnxruntime` atau `torch` CPU-only dengan model berbobot ringan U2NetP (~4.7 MB biner bobot).
+  - **Eksekusi Subprocess Terisolasi:** Worker dieksekusi dalam subprocess terpisah yang dihentikan dan dibebaskan sepenuhnya pasca-inferensi untuk mengembalikan memori fisik ke OS (mencegah memory leak atau akumulasi RAM di 2.2 GiB RAM host).
+  - **Concurrency & Queueing:** Dikelola oleh `job_manager.py` yang diperluas: Concurrency = 1 active job, Antrean tunggu = maksimal 2 job, Timeout = hard timeout 30 detik.
+  - Jika antrean penuh, backend merespons HTTP 429/503 dengan header `Retry-After: 30`.
+
+### 3.5 Pemendek URL Serverless (Cloudflare Workers + D1) — ARCH-05
+- **Arsitektur:** 100% Serverless di Edge Cloudflare.
+- **Runtime:** Cloudflare Workers (TypeScript / Hono atau native Fetch handler).
+- **Database:** Cloudflare D1 (Serverless SQLite at edge).
+- **Routing:**
+  - `GET /:slug`: Memeriksa D1. Jika link aktif (`status = 'active'`), mengembalikan `302 Found` ke `destination_url` dan memperbarui `click_count` serta `last_accessed_at` secara asinkron (menggunakan `ctx.waitUntil`). Jika `status = 'revoked'`, mengembalikan `410 Gone`. Jika tidak ditemukan, mengembalikan `404 Not Found`.
+  - `POST /api/shorten`: Pembuatan link baru. Wajib header `X-Signature` HMAC-SHA256, `X-Timestamp`, dan `X-Nonce`.
+  - `POST /api/revoke`: Pencabutan link. Mengubah status menjadi `revoked` dan mencatat `revoked_at`.
+- **Lifecycle & Anti-Reuse:**
+  - Link aktif tidak memiliki masa kedaluwarsa.
+  - Link yang dicabut dipertahankan selama 90 hari sebelum `destination_url` dihapus/dikosongkan menjadi tombstone permanen.
+  - Slug yang dicabut tidak boleh digunakan ulang (primary key / unique index pada `slug`).
+- **Validasi Destination URL (Anti-SSRF):**
+  - Skema wajib `https:`.
+  - Melarang username/password dalam URL.
+  - Resolusi host menolak alamat loopback (`127.0.0.0/8`, `::1`), private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`, `fe80::/10`), dan reserved IPs.
+- **Admin Portal Access:**
+  - Halaman antarmuka manajemen link dilindungi oleh Cloudflare Access (kebijakan Zero Trust: verifikasi email OTP/Google login pemilik akun).
+
+### 3.6 Background Worker & Disaster Recovery — ARCH-06
+- **Periodic Retention Cleaner:**
+  - Cron service harian yang mengeksekusi script pembersihan di VPS.
+  - Mencari proyek CV dengan `expires_at < NOW()`. Menghapus draf dan file terkait secara fisik dari disk dan database.
+  - Menghapus berkas temporer tamu anonim yang berumur > 1 jam.
+- **Encrypted Backup ke Cloudflare R2:**
+  - Cron job harian melakukan snapshot SQLite database dan direktori data CV.
+  - Mengompresi dan mengenkripsi arsip cadangan dengan AES-256-GCM menggunakan symmetric key yang tersimpan aman di environment VPS.
+  - Mengunggah arsip terenkripsi ke Cloudflare R2 Standard bucket (private bucket tanpa izin akses publik).
+  - Lifecycle rule pada bucket R2 secara otomatis menghapus objek cadangan setelah 7 hari.
+- **Fail-Closed Disk Guard:**
+  - Pemeriksaan berkala terhadap kapasitas disk VPS (`df -h`).
+  - Ambang Peringatan (70%): Log peringatan level WARNING dan notifikasi admin.
+  - Ambang Pemblokiran (80%): Menolak pembuatan atau penyimpanan proyek CV baru dengan pesan error yang jelas bagi pengguna.
 
 ## 4. Keamanan dan Isolasi (Security by Design)
+- **Tingkat Risiko:** HIGH.
+- **Prinsip Least Privilege:** Backend FastAPI berjalan di bawah user non-root (`docbuilder` / `www-data`).
+- **Autentikasi & Kredensial:** Seluruh secret (Brevo API Key, Google OAuth Secret, R2 Access Key, HMAC Secret) hanya tersimpan dalam file environment terlindungi (`0600`) dan secret binding Cloudflare, tidak pernah dikirim ke frontend.
+- **Proteksi Penggabungan Akun (Anti-Takeover):** Tidak ada auto-merge. Akun dengan email sama wajib dihubungkan melalui autentikasi sadar.
+- **Proteksi Denial of Service (DoS):**
+  - Rate limiting di layer Caddy dan Cloudflare WAF.
+  - Concurrency limit = 1 dan queue limit = 2 pada ML worker U2NetP.
+  - Hard timeout 30 detik untuk pembatalan paksa subprocess inferensi yang hang.
+- **Anti-SSRF pada URL Shortener:** URL tujuan divalidasi ketat di edge sebelum disimpan ke D1.
+- **Audit Logging:** Audit log append-only di VPS mencatat peristiwa otentikasi, pembuatan link, penghapusan akun, dan eksekusi background worker tanpa mencatat payload PII atau kata sandi.
+
+## 5. Alur Data (Data Flow)
+
+### 5.1 Alur Autentikasi & Penyimpanan CV Terkelola
+```text
+Pengguna -> Daftar / Masuk (Email+Password / Google OAuth)
+         -> Backend Verifikasi Kredensial (Argon2 / Google Token Verification)
+         -> Terbitkan Cookie Sesi HttpOnly Secure
+         -> Pengguna Menyunting CV -> Simpan ke Cloud
+         -> Backend Periksa Kuota (Akun < 5 CV, Ukuran < 10 MB, Total Akun < 50 MB, Global < 5 GB, Disk < 80%)
+         -> Simpan Draf Terstruktur ke DB + Set expires_at = NOW() + 90 hari
+         -> Respons Sukses
+```
+
+### 5.2 Alur Penghapusan Latar Belakang Gambar (Remove Background)
+```text
+Pengguna Mengunggah Gambar (JPG/PNG/WebP <= 10 MB)
+  -> Frontend Validasi Ukuran & Magic Bytes
+  -> Request POST /api/image/remove-background
+  -> Backend Job Manager Periksa Antrean (Aktif = 0? Jalankan! | Antrean < 2? Antrekan! | Penuh? Tolak 429)
+  -> Spawn Subprocess U2NetP CPU-Only dengan Timeout 30s
+  -> Inferensi Alpha Masking -> Komposisi RGBA Transparan
+  -> Hentikan Subprocess & Bebaskan Memori
+  -> Simpan Hasil Temporer (TTL 1 Jam)
+  -> Kirim Pratinjau ke Frontend -> Pengguna Melihat Pratinjau Checkerboard -> Unduh Berkas
+```
+
+### 5.3 Alur Pengalihan URL Pendek (Cloudflare Workers)
+```text
+Pengunjung Mengakses https://go.domain.com/{slug}
+  -> Cloudflare Edge Worker Mengintersepsi Request
+  -> Query Cloudflare D1 Cache / Read: SELECT destination_url, status FROM urls WHERE slug = ?
+  -> Status 'active'? -> Async increment click_count via ctx.waitUntil -> HTTP 302 Redirect ke destination_url
+  -> Status 'revoked'? -> HTTP 410 Gone (Link telah dicabut)
+  -> Tidak ditemukan? -> HTTP 404 Not Found
+```
+
+## 6. Error Handling & Observability
+- **Error Envelope Standar:** `{ success: false, error: { code: string, message: string } }`.
+- **Health Check:** `GET /api/health` memeriksa status database lokal, kapasitas disk, antrean ML, dan status konektivitas eksternal.
+- **Monitoring Edge:** Cloudflare Dashboard analytics untuk memantau request rate, latensi edge, dan kuota D1/Workers.
+- **Log Rotasi & Retensi:** Log lokal Caddy dan FastAPI diputar harian dengan retensi 7 hari.
+
+## 7. Known Architecture Trade-offs & Accepted Constraints
+- **1 vCPU / 2.2 GiB RAM:** Tidak dapat menjalankan model AI generatif (LLM) atau model segmentasi berat. U2NetP CPU-only dipilih karena efisiensi memori (< 200 MB saat inferensi) dan model weights hanya 4.7 MB.
+- **Subprocess Isolation:** Mengorbankan waktu spawn awal (~500 ms) demi stabilitas RAM dan isolasi error agar web server tidak pernah mengalami OOM.
+- **Serverless URL Shortener Terpisah:** Memisahkan beban redirect dari VPS ke Cloudflare Workers untuk memastikan pengalihan super cepat (≤100 ms) dan tidak membebani CPU VPS.
 - **Network Isolation:** **Belum memadai.** Implementasi saat ini hanya menyetel `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` ke port tertutup dan menyanitasi environment; tidak ada network namespace, firewall, atau egress block OS-level. Windows memakai Job Object untuk batas proses/memori, bukan network. Gap ini dicatat sebagai `RISK-SEC-003`.
 - **Resource Limiting:** Timeout 5 menit per pekerjaan; Windows Job Object membatasi memori default 500 MB; Linux belum memiliki memory cap (cgroup/rlimit). Batas disk temporer 500 MB.
 - **Sanitasi File:** Validasi magic bytes sebelum berkas diproses; penolakan makro aktif (.docm/.xlsm); penolakan berkas terenkripsi pada jalur yang tidak meminta password; fail-closed untuk dokumen bertanda tangan digital pada operasi yang dapat merusaknya; pembersihan metadata gambar.

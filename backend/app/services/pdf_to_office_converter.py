@@ -160,7 +160,7 @@ def convert_pdf_to_xlsx_sandboxed(
             "            float(s)\n"
             "            return s\n"
             "        except ValueError:\n"
-            "            return \"'\" + s\n"
+            '            return "\'" + s\n'
             "    return s\n"
             "\n"
             "doc = pymupdf.open(pdf_in)\n"

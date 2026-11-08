@@ -68,9 +68,7 @@ def test_parse_page_ranges():
 
 
 def test_merge_pdf_and_image_outputs_two_pages():
-    output = merge_pdf_and_images(
-        [("sample.pdf", create_pdf(1)), ("image.png", create_png())]
-    )
+    output = merge_pdf_and_images([("sample.pdf", create_pdf(1)), ("image.png", create_png())])
     assert len(PdfReader(output).pages) == 2
 
 
@@ -419,9 +417,7 @@ def test_get_pdf_editor_pages_signed_rejected():
 
 def test_apply_pdf_editor_changes_service():
     source = create_pdf(3)
-    img_b64 = "data:image/png;base64," + base64.b64encode(create_png("red")).decode(
-        "ascii"
-    )
+    img_b64 = "data:image/png;base64," + base64.b64encode(create_png("red")).decode("ascii")
 
     manifest = {
         "pages": [
@@ -466,9 +462,7 @@ def test_apply_pdf_editor_changes_service():
 
 def test_apply_pdf_editor_changes_unified_overlays():
     source = create_pdf(2)
-    img_b64 = "data:image/png;base64," + base64.b64encode(create_png("blue")).decode(
-        "ascii"
-    )
+    img_b64 = "data:image/png;base64," + base64.b64encode(create_png("blue")).decode("ascii")
 
     manifest = {
         "pages": [
@@ -1034,8 +1028,3 @@ def test_pdf_to_markdown_service_and_endpoint():
     assert res_api.headers.get("x-total-pages") == "2"
     assert res_api.headers.get("x-converted-pages") == "2"
     assert "Dokumen Penawaran Proyek" in res_api.text
-
-
-
-
-

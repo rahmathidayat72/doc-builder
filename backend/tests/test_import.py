@@ -88,7 +88,6 @@ def test_extract_contact_info_extracts_professional_headline():
     assert confidence["headline"] == 0.55
 
 
-
 def test_parse_resume_document_from_pdf():
     """Menguji parsing berkas PDF menghasilkan kontak, ringkasan, dan confidence."""
     assert SAMPLE_PDF_PATH.exists(), f"Berkas sample tidak ditemukan: {SAMPLE_PDF_PATH}"

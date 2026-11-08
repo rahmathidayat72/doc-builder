@@ -64,6 +64,56 @@ Doc-builder berfokus pada keandalan rekonstruksi format dokumen, keakuratan atur
 - Dilakukan oleh 10 responden uji dengan latar belakang pencari kerja dan tim HR.
 - Meliputi pengujian alur kerja penuh dari pembuatan hingga ekspor dan penilaian kegunaan (usability).
 
+### 2.6 ML Inference & Resource Benchmark (U2NetP CPU-Only)
+- **Host Benchmark:** Lingkungan VPS aktual (Ubuntu 24.04 x86_64, 1 vCPU, 2.2 GiB RAM, 4.0 GiB Swap).
+- **Target Pengujian:**
+  1. *Latensi Pemrosesan:* Pengukuran durasi segmentasi latar belakang pada gambar pasfoto resolusi standar (800x800, 1200x1200, 1920x1080) dengan target ≤ 15 detik (hard timeout 30 detik).
+  2. *Konsumsi Memori & Peak RSS:* Memastikan memori puncak proses inferensi tidak melebihi 400 MB dan RAM segera dibebaskan pasca subprocess dihentikan.
+  3. *Uji Antrean & Concurrency:* Pengujian pengiriman 4 request simultan; memastikan request 1 dieksekusi, request 2 & 3 masuk antrean, dan request 4 ditolak seketika dengan status HTTP 429/503 + header `Retry-After: 30`.
+  4. *Fidelitas Visual:* Verifikasi keluaran PNG RGBA transparan dengan alpha channel bersih dan metadata EXIF dibuang.
+
+### 2.7 Multi-User Authentication & Authorization Testing
+- **Otentikasi Akun (Pytest):**
+  - Alur registrasi email/password: verifikasi email token hash, penolakan password lemah, hashing Argon2id.
+  - Alur Google OAuth: verifikasi penukaran code, validasi token Google, pembuatan akun baru.
+  - **Account Linking Guard Test:** Pengujian skenario penyerangan account takeover — memastikan registrasi Google OAuth dengan email yang sudah terdaftar via password TIDAK melakukan auto-merge; linking hanya berhasil jika dipicu dari akun terotentikasi.
+  - Proteksi Brute-force: Rate limiting login (5 percobaan gagal memicu backoff/lockout sementara).
+  - Alur Reset Password: Token single-use, expiry 15 menit, penolakan token lama atau yang sudah dipakai.
+- **Otorisasi & Tenant Isolation (IDOR/BOLA):**
+  - Verifikasi bahwa User A tidak dapat membaca (`GET /api/user/cv/:id`), menyunting (`PUT /api/user/cv/:id`), atau menghapus (`DELETE /api/user/cv/:id`) CV milik User B (harus mengembalikan HTTP 404/403).
+
+### 2.8 Kuota, Retensi, & Backup Disaster Recovery Testing
+- **Penegakan Kuota CV:**
+  - Pembuatan CV ke-6 ditolak (batas 5 CV per akun).
+  - Berkas upload melebihi 10 MB ditolak; total akun > 50 MB ditolak.
+  - Ambang disk 80% menolak simpan dokumen baru (fail-closed).
+- **Retensi Dokumen 90 Hari:**
+  - Pengujian background sweeper: draf dengan `expires_at < NOW()` dihapus fisik dari disk dan database.
+  - Verifikasi bahwa aksi membaca atau mengunduh TIDAK memperbarui `updated_at`.
+- **Pembersihan Berkas Tamu Anonim:**
+  - File temporer konversi/remove-background berumur > 1 jam dihapus otomatis oleh sweeper.
+- **Uji Cadangan Terenkripsi Cloudflare R2:**
+  - Snapshot database diekspor, dikompresi, dan dienkripsi AES-256-GCM.
+  - Pengujian dekripsi di mesin independen untuk membuktikan integritas pemulihan (disaster recovery rehearsal).
+  - Verifikasi lifecycle deletion rule pada bucket R2 (7 hari).
+
+### 2.9 Edge URL Shortener Testing (Cloudflare Workers + D1)
+- **Redirection & Status Code (Vitest / Miniflare):**
+  - Slug aktif mengembalikan HTTP 302 Found ke destination URL.
+  - Slug tidak terdaftar mengembalikan HTTP 404 Not Found.
+  - Slug yang telah dicabut (`revoked`) mengembalikan HTTP 410 Gone.
+  - Verifikasi larangan daur ulang slug (slug reuse ditolak).
+- **Anti-SSRF Test Matrix:**
+  - Penolakan destination dengan skema `http://`, `ftp://`, `file://`.
+  - Penolakan destination dengan kredensial (`https://user:pass@example.com`).
+  - Penolakan destination ke IP private RFC 1918 (`10.x`, `172.16.x`, `192.168.x`).
+  - Penolakan destination ke loopback (`127.0.0.1`, `::1`) dan link-local/cloud metadata (`169.254.169.254`).
+- **Autentikasi HMAC Admin:**
+  - Request pembuatan link tanpa HMAC signature ditolak (HTTP 401).
+  - Request dengan timestamp kedaluwarsa (> 5 menit) atau nonce duplikat ditolak (HTTP 403).
+- **Agregat Analitik:**
+  - Verifikasi `click_count` bertambah dan `last_accessed_at` diperbarui tanpa menyimpan alamat IP atau fingerprint pengunjung.
+
 ## 3. Automation & Quality Commands
 
 Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026-10-24. Contoh path backend menggunakan Linux/macOS; di Windows gunakan `backend\.venv\Scripts\python.exe` dan `backend\.venv\Scripts\pytest.exe`.

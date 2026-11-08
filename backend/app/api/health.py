@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from app.core.config import settings
+from app.core.disk_guard import get_disk_space_info
 
 router = APIRouter(tags=["Health"])
 
@@ -52,6 +53,7 @@ def detect_libreoffice() -> tuple[bool, str | None]:
 @router.get("/health")
 def get_health():
     lo_available, lo_path = detect_libreoffice()
+    disk_info = get_disk_space_info()
     return {
         "status": "ready",
         "service": settings.PROJECT_NAME,
@@ -59,4 +61,5 @@ def get_health():
         "environment": "localhost",
         "libreoffice_available": lo_available,
         "libreoffice_path": lo_path,
+        "disk": disk_info.to_dict(),
     }

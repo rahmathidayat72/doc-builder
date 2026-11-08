@@ -157,9 +157,7 @@ def parse_page_range_groups(range_text: str, total_pages: int) -> list[tuple[str
         if re.fullmatch(r"\d+", token):
             page_num = int(token)
             if page_num < 1 or page_num > total_pages:
-                raise ValueError(
-                    f"Halaman {page_num} di luar rentang dokumen (1-{total_pages})."
-                )
+                raise ValueError(f"Halaman {page_num} di luar rentang dokumen (1-{total_pages}).")
             groups.append((f"page_{page_num:03d}", [page_num - 1]))
         elif re.fullmatch(r"\d+\s*-\s*\d+", token):
             start_text, end_text = re.split(r"\s*-\s*", token)
@@ -167,9 +165,7 @@ def parse_page_range_groups(range_text: str, total_pages: int) -> list[tuple[str
             if start > end:
                 raise ValueError(f"Rentang terbalik tidak valid: {token}")
             if start < 1 or end > total_pages:
-                raise ValueError(
-                    f"Rentang {start}-{end} di luar batas dokumen (1-{total_pages})."
-                )
+                raise ValueError(f"Rentang {start}-{end} di luar batas dokumen (1-{total_pages}).")
             if start == end:
                 label = f"page_{start:03d}"
             else:
@@ -297,9 +293,8 @@ def has_digital_signature(doc: pymupdf.Document) -> bool:
             return True
         for page in doc:
             for widget in page.widgets():
-                if (
-                    widget.field_type == pymupdf.PDF_WIDGET_TYPE_SIGNATURE
-                    or getattr(widget, "is_signed", False)
+                if widget.field_type == pymupdf.PDF_WIDGET_TYPE_SIGNATURE or getattr(
+                    widget, "is_signed", False
                 ):
                     return True
     except Exception:
@@ -467,9 +462,7 @@ def _apply_text_overlay_item(target_page, txt: dict, p_width: float, p_height: f
     h_box = max(font_size + 4, min(p_height - y, h_box))
 
     rect = pymupdf.Rect(x, y, x + w_box, y + h_box)
-    target_page.insert_textbox(
-        rect, raw_text, fontsize=font_size, color=color_rgb
-    )
+    target_page.insert_textbox(rect, raw_text, fontsize=font_size, color=color_rgb)
 
 
 def _apply_image_overlay_item(target_page, img_item: dict, p_width: float, p_height: float) -> None:
@@ -481,9 +474,7 @@ def _apply_image_overlay_item(target_page, img_item: dict, p_width: float, p_hei
     try:
         img_bytes = base64.b64decode(b64_str)
     except Exception as exc:
-        raise ValueError(
-            "Data gambar overlay tidak valid (base64 rusak)."
-        ) from exc
+        raise ValueError("Data gambar overlay tidak valid (base64 rusak).") from exc
 
     if len(img_bytes) > 5 * 1024 * 1024:
         raise ValueError("Ukuran gambar overlay melebihi batas 5 MB.")
@@ -493,9 +484,7 @@ def _apply_image_overlay_item(target_page, img_item: dict, p_width: float, p_hei
         if pil_img.format not in ("JPEG", "PNG"):
             raise ValueError("Format gambar overlay harus PNG atau JPEG.")
         if pil_img.width * pil_img.height > MAX_PIXELS:
-            raise ValueError(
-                "Resolusi gambar overlay melebihi batas keamanan."
-            )
+            raise ValueError("Resolusi gambar overlay melebihi batas keamanan.")
 
     if "x_ratio" in img_item and "y_ratio" in img_item:
         x = _clean_ratio(img_item["x_ratio"], 0.5) * p_width
@@ -1191,7 +1180,3 @@ def pdf_to_markdown(file_bytes: bytes, pages_str: str = "all") -> tuple[str, dic
         return clean_md, metadata
     finally:
         doc.close()
-
-
-
-

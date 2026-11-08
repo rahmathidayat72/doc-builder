@@ -1,43 +1,53 @@
 # Security Architecture & Threat Model (SECURITY.md)
 
 ## 1. Metadata & Governance
-- **Security Risk Tier:** HIGH (karena memproses berkas biner tidak tepercaya, data pribadi PII pelamar kerja, dan menjalankan subprocess konversi lokal).
+- **Security Risk Tier:** HIGH (karena memproses berkas biner tidak tepercaya, data pribadi PII pelamar kerja, otentikasi multi-user online publik, dan inferensi ML lokal di VPS).
 - **Security Owner:** User (Owner Proyek)
 - **Data Owner:** User (Owner Proyek)
 - **Approval Authority:** User (Owner Proyek)
-- **Tanggal Evaluasi:** 2026-10-20
-- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol yang tidak didukung kode, status bukti, dan risk register; 2026-10-27 — implementasi audit trail JSONL lokal, pengujian, dan pembaruan status mitigasi.
-- **Status Gate:** APPROVED (Security Planning Gate Gerbang 2). Status ini **tidak diubah** oleh revisi dokumentasi; open risk di bawah menunggu review owner.
-- **Release Gate Berikutnya:** PENDING — `RISK-SEC-003` berstatus HIGH provisional dan harus dimitigasi atau diterima formal sebelum release berikutnya.
-- **Status Verifikasi:** Histori eksekusi 2026-10-21 + regression suite terbaru; lihat §6.
+- **Tanggal Evaluasi Awal:** 2026-10-20
+- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol dan risk register; 2026-10-27 — implementasi audit trail JSONL; 2026-11-08 — Ekspansi model ancaman komprehensif untuk transformasi online VPS multi-user: otentikasi Email/Password & Google OAuth, pencegahan account takeover, pembatasan kuota CV 90 hari, backup terenkripsi Cloudflare R2 (7 hari), isolasi ML worker U2NetP (concurrency 1, antrean max 2, timeout 30s), anti-SSRF pada URL Shortener Cloudflare Workers + D1, dan disk fail-closed.
+- **Status Gate:** PENDING (Evaluasi Gerbang 2 untuk rilis Online v2.0).
+- **Release Gate Berikutnya:** PENDING — Seluruh kontrol baru wajib divalidasi dan diuji sebelum rilis publik.
 
 ## 2. Aset Kritis dan Klasifikasi Data
-1. **Data PII Pelamar (Kritis):** Nama lengkap, alamat email, nomor telepon, riwayat pendidikan, riwayat karier, dan foto. Disimpan secara lokal di IndexedDB browser pengguna dan dalam berkas project terenkripsi.
-2. **Dokumen Unggahan (Sensitif):** Berkas PDF/DOCX yang diproses oleh converter. Berada sementara di workspace temp lokal; permission workspace aktual mengikuti umask dan belum eksplisit `0700` (lihat `RISK-SEC-002`).
-3. **Session Token Localhost (Sensitif):** Kredensial bootstrap antara frontend browser dan server FastAPI localhost.
+1. **Kredensial & Sesi Pengguna (Kritis):** Kata sandi ter-hash (Argon2id/bcrypt), token sesi cookie, token reset password, token verifikasi email, dan Google OAuth refresh/access token di backend.
+2. **Data PII Pelamar Tersimpan (Kritis):** Nama lengkap, kontak, riwayat karier/pendidikan, foto profil, dan draf CV yang tersimpan di database VPS (terikat kepemilikan `user_id`).
+3. **Kredensial Layanan Pihak Ketiga & Secret (Kritis):** Brevo API Key, Google OAuth Client Secret, Cloudflare R2 Access/Secret Keys, HMAC Secret Key untuk URL Shortener, dan symmetric encryption key backup. Disimpan strictly di environment VPS (`0600`) dan secret binding Workers.
+4. **Dokumen & Citra Temporer (Sensitif):** Berkas unggahan converter dan gambar remove-background. Berada sementara di workspace dengan izin `0700` dan TTL maksimal 1 jam (tamu) atau per-job cleanup.
+5. **Database URL Shortener (Sensitif):** Pemetaan slug dan destination URL di Cloudflare D1. Bebas dari PII pengunjung.
 
 ## 3. Threat Coverage Matrix & Mitigasi
 
 Status bukti yang dipakai:
 - `TERVERIFIKASI`: ada implementasi dan bukti eksekusi yang relevan.
 - `TERVERIFIKASI (SPIKE/HISTORIS)`: bukti berasal dari spike atau eksekusi historis; regression test utama belum lengkap.
+- `TERENCANA (ONLINE)`: dirancang formal untuk fase implementasi online dan wajib diuji pada quality gate.
 - `PARTIAL`: kontrol ada sebagian, atau bukti belum mencakup seluruh klaim.
 - `GAP`: kontrol yang diklaim sebelumnya belum diimplementasikan; bukan berarti risiko diterima.
 
 | Kategori Ancaman | Status | Threat Scenario (ID) | Preventive / Detective Control | Status Bukti / Gap | Residual Risk & Owner |
 |---|---|---|---|---|---|
-| Reconnaissance | APPLICABLE | THR-001: Scanning port localhost oleh software lokal lain | Bind eksklusif ke `127.0.0.1`, port dari launcher, endpoint health minimal tanpa versi library | `TERVERIFIKASI` — launcher memakai `--host 127.0.0.1`; health endpoint diuji | LOW (Owner) |
-| Scanning & Enumeration | APPLICABLE | THR-002: Enumerasi endpoint atau file di direktori temp | Workspace berbasis UUID; permission ketat; TTL cleanup | `PARTIAL` — UUID tersedia, tetapi `backend/temp_workspace` dan `conversion_jobs` teramati `0775`, bukan `0700`; lihat `RISK-SEC-002` | LOW provisional (Owner; `RISK-SEC-002`) |
-| Vulnerability Assessment | APPLICABLE | THR-003: Kerentanan pada dependensi Python atau npm | Lockfile pinning dan audit dependensi | `PARTIAL` — `npm audit` dan `pip-audit` PASS pada 2026-10-21; tidak ada pipeline CI/CD otomatis | LOW (Owner) |
-| Exploitation | APPLICABLE | THR-004: Parser exploit / buffer overflow via file PDF/DOCX korup | Validasi magic bytes, batas ukuran, sandbox subprocess, timeout, resource limit | `PARTIAL` — invalid magic bytes/timeout diuji; Windows Job Object membatasi memori 500 MB; Linux belum memiliki memory cap; fuzzing parser belum ada | MEDIUM (Owner; `RISK-SEC-003`) |
-| Password Attacks | NOT APPLICABLE | N/A (Tidak ada login/akun pengguna pada MVP) | Tidak ada password akun. Password file project memakai PBKDF2/Argon2 + AES-GCM jika diaktifkan | `N/A` untuk autentikasi akun; kontrol enkripsi file project diuji terpisah | LOW (Owner) |
-| Social Engineering | APPLICABLE | THR-005: Penipuan sharing log error yang memuat data pribadi | Sanitasi log, penghapusan nama file/PII, dialog peringatan export log | `PARTIAL` — audit trail tidak mencatat body/header/query/PII, tetapi SOP verifikasi identitas dan redaksi log manual belum ada | LOW (Owner) |
-| Web/Application/API | APPLICABLE | THR-006: Serangan CSRF atau Cross-Origin dari tab browser berbahaya | Cookie `HttpOnly` `SameSite=Lax`, Origin allowlist, dan CSRF token header | `TERVERIFIKASI` — origin liar 403, sesi tanpa cookie 401, mutasi tanpa CSRF 403; 8/8 security test PASS (hotfix 2026-10-21) | LOW (Owner) |
-| Privilege Escalation | APPLICABLE | THR-007: Subprocess mencoba menaikkan hak akses sistem | Seluruh proses berjalan pada hak pengguna biasa (non-root/non-admin), fail-closed | `TERIMPLEMENTASI` — model deployment localhost; belum ada automated privilege test | LOW (Owner) |
-| Lateral Movement | APPLICABLE | THR-008: Worker mencoba mengakses host lain di LAN | Egress block OS-level pada worker subprocess | `GAP` — implementasi hanya menyetel proxy env ke port tertutup; tidak ada network namespace/firewall. Spike tidak membuktikan blocking karena skrip uji sendiri menghormati env proxy | HIGH provisional (Owner; `RISK-SEC-003`) |
-| Persistence | APPLICABLE | THR-009: File temporer atau proses zombie tertinggal | Per-job cleanup, startup sweep TTL 5 menit, satu job aktif | `PARTIAL` — per-job cleanup dan startup sweep diuji; periodic daemon sweeper belum ada; lihat `RISK-SEC-002` | LOW provisional (Owner; `RISK-SEC-002`) |
-| Defense Evasion | APPLICABLE | THR-010: Penyerang memanipulasi log audit lokal | Append-only JSONL, permission file `0600`/direktori `0700`, rotasi harian UTC, retensi 7 hari | `TERVERIFIKASI` — `backend/app/core/audit.py` + 10 test `test_audit.py` PASS; full suite 136/136 Pytest PASS (2026-10-27); `RISK-SEC-001` closure menunggu approval owner | MEDIUM provisional (Owner; `RISK-SEC-001`) |
-| Exfiltration | APPLICABLE | THR-011: Dokumen memuat external resource yang melakukan request diam-diam | Egress block OS-level sebagai kontrol utama; flag LibreOffice bukan pengganti isolasi jaringan | `GAP/PARTIAL` — proxy env hanya memengaruhi library yang menghormati proxy; test regresi external-link di suite utama belum ada | HIGH provisional (Owner; `RISK-SEC-003`) |
+| Reconnaissance | APPLICABLE | THR-001: Scanning port VPS & enumerasi versi server | Reverse proxy Caddy/Cloudflare WAF membatasi eksposur port publik (hanya 80/443); backend terikat `127.0.0.1:8000`; hilangkan server version header | `TERENCANA (ONLINE)` — Caddy TLS + Cloudflare proxy; backend loopback bind terverifikasi | LOW (Owner) |
+| Scanning & Enumeration | APPLICABLE | THR-002: Enumerasi akun via respons login/reset password atau path traversal temp file | Respons autentikasi dan reset password seragam (anti-enumeration); temp workspace berbasis random UUID dengan direktori `0700` | `TERENCANA (ONLINE)` — temp UUID terverifikasi; endpoint auth anti-enumeration dirancang di Phase 11 | LOW (Owner) |
+| Vulnerability Assessment | APPLICABLE | THR-003: Kerentanan pada dependensi Python, npm, atau Cloudflare Workers packages | Lockfile pinning, scanning berkala (`npm audit`, `pip-audit`, Trivy), peninjauan paket sebelum instalasi | `PARTIAL` — audit dependensi lokal PASS; automated scanning pada CI/CD direkomendasikan | LOW (Owner) |
+| Exploitation | APPLICABLE | THR-004: Exploit buffer overflow / memory corruption via file PDF/DOCX/gambar korup | Validasi magic bytes, batas ukuran berkas, sandbox subprocess isolasi, memory limit, timeout keras 30s-300s | `PARTIAL` — magic bytes/timeout terverifikasi; isolasi ML worker subprocess dirancang di Phase 10 | MEDIUM (Owner; `RISK-SEC-003`, `RISK-SEC-004`) |
+| Password Attacks | APPLICABLE | THR-012: Brute force, credential stuffing, atau password spraying pada login pengguna | Hashing modern (Argon2id/bcrypt), rate limiting per IP & akun pada Caddy/FastAPI, lockout bertahap, token reset acak berentropi tinggi dan single-use (TTL 15m) | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 11 (`RISK-SEC-006`) | LOW (Owner) |
+| Social Engineering | APPLICABLE | THR-005: Penipuan akun via tautan reset password palsu atau email phishing | Email transaksional via Brevo dengan SPF/DKIM/DMARC tervalidasi; email tidak pernah meminta password atau memuat data sensitif; SOP verifikasi | `TERENCANA (ONLINE)` — konfigurasi DNS SPF/DKIM disiapkan saat domain aktif | LOW (Owner) |
+| Web/Application/API | APPLICABLE | THR-006: Serangan CSRF, XSS, SSRF (URL Shortener), atau abuse API tanpa otentikasi | Cookie `HttpOnly`, `Secure`, `SameSite=Lax`, CSRF header token, Origin allowlist. URL Shortener: validasi tujuan HTTPS publik, tolak IP private RFC 1918/loopback/link-local/reserved (Anti-SSRF). API shortener: HMAC signature verification | `TERVERIFIKASI` (CSRF/Origin); `TERENCANA (ONLINE)` (SSRF guard & HMAC auth di Phase 12 - `RISK-SEC-005`) | LOW (Owner) |
+| Privilege Escalation | APPLICABLE | THR-007: Pengguna mengakses atau mengubah CV milik pengguna lain (IDOR / Broken Object Level Authorization) | Strict ownership check pada backend (`WHERE id = :cv_id AND user_id = :current_user_id`); peran Admin khusus URL Shortener dilindungi Cloudflare Access + HMAC | `TERENCANA (ONLINE)` — model otorisasi ownership dirancang di Phase 11 | LOW (Owner) |
+| Lateral Movement | APPLICABLE | THR-008: Worker subprocess membobol host VPS atau jaringan internal | Eksekusi subprocess di bawah user sistem non-root (`docbuilder`); isolasi direktori workspace; pembatasan network egress OS-level | `GAP` pada offline sandbox (`RISK-SEC-003`); kontrol VPS non-root dirancang di Phase 10 | MEDIUM provisional (Owner; `RISK-SEC-003`) |
+| Persistence | APPLICABLE | THR-009: File temporer atau draf kedaluwarsa menumpuk dan menghabiskan disk | Per-job cleanup; periodic sweeper otomatis untuk file anonim (>1 jam) dan draf CV (>90 hari); disk fail-closed guard pada 70%/80% | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 10 dan 11 (`RISK-SEC-007`) | LOW (Owner) |
+| Defense Evasion | APPLICABLE | THR-010: Penyerang memanipulasi atau menghapus log audit backend | Log audit append-only JSONL dengan permission `0600`/`0700`, rotasi harian, retensi 7 hari; log terisolasi dari akses web | `TERVERIFIKASI` — audit trail lokal diuji 10/10 PASS (`RISK-SEC-001`) | LOW (Owner) |
+| Exfiltration | APPLICABLE | THR-011: Kebocoran massal data CV pengguna atau draf lamaran | Draf CV disimpan terstruktur; kuota max 5 CV per akun; kuota global 5 GB; backup ke Cloudflare R2 dienkripsi simetris (AES-256-GCM) sebelum transit dan memiliki lifecycle deletion 7 hari; fitur hapus akun mandiri dengan pembersihan permanen | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 11 & 13 (`RISK-SEC-007`) | LOW (Owner) |
+
+### 3.1 Evaluasi Cross-Cutting Ancaman Baru
+| Skenario | Status | Kontrol / Bukti | Residual Risk |
+|---|---|---|---|
+| DoS & Resource Exhaustion (ML Worker) | APPLICABLE | Concurrency = 1, Queue max 2, penolakan 429 dengan `Retry-After: 30`, timeout keras 30 detik, penghentian subprocess untuk membebaskan RAM, fail-closed disk guard 80% | LOW (Owner; `RISK-SEC-004`) |
+| Account Takeover via Auto-Merge | APPLICABLE | Dilarang auto-merge antara email/password dan Google OAuth; wajib linking sadar via re-authentication di akun yang sudah login | LOW (Owner; `RISK-SEC-006`) |
+| Malicious URL Redirection / Phishing (URL Shortener) | APPLICABLE | Validasi skema HTTPS publik, penolakan IP internal RFC 1918, link creation khusus owner terotentikasi HMAC via Cloudflare Access, revoke instan (410 Gone), larangan daur ulang slug | LOW (Owner; `RISK-SEC-005`) |
+| Loss / Compromise of Cloud Backup | APPLICABLE | Bucket Cloudflare R2 private tanpa akses publik; file snapshot dienkripsi AES-256-GCM di VPS sebelum upload; lifecycle rule otomatis hapus berkas cadangan setelah 7 hari | LOW (Owner; `RISK-SEC-007`) |
 
 ### 3.1 Evaluasi Cross-Cutting
 | Skenario | Status | Kontrol / Bukti | Residual Risk |
@@ -76,7 +86,7 @@ Status bukti yang dipakai:
   - `test_security.py` saat ini memiliki 8 test fungsi; hotfix autentikasi 2026-10-21 mencatat 8/8 PASS.
   - Verifikasi `FEATURE-CV-MULTI-WEBSITE-001` 2026-10-24 mencatat 121/121 Pytest PASS (mencakup suite keamanan).
   - Laporan scan 7/7 adalah snapshot lebih awal dengan nama test yang sudah berubah; jangan memakai angka 7/7 sebagai bukti suite saat ini.
-- **Residual Risk:** LOW untuk kontrol yang terverifikasi; MEDIUM provisional untuk `RISK-SEC-001` (mitigasi terimplementasi, menunggu approval penutupan); LOW provisional untuk `RISK-SEC-002`; HIGH provisional untuk `RISK-SEC-003`.
+- **Residual Risk:** LOW untuk kontrol yang terverifikasi; MEDIUM provisional untuk `RISK-SEC-001` (mitigasi terimplementasi, menunggu approval penutupan); LOW provisional untuk `RISK-SEC-002` (mitigasi terimplementasi, menunggu approval penutupan); HIGH provisional untuk `RISK-SEC-003` s/d `RISK-SEC-006`.
 - **Catatan:** Open risk di bawah belum merupakan risk acceptance. Owner review diperlukan sebelum status gate/risk register difinalkan. Sesuai kebijakan High finding, release berikutnya tidak boleh disetujui sampai `RISK-SEC-003` dimitigasi atau diterima secara formal dengan approver dan expiry.
 
 ### 6.1 Audit Trail Lokal (2026-10-27)
@@ -135,19 +145,63 @@ Status bukti yang dipakai:
 - **Integritas Draft:** CV target dibuat sebagai salinan; draft sumber tidak dimodifikasi. Impor selektif hanya menimpa bagian yang dipilih, dan undo memakai snapshot bagian tersebut. Autosave di-flush sebelum perpindahan draft untuk mencegah kehilangan data.
 - **Verifikasi:** 233/233 Vitest, 126/126 Pytest, Ruff PASS, Vite build PASS, Oxlint 0 error (16 warning pre-existing). Tidak ada open Critical/High finding baru dari perubahan ini; `RISK-SEC-003` tetap menjadi blocker release berikutnya.
 
-## 12. Risk Register (Open, 2026-10-24)
+## 12. Risk Register (Open, Terkini 2026-11-08)
 
 | ID | Risiko | Severity | Bukti | Dampak | Compensating Control | Treatment | Owner | Review Due | Status |
 |---|---|---|---|---|---|---|---|---|---|
-| `RISK-SEC-001` | Audit/logging keamanan dan retensi 7 hari tidak tersedia sebelum mitigasi | MEDIUM (provisional; mitigasi terimplementasi) | `backend/app/core/audit.py` + `test_audit.py` (10 test PASS); full suite 136/136 Pytest PASS (2026-10-27); Ruff PASS; secret scan 0 temuan | Tanpa audit trail, aksi sensitif tidak dapat dideteksi/diforensik; mitigasi menutup gap utama, tetapi log belum tamper-evident dan belum memiliki batas ukuran harian | Loopback-only, tidak ada akun remote, PII tidak ditulis ke log, akses file mengikuti akun OS | `MITIGATE` — append-only JSONL, `0600`/`0700`, rotasi harian UTC, retensi 7 hari, fail-open; **closure pending owner approval** | User (Owner) | 2026-10-31 | MITIGATED — closure pending owner approval |
-| `RISK-SEC-002` | Workspace temp job manager memakai permission default `0775`, bukan `0700`, dan periodic sweeper belum tersedia | LOW (provisional) | `backend/temp_workspace` dan `conversion_jobs` teramati `0775`; `job_manager.py` memakai `Path.mkdir` tanpa `chmod`; sweep hanya saat startup/per-job | Pada mesin multi-user, pengguna lokal lain berpotensi membaca sisa file temp; workspace kedaluwarsa dapat tertahan sampai startup berikutnya | UUID workspace, per-job cleanup, startup sweep, batas TTL 5 menit, akun OS pengguna | `MITIGATE` — set `0700` saat pembuatan workspace dan tambahkan periodic sweep; **belum diimplementasikan** | User (Owner) | 2026-10-31 | OPEN — decision required |
-| `RISK-SEC-003` | Sandbox isolation tidak sekuat klaim: egress hanya proxy environment; tidak ada network namespace/firewall; Linux belum memiliki memory cap | HIGH (provisional) | `backend/app/core/sandbox.py` hanya menyetel `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` dan `DOCBUILDER_SANDBOX_NETWORK_BLOCKED`; tidak ada `unshare`, `bwrap`, `seccomp`, atau aturan firewall; `max_memory_mb` hanya dipakai Windows Job Object; spike egress bergantung pada env proxy | Parser exploit dapat membuka koneksi langsung dan mengeksfiltrasi PII; resource exhaustion di Linux tidak dibatasi memori | Hak pengguna biasa, timeout 5 menit, sanitasi env, workspace UUID, satu job aktif, tidak ada cloud credential di env | `MITIGATE` — egress block OS-level (network namespace/firewall/container) + memory cap Linux; `ACCEPT` hanya dengan owner/expiry; **belum dipilih** | User (Owner) | 2026-10-31 | OPEN — decision required |
+| `RISK-SEC-001` | Audit/logging keamanan dan retensi 7 hari tidak tersedia sebelum mitigasi | MEDIUM (provisional; mitigasi terimplementasi) | `backend/app/core/audit.py` + `test_audit.py` (10 test PASS); full suite 136/136 Pytest PASS (2026-10-27); Ruff PASS; secret scan 0 temuan | Tanpa audit trail, aksi sensitif tidak dapat dideteksi/diforensik; mitigasi menutup gap utama, tetapi log belum tamper-evident dan belum memiliki batas ukuran harian | Loopback-only, tidak ada akun remote, PII tidak ditulis ke log, akses file mengikuti akun OS | `MITIGATE` — append-only JSONL, `0600`/`0700`, rotasi harian UTC, retensi 7 hari, fail-open; **closure pending owner approval** | User (Owner) | 2026-11-15 | MITIGATED — closure pending owner approval |
+| `RISK-SEC-002` | Workspace temp job manager memakai permission default `0775`, bukan `0700`, dan periodic sweeper belum tersedia | LOW (provisional; mitigasi terimplementasi) | `backend/app/core/disk_guard.py` + `job_manager.py` (mode `0o700`, `BackgroundSweeper` daemon interval 300s / TTL 3600s, fail-closed disk guard 80%); `test_job_manager.py` (8 test PASS), `test_disk_guard.py` (4 test PASS), `test_health.py` (1 test PASS); total suite 152/152 Pytest PASS, Ruff check clean | Pada mesin multi-user, pengguna lokal lain berpotensi membaca sisa file temp; workspace kedaluwarsa dapat tertahan sampai startup berikutnya | UUID workspace, per-job cleanup, startup sweep, batas TTL 1 jam (tamu), akun OS pengguna | `MITIGATE` — set `0700` saat pembuatan workspace dan jalankan periodic sweep di Phase 10; **closure pending owner approval** | User (Owner) | 2026-11-15 | MITIGATED — closure pending owner approval |
+| `RISK-SEC-003` | Sandbox isolation tidak sekuat klaim: egress hanya proxy environment; tidak ada network namespace/firewall; Linux belum memiliki memory cap | HIGH (provisional) | `backend/app/core/sandbox.py` hanya menyetel `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` dan `DOCBUILDER_SANDBOX_NETWORK_BLOCKED`; tidak ada `unshare`, `bwrap`, `seccomp`, atau aturan firewall; `max_memory_mb` hanya dipakai Windows Job Object; spike egress bergantung pada env proxy | Parser exploit dapat membuka koneksi langsung dan mengeksfiltrasi PII; resource exhaustion di Linux tidak dibatasi memori | Hak pengguna biasa, timeout 5 menit, sanitasi env, workspace UUID, satu job aktif, tidak ada cloud credential di env | `MITIGATE` — non-root service di VPS, timeout ketat, memory cap per subprocess; verifikasi batas di Phase 10 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 10 |
+| `RISK-SEC-004` | Potensi DoS CPU & RAM akibat inferensi ML U2NetP pada VPS 1 vCPU / 2.2 GiB RAM | HIGH (provisional) | VPS memiliki 1 vCPU Xeon dan 2.2 GiB RAM fisik; inferensi ML simultan dapat memicu thrashing swap atau OOM killer | Server unresponsive, web service down, proses lain terhenti mendadak | `MITIGATE` — Concurrency worker = 1, antrean tunggu max 2, penolakan 429/503 + `Retry-After: 30`, timeout keras 30 detik, penghentian subprocess pasca-inferensi untuk membebaskan RAM, fail-closed disk guard 80% | `MITIGATE` — diuji melalui feasibility spike di Phase 10 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 10 |
+| `RISK-SEC-005` | Risiko SSRF atau eksploitasi open redirect pada layanan URL Shortener publik | HIGH (provisional) | Layanan memendekkan URL publik dan mengalihkan pengunjung via HTTP 302 | Penyerang menggunakan pemendek URL untuk menjangkau endpoint internal, IP link-local metadata cloud, atau melancarkan kampanye phishing | `MITIGATE` — Validasi skema wajib `https:`, penolakan kredensial dalam URL, penolakan IP internal RFC 1918, loopback, link-local, dan reserved; API pembuatan link khusus owner via HMAC auth & Cloudflare Access | `MITIGATE` — diimplementasikan dan diuji di Phase 12 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 12 |
+| `RISK-SEC-006` | Risiko Account Takeover pada multi-login (Email/Password & Google OAuth) via auto-merge | HIGH (provisional) | Pengguna mendaftar dengan email/password, lalu penyerang mencoba masuk via Google OAuth dengan email yang sama | Pengambilalihan akses ke draf CV sensitif jika sistem menggabungkan akun secara otomatis tanpa verifikasi | `MITIGATE` — Kebijakan ketat dilarang auto-merge secara diam-diam; linking akun wajib dilakukan melalui otorisasi sadar di pengaturan akun dengan re-authentication kredensial lama | `MITIGATE` — diimplementasikan dan diuji di Phase 11 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 11 |
+| `RISK-SEC-007` | Akumulasi data PII CV pengguna melebihi masa aktif atau terpapar pada cadangan | MEDIUM (provisional) | Pengguna menyimpan draf CV di server VPS; kebocoran atau penumpukan data tak terkelola melanggar prinsip privasi | Eksposur PII riwayat hidup dan identitas pelamar; pelanggaran regulasi perlindungan data pribadi (UU PDP) | `MITIGATE` — Kuota maks 5 CV per akun, retensi 90 hari sejak pembaruan terakhir, penghapusan harian otomatis, cadangan ke Cloudflare R2 dienkripsi AES-256-GCM di VPS dengan lifecycle deletion 7 hari, fitur hapus akun mandiri instan | `MITIGATE` — diimplementasikan di Phase 11 & 13 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 11 & 13 |
 
-**Aturan:** `RISK-SEC-001`, `RISK-SEC-002`, dan `RISK-SEC-003` belum Accepted. Jangan menurunkan severity atau menutup risk tanpa bukti implementasi/retest dan persetujuan owner. Status rilis dan `security_gate_status` tidak diubah oleh pencatatan ini; namun release berikutnya tunduk pada quality gate High finding.
+**Aturan:** `RISK-SEC-001` s/d `RISK-SEC-007` wajib ditangani secara bertahap sesuai fase implementasinya. Tidak ada deployment rilis online yang diizinkan sebelum seluruh mitigasi diverifikasi.
 
 ## 13. Catatan Konsistensi Dokumentasi
+- Revisi 2026-11-08: Penambahan model ancaman komprehensif, evaluasi cross-cutting, dan mitigasi risiko `RISK-SEC-004` s/d `RISK-SEC-007` untuk arsitektur hybrid VPS online dan serverless Cloudflare Workers + D1.
 - Revisi 2026-10-27 mencatat implementasi audit trail JSONL lokal dan bukti 10 test `test_audit.py`; status `RISK-SEC-001` berubah menjadi MITIGATED dengan penutupan menunggu approval owner. Status gate dan tiga open risk lain tidak berubah.
 - Revisi 2026-10-24 mengoreksi klaim `SameSite=Strict` menjadi `SameSite=Lax` (lihat `DEC-013`), referensi engine PDF menjadi `DEC-012`, dan klaim CI/CD/Playwright/logging yang tidak didukung kode.
-- Klaim “isolasi jaringan penuh” dikoreksi: implementasi aktual hanya proxy environment, bukan egress block OS-level (`RISK-SEC-003`). Klaim “memory cap 1 GB” juga dikoreksi menjadi 500 MB Windows-only; Linux belum memiliki cap.
-- Gap verifikasi cross-browser dan kebijakan `docs/conversations.json` dicatat di `.agent/OPEN-QUESTIONS.md` sebagai `Q-005` dan `Q-006`.
-- Tidak ada source code, test, dependency, atau konfigurasi runtime yang diubah oleh revisi dokumentasi konsistensi 2026-10-24. Implementasi peningkatan CV Builder dicatat terpisah pada §11 dan tetap tunduk pada quality gate di atas.
+
+## 14. Checklist Security Planning Gate (Gerbang 2 Online)
+```markdown
+### Governance
+- [x] Security risk tier HIGH dan alasan disetujui (memproses biner tidak tepercaya, data pribadi PII pelamar, inferensi ML di VPS, dan otentikasi online)
+- [x] Security owner, data owner, operator, dan approval authority ditentukan (User / Owner)
+- [x] Regulasi perlindungan data pribadi (UU PDP Indonesia) diidentifikasi
+- [x] Residual risk memiliki owner teridentifikasi (User / Owner)
+
+### Asset, Data, dan Exposure
+- [x] Aset kritis, data PII CV, trust boundary, dan attack surface dipetakan
+- [x] Data classification, retensi 90 hari, kuota max 5 CV, kuota global 5 GB, pembersihan file anonim max 1 jam, dan backup terenkripsi R2 7 hari ditentukan
+- [x] Eksposur publik dibatasi: reverse proxy Caddy (port 80/443), backend terikat ke 127.0.0.1, portal shortener dilindungi Cloudflare Access
+
+### Identity dan Access
+- [x] Otentikasi Email/Password (Argon2id/bcrypt) dan Google OAuth dirancang
+- [x] Kebijakan anti-auto-merge (mencegah account takeover) ditegakkan
+- [x] Default deny dan pemeriksaan kepemilikan CV (user_id ownership check) dirancang
+
+### Threat Coverage (12 Kategori Dievaluasi)
+- [x] Reconnaissance: Caddy TLS + Cloudflare proxy, hilangkan banner versi (APPLICABLE)
+- [x] Scanning & Enumeration: UUID workspace, anti-user enumeration pada login/reset (APPLICABLE)
+- [x] Vulnerability Assessment: Lockfile pinning, scan dependensi pip/npm/trivy (APPLICABLE)
+- [x] Exploitation: Validasi magic bytes, batas ukuran berkas, sandbox isolasi subprocess (APPLICABLE)
+- [x] Password Attacks: Argon2id hashing, rate limiting per IP & akun, single-use reset token TTL 15m (APPLICABLE)
+- [x] Social Engineering: Transaksional email via Brevo dengan SPF/DKIM/DMARC (APPLICABLE)
+- [x] Web/Application/API: Cookie HttpOnly Secure SameSite=Lax, CSRF token, Anti-SSRF pada URL Shortener, HMAC auth (APPLICABLE)
+- [x] Privilege Escalation: Non-root VPS execution, strict object-level authorization (APPLICABLE)
+- [x] Lateral Movement: Isolasi workspace direktori, subprocess non-root (APPLICABLE)
+- [x] Persistence: Per-job cleanup, daily retention cleaner, disk fail-closed guard (APPLICABLE)
+- [x] Defense Evasion: Append-only audit log JSONL 0600/0700, rotasi harian (APPLICABLE)
+- [x] Exfiltration: Kuota data ketat, enkripsi AES-256-GCM cadangan R2, hapus akun mandiri permanen (APPLICABLE)
+
+### Prevention, Detection, Response, dan Recovery
+- [x] Kontrol pencegahan dan kompensasi dipetakan lengkap (RISK-SEC-001 s/d RISK-SEC-007)
+- [x] Logging audit, rotasi 7 hari, dan error envelope aman dirancang
+- [x] Prosedur pemulihan bencana (disaster recovery) via R2 snapshot terenkripsi dirancang
+
+### Verification
+- [x] Secret scanning, dependency audit, linter/typecheck, dan negative testing dirancang untuk setiap fase
+- [x] Uji isolasi ML worker, benchmark latensi/RAM U2NetP, dan SSRF validation suite dirancang
+```

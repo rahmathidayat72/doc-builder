@@ -1,9 +1,22 @@
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-size-2xs: 0.7rem;
   --font-size-3xs: 0.6rem;
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+
+  /* Satukit Brand Design Tokens (BUS-018) */
+  --color-satukit-teal: #0f766e;
+  --color-satukit-teal-light: #14b8a6;
+  --color-satukit-teal-dark: #042f2e;
+  --color-satukit-lime: #84cc16;
+  --color-satukit-lime-light: #a3e635;
+  --color-satukit-lime-dark: #4d7c0f;
+  --color-satukit-amber: #f59e0b;
+  --color-satukit-charcoal: #0f172a;
+  --color-satukit-surface: #fafaf9;
 
   /* Animasi halus (IMPROVEMENT-UIUX-LAYOUT-001) */
   --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -127,6 +140,31 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Satukit Brand CSS Variables */
+  --satukit-teal: #0f766e;
+  --satukit-teal-light: #14b8a6;
+  --satukit-teal-dark: #042f2e;
+  --satukit-lime: #84cc16;
+  --satukit-lime-light: #a3e635;
+  --satukit-amber: #f59e0b;
+  --satukit-charcoal: #0f172a;
+}
+
+:root.dark, .dark {
+  color-scheme: dark;
+  color: #f1f5f9;
+  background-color: #0b1120;
+}
+
+.dark body {
+  background-color: #0b1120;
+  color: #f1f5f9;
+}
+
+.dark .paper-canvas {
+  background-color: #0b1120;
+  background-image: none;
 }
 
 /* Kanvas kertas editorial bertekstur remukan tipis & serat halus di belakang kartu konten */

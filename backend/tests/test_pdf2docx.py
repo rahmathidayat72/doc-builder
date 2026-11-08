@@ -23,16 +23,19 @@ SAMPLE_PDF_PATH = (
     / "01_cv_sample.pdf"
 )
 
+
 def test_validate_pdf_magic_bytes():
     """Validasi magic bytes mengenali header %PDF-."""
     assert validate_pdf_magic_bytes(b"%PDF-1.4\n...") is True
     assert validate_pdf_magic_bytes(b"PK\x03\x04") is False
     assert validate_pdf_magic_bytes(b"PDF") is False
 
+
 def test_convert_pdf_to_docx_sandboxed_rejects_invalid_magic_bytes():
     """Fungsi melempar ValueError jika header berkas bukan %PDF."""
     with pytest.raises(ValueError, match="Header biner berkas tidak valid"):
         convert_pdf_to_docx_sandboxed(b"NOT_A_VALID_PDF_FILE", "document.pdf")
+
 
 def test_convert_pdf_to_docx_sandboxed_with_sample_pdf():
     """Menguji konversi berkas PDF nyata menghasilkan biner DOCX valid (PK)."""
@@ -44,11 +47,13 @@ def test_convert_pdf_to_docx_sandboxed_with_sample_pdf():
     assert docx_io is not None
     assert docx_io.getvalue()[:2] == b"PK"
 
+
 def test_convert_pdf_to_docx_endpoint_requires_auth():
     """Endpoint POST /api/converter/pdf-to-docx menolak request tanpa session cookie."""
     files = {"file": ("document.pdf", b"%PDF-1.4 mock", "application/pdf")}
     resp = client.post("/api/converter/pdf-to-docx", files=files)
     assert resp.status_code == 401
+
 
 def test_convert_pdf_to_docx_endpoint_rejects_non_pdf():
     """Endpoint menolak berkas dengan ekstensi selain .pdf."""
@@ -62,6 +67,7 @@ def test_convert_pdf_to_docx_endpoint_rejects_non_pdf():
     resp = client.post("/api/converter/pdf-to-docx", files=files, headers=headers)
     assert resp.status_code == 400
     assert "Harap unggah berkas .pdf" in resp.json()["detail"]
+
 
 def test_convert_pdf_to_docx_endpoint_converts_successfully():
     """Endpoint menerima PDF valid dan mengalirkan attachment berkas .docx."""

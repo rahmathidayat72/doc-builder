@@ -10,6 +10,7 @@ ENV/
 *.egg-info/
 __pycache__/
 */__pycache__/
+**/__pycache__/
 **/*.py[cod]
 *$py.class
 .pytest_cache/
@@ -46,6 +47,13 @@ agent/
 .env
 .env.*
 !.env.example
+*.db
+*.db-wal
+*.db-shm
+data/
+backend/data/
+backups/
+shortener/backups/
 
 # Temporary Workspaces & Local Logs
 temp_workspace/
@@ -58,6 +66,12 @@ bin/
 */bin/
 backend/bin/
 
+# Machine Learning Models (Binary weights)
+*.onnx
+models/
+*/models/
+backend/models/
+
 # PyInstaller & Build Outputs
 dist/
 build/
@@ -69,6 +83,8 @@ spikes/**/build/
 spikes/**/output/*.docx
 
 # OS & IDE
+.wrangler/
+*/.wrangler/
 .DS_Store
 Thumbs.db
 .idea/

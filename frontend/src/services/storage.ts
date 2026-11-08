@@ -1,7 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { type ResumeDraft, type ResumeDraftSummary, ResumeDraftSchema } from '../types/resume'
 
-const DB_NAME = 'docbuilder_db'
+const DB_NAME = 'satukit_db'
+const LEGACY_DB_NAME = 'docbuilder_db'
 const DB_VERSION = 1
 
 interface TrashEntry {
@@ -10,7 +11,7 @@ interface TrashEntry {
   deletedAt: number
 }
 
-interface DocBuilderDBSchema extends DBSchema {
+export interface SatukitDBSchema extends DBSchema {
   drafts: {
     key: string
     value: ResumeDraft
@@ -27,28 +28,96 @@ interface DocBuilderDBSchema extends DBSchema {
   }
 }
 
-let dbPromise: Promise<IDBPDatabase<DocBuilderDBSchema>> | null = null
+/** Tipe alias untuk kompatibilitas kode lama */
+export type DocBuilderDBSchema = SatukitDBSchema
 
-export function getDB(): Promise<IDBPDatabase<DocBuilderDBSchema>> {
-  if (!dbPromise) {
-    dbPromise = openDB<DocBuilderDBSchema>(DB_NAME, DB_VERSION, {
+let dbPromise: Promise<IDBPDatabase<SatukitDBSchema>> | null = null
+
+/** Reset dan tutup koneksi DB untuk keperluan testing migrasi */
+export async function resetDBPromise(): Promise<void> {
+  if (dbPromise) {
+    try {
+      const db = await dbPromise
+      db.close()
+    } catch {
+      // Abaikan
+    }
+  }
+  dbPromise = null
+}
+
+/**
+ * Melakukan migrasi salin draf secara aman (dual-read non-destructive)
+ * dari IndexedDB legacy `docbuilder_db` ke `satukit_db` jika `satukit_db` masih kosong.
+ */
+async function migrateFromLegacyDB(targetDb: IDBPDatabase<SatukitDBSchema>): Promise<void> {
+  const migrationRecord = await targetDb.get('settings', 'migrated_from_docbuilder')
+  if (migrationRecord?.value) {
+    return
+  }
+
+  const existingCount = await targetDb.count('drafts')
+  if (existingCount > 0) {
+    await targetDb.put('settings', { key: 'migrated_from_docbuilder', value: true })
+    return
+  }
+
+  try {
+    const legacyDb = await openDB(LEGACY_DB_NAME, 1, {
       upgrade(db) {
-        // Store draft utama
         if (!db.objectStoreNames.contains('drafts')) {
           const draftStore = db.createObjectStore('drafts', { keyPath: 'id' })
           draftStore.createIndex('by-updated', 'updatedAt')
         }
-        // Store trash sementara (untuk 10 detik undo delete)
-        if (!db.objectStoreNames.contains('trash')) {
-          const trashStore = db.createObjectStore('trash', { keyPath: 'id' })
-          trashStore.createIndex('by-deleted', 'deletedAt')
-        }
-        // Store pengaturan & status privasi lokal
-        if (!db.objectStoreNames.contains('settings')) {
-          db.createObjectStore('settings', { keyPath: 'key' })
-        }
       }
     })
+    if (legacyDb.objectStoreNames.contains('drafts')) {
+      const legacyDrafts = await legacyDb.getAll('drafts')
+      if (legacyDrafts.length > 0) {
+        const tx = targetDb.transaction(['drafts', 'settings'], 'readwrite')
+        for (const draft of legacyDrafts) {
+          await tx.objectStore('drafts').put(draft)
+        }
+        await tx.objectStore('settings').put({ key: 'migrated_from_docbuilder', value: true })
+        await tx.done
+      }
+    }
+    legacyDb.close()
+  } catch {
+    // Database legacy tidak ada di browser pengguna baru
+  }
+}
+
+export function getDB(): Promise<IDBPDatabase<SatukitDBSchema>> {
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const db = await openDB<SatukitDBSchema>(DB_NAME, DB_VERSION, {
+        upgrade(db) {
+          // Store draft utama
+          if (!db.objectStoreNames.contains('drafts')) {
+            const draftStore = db.createObjectStore('drafts', { keyPath: 'id' })
+            draftStore.createIndex('by-updated', 'updatedAt')
+          }
+          // Store trash sementara (untuk 10 detik undo delete)
+          if (!db.objectStoreNames.contains('trash')) {
+            const trashStore = db.createObjectStore('trash', { keyPath: 'id' })
+            trashStore.createIndex('by-deleted', 'deletedAt')
+          }
+          // Store pengaturan & status privasi lokal
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'key' })
+          }
+        }
+      })
+
+      try {
+        await migrateFromLegacyDB(db)
+      } catch (err) {
+        console.warn('Gagal memigrasikan draf dari docbuilder_db:', err)
+      }
+
+      return db
+    })()
   }
   return dbPromise
 }
@@ -221,6 +290,25 @@ export class ResumeStorage {
     await tx.objectStore('trash').clear()
     await tx.objectStore('settings').clear()
     await tx.done
+
+    // Bersihkan juga legacy database jika ada agar reset privasi menyeluruh
+    try {
+      const legacyDb = await openDB(LEGACY_DB_NAME, 1, {
+        upgrade(db) {
+          if (!db.objectStoreNames.contains('drafts')) {
+            db.createObjectStore('drafts', { keyPath: 'id' })
+          }
+        }
+      })
+      if (legacyDb.objectStoreNames.contains('drafts')) {
+        const txLegacy = legacyDb.transaction('drafts', 'readwrite')
+        await txLegacy.objectStore('drafts').clear()
+        await txLegacy.done
+      }
+      legacyDb.close()
+    } catch {
+      // Abaikan jika legacy DB tidak ada
+    }
   }
 
   /** Mengatur status Mode Privat */
