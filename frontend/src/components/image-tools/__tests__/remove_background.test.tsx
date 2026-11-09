@@ -178,6 +178,252 @@ describe('RemoveBackgroundModal Component Suite', () => {
     expect(screen.queryByTestId('result-preview-image')).not.toBeInTheDocument()
   })
 
+  it('dapat memilih opsi ukuran pasfoto (2x3, 3x4, 4x6, 1:1, Asli) dan menyesuaikan frame pratinjau', async () => {
+    const fakeBlob = new Blob(['mock-png-bytes'], { type: 'image/png' })
+    vi.mocked(imageToolsService.removeBackground).mockResolvedValueOnce({
+      success: true,
+      blob: fakeBlob,
+      filename: 'foto_profil_nobg.png',
+    })
+
+    render(<RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />)
+
+    const fileInput = screen.getByTestId('file-input-remove-bg')
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['dummy'], 'foto.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-preview-image')).toBeInTheDocument()
+    })
+
+    const frame = screen.getByTestId('preview-frame-container')
+    expect(frame.style.aspectRatio).toBe('') // Asli, tanpa rasio paksa
+
+    // Pilih 3x4
+    const btn3x4 = screen.getByTestId('preset-size-3x4')
+    fireEvent.click(btn3x4)
+    expect(screen.getByText('354×472 px')).toBeInTheDocument()
+    expect(frame.style.aspectRatio).toBe('3 / 4')
+
+    // Pilih 2x3
+    const btn2x3 = screen.getByTestId('preset-size-2x3')
+    fireEvent.click(btn2x3)
+    expect(screen.getByText('236×354 px')).toBeInTheDocument()
+    expect(frame.style.aspectRatio).toBe('2 / 3')
+
+    // Pilih 4x6
+    const btn4x6 = screen.getByTestId('preset-size-4x6')
+    fireEvent.click(btn4x6)
+    expect(screen.getByText('472×709 px')).toBeInTheDocument()
+    expect(frame.style.aspectRatio).toBe('4 / 6')
+
+    // Pilih 1:1 Persegi
+    const btn1x1 = screen.getByTestId('preset-size-1x1')
+    fireEvent.click(btn1x1)
+    expect(screen.getByText('600×600 px')).toBeInTheDocument()
+    expect(frame.style.aspectRatio).toBe('1 / 1')
+
+    // Kembalikan ke Asli
+    const btnOrig = screen.getByTestId('preset-size-original')
+    fireEvent.click(btnOrig)
+    expect(screen.getByText('Resolusi penuh')).toBeInTheDocument()
+    expect(frame.style.aspectRatio).toBe('')
+  })
+
+  it('mengomposisikan ukuran pasfoto dan latar belakang warna saat diunduh via canvas', async () => {
+    const fakeBlob = new Blob(['mock-png-bytes'], { type: 'image/png' })
+    vi.mocked(imageToolsService.removeBackground).mockResolvedValueOnce({
+      success: true,
+      blob: fakeBlob,
+      filename: 'foto_profil_nobg.png',
+    })
+
+    // Mock HTMLCanvasElement dan Image
+    const mockCtx = {
+      fillStyle: '',
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+    }
+    const mockToBlob = vi.fn((callback: (blob: Blob | null) => void) => {
+      callback(new Blob(['canvas-blob'], { type: 'image/png' }))
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D
+    )
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(mockToBlob)
+
+    const originalImage = window.Image
+    class MockImage {
+      onload: (() => void) | null = null
+      crossOrigin: string = ''
+      width: number = 800
+      height: number = 1000
+      set src(_val: string) {
+        setTimeout(() => {
+          if (this.onload) this.onload()
+        }, 0)
+      }
+    }
+    // @ts-expect-error mock window.Image
+    window.Image = MockImage
+
+    render(<RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />)
+
+    const fileInput = screen.getByTestId('file-input-remove-bg')
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['dummy'], 'ijazah.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-preview-image')).toBeInTheDocument()
+    })
+
+    // Pilih ukuran 3x4 dan warna merah pasfoto
+    fireEvent.click(screen.getByTestId('preset-size-3x4'))
+    fireEvent.click(screen.getByTestId('preset-color-red'))
+
+    // Klik tombol unduh
+    fireEvent.click(screen.getByTestId('btn-download-nobg'))
+
+    await waitFor(() => {
+      expect(imageToolsService.downloadImageBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        'ijazah_3x4_red.png'
+      )
+    })
+
+    window.Image = originalImage
+  })
+
+  it('dapat memilih opsi Blur Latar, mengubah intensitas slider & preset, serta pratinjau bokeh aktif', async () => {
+    const fakeBlob = new Blob(['mock-png-bytes'], { type: 'image/png' })
+    vi.mocked(imageToolsService.removeBackground).mockResolvedValueOnce({
+      success: true,
+      blob: fakeBlob,
+      filename: 'foto_profil_nobg.png',
+    })
+
+    render(<RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />)
+
+    const fileInput = screen.getByTestId('file-input-remove-bg')
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['dummy'], 'portrait.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-preview-image')).toBeInTheDocument()
+    })
+
+    // Belum memilih blur: panel blur tidak muncul
+    expect(screen.queryByTestId('blur-controls-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-blur-image')).not.toBeInTheDocument()
+
+    // Pilih opsi Blur Latar
+    const blurBtn = screen.getByTestId('preset-color-blur')
+    fireEvent.click(blurBtn)
+
+    // Panel kontrol blur muncul dengan default 16 px
+    expect(screen.getByTestId('blur-controls-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('blur-radius-display')).toHaveTextContent('16 px')
+
+    // Citra pratinjau blur di lapisan belakang muncul dengan filter blur 16px
+    const blurImg = screen.getByTestId('preview-blur-image')
+    expect(blurImg).toBeInTheDocument()
+    expect(blurImg.style.filter).toBe('blur(16px)')
+
+    // Klik preset Ringan (8px)
+    fireEvent.click(screen.getByTestId('btn-blur-preset-ringan'))
+    expect(screen.getByTestId('blur-radius-display')).toHaveTextContent('8 px')
+    expect(blurImg.style.filter).toBe('blur(8px)')
+
+    // Klik preset Kuat (28px)
+    fireEvent.click(screen.getByTestId('btn-blur-preset-kuat'))
+    expect(screen.getByTestId('blur-radius-display')).toHaveTextContent('28 px')
+    expect(blurImg.style.filter).toBe('blur(28px)')
+
+    // Geser slider manual ke 32 px
+    const slider = screen.getByTestId('input-blur-radius')
+    fireEvent.change(slider, { target: { value: '32' } })
+    expect(screen.getByTestId('blur-radius-display')).toHaveTextContent('32 px')
+    expect(blurImg.style.filter).toBe('blur(32px)')
+
+    // Selector format unduhan muncul saat blur aktif
+    expect(screen.getByTestId('export-format-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-download-nobg')).toHaveTextContent('Unduh PNG')
+
+    // Ubah format ke JPG
+    fireEvent.click(screen.getByTestId('btn-format-jpeg'))
+    expect(screen.getByTestId('btn-download-nobg')).toHaveTextContent('Unduh JPEG')
+  })
+
+  it('mengomposisikan latar blur dengan subjek tajam saat diunduh via canvas', async () => {
+    const fakeBlob = new Blob(['mock-png-bytes'], { type: 'image/png' })
+    vi.mocked(imageToolsService.removeBackground).mockResolvedValueOnce({
+      success: true,
+      blob: fakeBlob,
+      filename: 'foto_profil_nobg.png',
+    })
+
+    const mockCtx = {
+      fillStyle: '',
+      filter: 'none',
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+    }
+    const mockToBlob = vi.fn((callback: (blob: Blob | null) => void) => {
+      callback(new Blob(['canvas-blur-bytes'], { type: 'image/jpeg' }))
+    })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D
+    )
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(mockToBlob)
+
+    const originalImage = window.Image
+    class MockImage {
+      onload: (() => void) | null = null
+      crossOrigin: string = ''
+      width: number = 800
+      height: number = 1000
+      set src(_val: string) {
+        setTimeout(() => {
+          if (this.onload) this.onload()
+        }, 0)
+      }
+    }
+    // @ts-expect-error mock window.Image
+    window.Image = MockImage
+
+    render(<RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />)
+
+    const fileInput = screen.getByTestId('file-input-remove-bg')
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['dummy'], 'profil.jpg', { type: 'image/jpeg' })] },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('result-preview-image')).toBeInTheDocument()
+    })
+
+    // Pilih Blur Latar dan format JPG
+    fireEvent.click(screen.getByTestId('preset-color-blur'))
+    fireEvent.click(screen.getByTestId('btn-format-jpeg'))
+
+    // Klik Unduh
+    fireEvent.click(screen.getByTestId('btn-download-nobg'))
+
+    await waitFor(() => {
+      expect(imageToolsService.downloadImageBlob).toHaveBeenCalledWith(
+        expect.any(Blob),
+        'profil_blur.jpg'
+      )
+    })
+
+    window.Image = originalImage
+  })
+
   it('bebas dari pelanggaran aksesibilitas WCAG (axe)', async () => {
     const { container } = render(<RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />)
     const results = await axe(container)

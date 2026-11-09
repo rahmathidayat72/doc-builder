@@ -7,7 +7,6 @@ import {
   Upload,
   Clock,
   Star,
-  Lock,
   FilePlus,
   Edit3,
   AlertCircle,
@@ -68,13 +67,13 @@ const formatRelativeTime = (timestamp: number): string => {
 }
 
 const QUICK_CATEGORIES = [
-  { id: 'all', label: 'Semua', icon: LayoutGrid },
-  { id: 'cv', label: 'CV & Karir', icon: FileText, workspace: 'builder' as Workspace },
-  { id: 'photo', label: 'Foto & Gambar', icon: ImageIcon, workspace: 'tools' as Workspace },
-  { id: 'docs', label: 'Dokumen & PDF', icon: Files, workspace: 'tools' as Workspace },
-  { id: 'url', label: 'Tautan & URL', icon: Link2, workspace: 'tools' as Workspace },
-  { id: 'ats', label: 'Optimasi ATS', icon: ShieldCheck, workspace: 'ats' as Workspace },
-  { id: 'tools', label: 'Utilitas Digital', icon: Wrench, workspace: 'tools' as Workspace },
+  { id: 'cv', label: 'CV Builder', icon: FileText, workspace: 'builder' as Workspace },
+  { id: 'photo', label: 'Edit Foto', icon: ImageIcon, workspace: 'tools' as Workspace },
+  { id: 'background', label: 'Hapus Latar', icon: LayoutGrid, workspace: 'tools' as Workspace },
+  { id: 'convert', label: 'Konversi File', icon: Files, workspace: 'tools' as Workspace },
+  { id: 'files', label: 'Kelola File', icon: Wrench, workspace: 'tools' as Workspace },
+  { id: 'url', label: 'Pendekkan URL', icon: Link2, workspace: 'tools' as Workspace },
+  { id: 'more', label: 'Lainnya', icon: LayoutGrid, workspace: 'tools' as Workspace },
 ] as const
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -95,7 +94,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [pendingAction, setPendingAction] = useState<'create' | 'continue' | 'import' | 'load' | null>(null)
   const [pendingFavoriteId, setPendingFavoriteId] = useState<string | null>(null)
-  const [activeCategory, setActiveCategory] = useState<string>('all')
+  const [activeCategory, setActiveCategory] = useState<string>('cv')
   const isBusyRef = useRef(false)
   const isFavoriteBusyRef = useRef(false)
 
@@ -144,7 +143,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <main
-      className="flex-1 min-h-0 overflow-y-auto paper-canvas dark:bg-[#0b1120] text-stone-900 dark:text-stone-100 custom-scrollbar animate-fade-in transition-colors"
+      className="flex-1 min-h-0 overflow-y-auto paper-canvas dark:bg-[#0b1120] text-[#26343a] dark:text-stone-100 custom-scrollbar animate-fade-in transition-colors"
       data-testid="dashboard-view"
     >
       {/* 1. Storage Error Alert jika ada kendala */}
@@ -180,14 +179,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* 2. Hero Section Pixel-Perfect Satukit (Landscape + Kitu Wadah Besek + Batik Kawung) */}
       <section
         aria-labelledby="dashboard-welcome-heading"
-        className="relative overflow-hidden bg-gradient-to-b from-[#e3f4ee]/80 via-[#f0faf5]/90 to-[#faf9f6] dark:from-stone-900 dark:via-stone-900/90 dark:to-[#0b1120] border-b border-stone-200/80 dark:border-stone-800/80 pt-8 pb-14 sm:py-16 transition-colors"
+        className="relative overflow-hidden bg-[linear-gradient(110deg,#e8faf4_0%,#d5f6ed_38%,#ebfbf6_72%,#ffffff_100%)] dark:bg-[linear-gradient(110deg,#061a19_0%,#0a2926_46%,#071618_100%)] pt-8 pb-20 sm:pt-10 sm:pb-24 lg:pt-6 lg:pb-24 transition-colors"
       >
         {/* Ornamen Batik Kawung Kiri */}
         <img
           src={batikLeft}
           alt=""
           aria-hidden="true"
-          className="absolute left-0 top-4 sm:top-10 w-16 sm:w-28 opacity-40 dark:opacity-10 pointer-events-none select-none"
+          className="absolute left-0 bottom-4 w-24 sm:w-36 lg:w-48 opacity-90 dark:opacity-20 pointer-events-none select-none z-0"
         />
 
         {/* Siluet Candi & Perbukitan Kanan Atas */}
@@ -195,7 +194,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           src={scenicTemple}
           alt=""
           aria-hidden="true"
-          className="absolute right-0 top-0 max-h-56 sm:max-h-72 opacity-50 dark:opacity-15 pointer-events-none select-none mix-blend-multiply dark:mix-blend-screen"
+          className="absolute right-0 bottom-6 h-[72%] sm:h-[85%] lg:h-[92%] w-auto opacity-35 sm:opacity-95 dark:opacity-20 pointer-events-none select-none mix-blend-multiply dark:mix-blend-screen z-0"
         />
 
         {/* Ornamen Batik Kawung Kanan Bawah */}
@@ -203,16 +202,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
           src={batikRight}
           alt=""
           aria-hidden="true"
-          className="absolute right-0 bottom-4 w-16 sm:w-28 opacity-35 dark:opacity-10 pointer-events-none select-none"
+          className="absolute right-0 bottom-4 w-24 sm:w-32 opacity-75 dark:opacity-20 pointer-events-none select-none z-0"
         />
 
+        {/* Kurva Gelombang Organik Pemisah Hero di Bagian Bawah */}
+        <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden leading-none pointer-events-none z-10">
+          <svg
+            viewBox="0 0 1440 90"
+            fill="none"
+            preserveAspectRatio="none"
+            className="w-full h-10 sm:h-14 lg:h-18 text-[#fffaf1] dark:text-[#081316] transition-colors"
+            aria-hidden="true"
+          >
+            <path
+              d="M0,45 C280,85 520,15 820,50 C1100,80 1320,35 1440,40 L1440,90 L0,90 Z"
+              fill="currentColor"
+            />
+          </svg>
+        </div>
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-6 items-center min-h-[440px] lg:min-h-[420px]">
             {/* Kolom Kiri: Tagline, Headline dengan Brush Underline, Subteks, CTA */}
-            <div className="lg:col-span-7 space-y-4 sm:space-y-6 text-left">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-teal-100/90 dark:bg-teal-950/80 border border-teal-300/80 dark:border-teal-700 text-teal-900 dark:text-teal-200 font-semibold text-[13px] tracking-wide shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-lime-500 animate-pulse" aria-hidden="true" />
-                <span>Satu Tempat, Banyak Solusi Digital</span>
+            <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-left">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#c2f6ea] dark:bg-teal-950/80 border border-[#16b89a]/30 dark:border-teal-600/50 text-[#095f57] dark:text-teal-200 font-bold text-[13px] tracking-wide shadow-2xs">
+                <span className="text-[#ffb22e] text-base leading-none" aria-hidden="true">✦</span>
+                <span>Platform Alat Digital Serba Ada</span>
                 {privateMode && (
                   <span className="ml-1 pl-2 border-l border-teal-300 dark:border-teal-700 text-amber-700 dark:text-amber-400 font-bold">
                     Mode Privat Aktif
@@ -222,33 +237,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <h1
                 id="dashboard-welcome-heading"
-                className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-stone-900 dark:text-white leading-[1.2]"
+                className="text-4xl sm:text-5xl lg:text-[3.8rem] font-black tracking-[-0.035em] text-[#17383c] dark:text-white leading-[1.08]"
               >
-                <span className="sr-only">Rancang CV Unggul &amp; Kelola Dokumen di Satukit. </span>
-                Semua Kebutuhan Digitalmu,{' '}
-                <br className="hidden sm:inline" />
-                Ada di{' '}
-                <span className="relative inline-block text-teal-800 dark:text-teal-400">
-                  Satu Tempat
-                  {/* Brush Underline Hand-Drawn SVG */}
+                Satu Tempat,
+                <br />
+                Banyak{' '}
+                <span className="relative inline-block text-[#17383c] dark:text-white">
+                  <span className="text-[#0f766e] dark:text-teal-300">Solusi Digital</span>
                   <svg
-                    className="absolute -bottom-2 left-0 w-full h-3 text-amber-500/80 dark:text-amber-400/80 pointer-events-none"
-                    viewBox="0 0 250 12"
+                    className="absolute -bottom-2 sm:-bottom-3 left-0 w-full h-3 sm:h-4 text-[#a3e635] dark:text-teal-400 overflow-visible pointer-events-none"
+                    viewBox="0 0 280 20"
                     fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
                     aria-hidden="true"
                   >
                     <path
-                      d="M3 8.5C50 3.5 150 2 247 7.5C180 11.5 80 10.5 3 8.5Z"
-                      fill="currentColor"
+                      d="M3 15C60 4 160 2 277 10"
+                      stroke="currentColor"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      className="animate-brush-draw"
                     />
                   </svg>
                 </span>
-                .
               </h1>
 
-              <p className="text-base sm:text-lg leading-relaxed text-stone-700 dark:text-stone-300 max-w-xl">
-                Dari bikin CV profesional ramah ATS, edit foto, konversi file dokumen, sampai pendekkan link — Satukit siap bantu beresin urusan digitalmu, cepat dan praktis!
+              <p className="text-base sm:text-lg leading-relaxed text-[#40565b] dark:text-stone-300 max-w-xl">
+                Buat CV profesional, edit foto, olah file, pendekkan URL, dan berbagai alat digital lainnya dalam satu platform yang mudah, cepat, dan gratis untuk dicoba.
               </p>
 
               {/* Tombol Aksi Utama */}
@@ -257,11 +271,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   type="button"
                   disabled={pendingAction !== null}
                   onClick={() => runGuardedAction('create', onCreateNewResume)}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 disabled:opacity-60 text-white text-sm font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#079875] hover:bg-[#068465] dark:bg-teal-600 dark:hover:bg-teal-500 disabled:opacity-60 text-white text-sm font-bold shadow-[0_10px_25px_rgba(7,152,117,0.32)] hover:shadow-[0_12px_28px_rgba(7,152,117,0.45)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                   data-testid="btn-dashboard-create-cv"
                 >
-                  <Plus className="w-4 h-4 shrink-0 stroke-[2.5]" aria-hidden="true" />
-                  <span>{pendingAction === 'create' ? 'Membuat CV...' : 'Buat CV Baru'}</span>
+                  <svg className="w-3.5 h-3.5 fill-white text-white shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <polygon points="6 3 20 12 6 21 6 3" />
+                  </svg>
+                  <span>{pendingAction === 'create' ? 'Membuat CV...' : 'Coba Sekarang Gratis'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigate('tools')}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-white dark:bg-[#0e2427] hover:bg-teal-50/70 dark:hover:bg-[#133236] text-[#17383c] dark:text-white border-2 border-stone-800/80 dark:border-teal-600/70 text-sm font-bold shadow-xs hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                >
+                  <span>Lihat Semua Fitur</span>
+                  <ArrowRight className="w-4 h-4 text-[#17383c] dark:text-teal-400 shrink-0" aria-hidden="true" />
                 </button>
 
                 {activeDraftTitle && !isLoadingDrafts && (
@@ -278,7 +303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         }
                       })
                     }
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 disabled:opacity-60 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-700 text-sm font-semibold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-white/90 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 disabled:opacity-60 text-stone-900 dark:text-stone-100 border border-stone-300 dark:border-stone-700 text-sm font-semibold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                     data-testid="btn-dashboard-continue-latest"
                   >
                     <FileText className="w-4 h-4 text-teal-800 dark:text-teal-400 shrink-0" aria-hidden="true" />
@@ -290,81 +315,58 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   type="button"
                   disabled={pendingAction !== null}
                   onClick={() => runGuardedAction('import', onOpenImportModal)}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 disabled:opacity-60 text-stone-800 dark:text-stone-200 border border-stone-300 dark:border-stone-700 text-sm font-semibold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-full bg-white/70 dark:bg-stone-800/90 hover:bg-white dark:hover:bg-stone-700 disabled:opacity-60 text-stone-700 dark:text-stone-200 border border-teal-900/10 dark:border-stone-700 text-sm font-semibold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700"
                   data-testid="btn-dashboard-import-cv"
                 >
                   <Upload className="w-4 h-4 text-stone-600 dark:text-stone-400 shrink-0" aria-hidden="true" />
-                  <span>Impor PDF / DOCX</span>
+                  <span>Impor CV</span>
                 </button>
               </div>
 
-              {/* Populer Quick Tags */}
-              <div className="pt-2 flex flex-wrap items-center gap-2 text-[13px] text-stone-600 dark:text-stone-400">
-                <span className="font-semibold text-stone-800 dark:text-stone-200">Populer:</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('builder')}
-                  className="px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950 text-stone-700 dark:text-stone-300 hover:text-teal-800 dark:hover:text-teal-300 transition cursor-pointer"
-                >
-                  CV Builder
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950 text-stone-700 dark:text-stone-300 hover:text-teal-800 dark:hover:text-teal-300 transition cursor-pointer"
-                >
-                  Hapus Background
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950 text-stone-700 dark:text-stone-300 hover:text-teal-800 dark:hover:text-teal-300 transition cursor-pointer"
-                >
-                  Gabung PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="px-2.5 py-1 rounded-md bg-stone-100 dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950 text-stone-700 dark:text-stone-300 hover:text-teal-800 dark:hover:text-teal-300 transition cursor-pointer"
-                >
-                  Pendekkan Link
-                </button>
+              {/* 3 Trust Badges */}
+              <div className="pt-2 flex flex-wrap items-center gap-x-7 gap-y-2.5 text-[13px] font-bold text-[#29484c] dark:text-stone-300">
+                <span className="inline-flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-[#079875] dark:text-teal-400 fill-[#079875]/20" />
+                  Cepat &amp; Mudah
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#079875] dark:text-teal-400" />
+                  Aman &amp; Privat
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <svg className="w-4 h-4 text-[#079875] dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z"/>
+                  </svg>
+                  Selalu Bertambah
+                </span>
               </div>
             </div>
 
-            {/* Kolom Kanan: Maskot Kitu Wadah Besek + Speech Bubble + Floating Badges */}
-            <div className="lg:col-span-5 flex justify-center items-center relative pt-4 pb-2 lg:py-6">
-              <div className="relative w-full max-w-sm sm:max-w-md flex flex-col items-center">
+            {/* Kolom Kanan: Maskot Kitu Wadah Besek + Speech Bubble */}
+            <div className="lg:col-span-6 flex justify-center items-end relative pt-4 pb-2 lg:py-0 lg:self-stretch">
+              <div className="relative w-full max-w-sm sm:max-w-lg flex flex-col items-center justify-end lg:h-full">
                 {/* Speech Bubble Kitu */}
-                <div className="absolute -top-6 sm:-top-8 right-2 sm:right-6 z-20 bg-white dark:bg-stone-800 border-2 border-teal-700/30 dark:border-teal-400/40 rounded-2xl p-3 sm:p-3.5 shadow-lg max-w-[210px] text-[13px] font-bold text-teal-950 dark:text-teal-100 animate-float-delayed">
-                  <span>Halo! Aku <strong>Kitu</strong>, siap bantu beresin tugasmu! ✨</span>
-                  {/* Bubble pointer tail */}
-                  <div className="absolute -bottom-2 left-6 w-3.5 h-3.5 bg-white dark:bg-stone-800 border-b-2 border-r-2 border-teal-700/30 dark:border-teal-400/40 rotate-45" />
+                <div className="absolute top-2 right-1 sm:right-4 z-20 bg-white/98 dark:bg-[#0c2427] border-2 border-[#079875] dark:border-teal-400 rounded-[2rem] px-5 py-4 shadow-[0_12px_32px_rgba(7,152,117,0.18)] max-w-[210px] text-sm text-[#17383c] dark:text-teal-50 animate-float-balloon">
+                  <span className="block text-sm font-semibold text-stone-700 dark:text-stone-300 leading-tight">Halo, aku</span>
+                  <div className="flex items-center gap-1.5 my-0.5">
+                    <strong className="text-3xl font-black leading-none text-[#079875] dark:text-teal-400">Kitu!</strong>
+                    <div className="flex flex-col gap-0.5 text-[#ffb22e] animate-sparkle" aria-hidden="true">
+                      <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full rotate-45 transform origin-left" />
+                      <span className="w-3.5 h-0.5 bg-[#ffb22e] rounded-full" />
+                      <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full -rotate-45 transform origin-left" />
+                    </div>
+                  </div>
+                  <span className="block text-[13px] font-medium text-stone-600 dark:text-stone-300 leading-snug">
+                    Asisten digitalmu di Satukit.
+                  </span>
+                  {/* Ekor Segitiga Balon */}
+                  <div className="absolute -bottom-2.5 left-8 w-4 h-4 bg-white dark:bg-[#0c2427] border-b-2 border-r-2 border-[#079875] dark:border-teal-400 rotate-45" />
                 </div>
 
-                {/* Floating Badge 1: 100% Gratis (Kiri Atas) */}
-                <div className="absolute top-12 -left-2 sm:-left-4 z-10 bg-white/95 dark:bg-stone-800/95 border border-emerald-300 dark:border-emerald-700 rounded-full px-3 py-1.5 shadow-md flex items-center gap-1.5 text-[13px] font-bold text-emerald-800 dark:text-emerald-300">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>100% Gratis</span>
-                </div>
-
-                {/* Floating Badge 2: Super Cepat (Kiri Bawah) */}
-                <div className="absolute bottom-6 -left-2 sm:left-0 z-10 bg-white/95 dark:bg-stone-800/95 border border-amber-300 dark:border-amber-700 rounded-full px-3 py-1.5 shadow-md flex items-center gap-1.5 text-[13px] font-bold text-amber-800 dark:text-amber-300">
-                  <Zap className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Super Cepat</span>
-                </div>
-
-                {/* Floating Badge 3: Aman & Privat (Kanan Bawah) */}
-                <div className="absolute bottom-4 right-0 sm:right-2 z-10 bg-white/95 dark:bg-stone-800/95 border border-teal-300 dark:border-teal-700 rounded-full px-3 py-1.5 shadow-md flex items-center gap-1.5 text-[13px] font-bold text-teal-800 dark:text-teal-300">
-                  <Lock className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400 shrink-0" />
-                  <span>Tanpa Login &amp; Aman</span>
-                </div>
-
-                {/* Ilustrasi Utama Kitu Wadah Besek */}
                 <img
                   src={kituMascotWebp}
                   alt="Kitu — Maskot Resmi Satukit"
-                  className="w-64 sm:w-80 lg:w-92 h-auto object-contain mx-auto select-none drop-shadow-2xl animate-float"
+                  className="w-72 sm:w-96 lg:w-[28rem] h-auto object-contain mx-auto select-none drop-shadow-2xl animate-float-gentle lg:absolute lg:bottom-[-1.5rem] lg:left-0 z-10"
                 />
               </div>
             </div>
@@ -373,8 +375,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </section>
 
       {/* 3. Floating Quick Category Bar (7 Utilitas) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6 sm:-mt-8 relative z-20">
-        <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-lg p-2 sm:p-2.5 flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto custom-scrollbar">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 sm:-mt-10 lg:-mt-12 relative z-20">
+        <div className="bg-white/98 dark:bg-[#0c2225]/98 backdrop-blur-md border border-teal-900/10 dark:border-teal-500/25 rounded-[2rem] shadow-[0_16px_40px_rgba(15,118,110,0.12)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.4)] p-2.5 sm:p-3 flex items-stretch justify-between gap-1 sm:gap-2 overflow-x-auto custom-scrollbar">
           {QUICK_CATEGORIES.map(cat => {
             const Icon = cat.icon
             const isActive = activeCategory === cat.id
@@ -383,13 +385,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 key={cat.id}
                 type="button"
                 onClick={() => handleCategoryClick(cat)}
-                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-[13px] sm:text-sm font-semibold flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                className={`min-w-28 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl text-[13px] sm:text-sm font-bold flex flex-col items-center justify-center gap-1.5 whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0 border-r border-stone-100 dark:border-stone-800 last:border-r-0 hover:-translate-y-0.5 ${
                   isActive
-                    ? 'bg-teal-800 text-white shadow-xs'
-                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800'
+                    ? 'bg-[#d2f7ed] dark:bg-teal-900/70 text-[#0f766e] dark:text-teal-200 shadow-2xs'
+                    : 'text-[#40565b] dark:text-stone-300 hover:text-[#0f766e] dark:hover:text-teal-300 hover:bg-teal-50/70 dark:hover:bg-[#133236]'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-lime-300' : 'text-teal-700 dark:text-teal-400'}`} />
+                <Icon className={`w-6 h-6 transition-transform group-hover:scale-110 ${isActive ? 'text-[#079875] dark:text-teal-300' : 'text-[#0f8f7c] dark:text-teal-400'}`} />
                 <span>{cat.label}</span>
               </button>
             )
@@ -397,145 +399,152 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 sm:space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-12 sm:space-y-16">
         {/* 4. Empat Kartu Fitur Unggulan Kitu (Sesuai Konsep Landing Page) */}
         <section aria-labelledby="features-heading" className="space-y-6">
           <div className="text-center max-w-2xl mx-auto space-y-2">
-            <h2 id="features-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-stone-900 dark:text-white">
+            <div className="w-12 h-1 bg-[#16b89a] rounded-full mx-auto mb-2.5" />
+            <h2 id="features-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17383c] dark:text-white">
               Fitur Unggulan Satukit
             </h2>
             <p className="text-sm sm:text-base text-stone-600 dark:text-stone-400">
-              Solusi cerdas serba bisa yang dirancang khusus untuk mempercepat pekerjaan dan karier Anda
+              Berbagai alat digital praktis untuk kebutuhan kerja, belajar, dan produktivitasmu.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6">
-            {/* Kartu 1: CV Builder ATS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Kartu 1: CV Builder */}
             <div
-              className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-300 dark:hover:border-teal-700 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
             >
-              <div>
-                <div className="h-36 sm:h-40 rounded-2xl bg-gradient-to-b from-teal-50/80 to-stone-50 dark:from-stone-800 dark:to-stone-850 border border-teal-100/60 dark:border-stone-700/60 flex items-center justify-center p-3 overflow-hidden relative">
-                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 text-[13px] font-bold uppercase tracking-wider">
-                    Populer
-                  </span>
-                  <img
-                    src={kituFeatureCv}
-                    alt="Kitu CV Builder"
-                    className="max-h-32 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
-                  />
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={kituFeatureCv}
+                  alt="Kitu CV Builder"
+                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
+                />
+                <div className="min-w-0 flex-1 pr-6">
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                      CV Builder
+                    </h3>
+                  </div>
+                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                    Buat CV profesional dengan cepat dan mudah.
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                  CV Builder ATS
-                </h3>
-                <p className="text-[13px] sm:text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                  Bikin CV profesional yang lolos seleksi ATS dalam hitungan menit. Puluhan template siap pakai dengan pratinjau A4 langsung.
-                </p>
               </div>
 
-              <div className="pt-4 mt-auto">
+              <div className="absolute right-3.5 bottom-3.5">
                 <button
                   type="button"
                   onClick={() => runGuardedAction('create', onCreateNewResume)}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-teal-50 dark:bg-teal-950/80 hover:bg-teal-800 dark:hover:bg-teal-700 text-teal-800 dark:text-teal-300 hover:text-white dark:hover:text-white text-[13px] font-bold transition-all cursor-pointer"
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
                 >
-                  <span>Buat CV Sekarang</span>
+                  <span className="sr-only">Buat CV Sekarang</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Kartu 2: Edit Foto & Background */}
+            {/* Kartu 2: Edit Foto */}
             <div
-              className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-300 dark:hover:border-teal-700 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
             >
-              <div>
-                <div className="h-36 sm:h-40 rounded-2xl bg-gradient-to-b from-teal-50/80 to-stone-50 dark:from-stone-800 dark:to-stone-850 border border-teal-100/60 dark:border-stone-700/60 flex items-center justify-center p-3 overflow-hidden relative">
-                  <img
-                    src={kituFeaturePhoto}
-                    alt="Kitu Edit Foto"
-                    className="max-h-32 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
-                  />
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={kituFeaturePhoto}
+                  alt="Kitu Edit Foto"
+                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
+                />
+                <div className="min-w-0 flex-1 pr-6">
+                  <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                    Edit Foto
+                  </h3>
+                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                    Atur ukuran, kompres, dan tingkatkan kualitas foto.
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                  Edit &amp; Sentuh Foto
-                </h3>
-                <p className="text-[13px] sm:text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                  Hapus latar belakang foto otomatis dengan AI lokal, kompres ukuran gambar, dan ubah rasio foto formal lamaran kerja.
-                </p>
               </div>
 
-              <div className="pt-4 mt-auto">
+              <div className="absolute right-3.5 bottom-3.5">
                 <button
                   type="button"
                   onClick={() => onNavigate('tools')}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-teal-800 dark:hover:bg-teal-700 text-stone-800 dark:text-stone-200 hover:text-white dark:hover:text-white text-[13px] font-bold transition-all cursor-pointer"
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
                 >
-                  <span>Mulai Edit Foto</span>
+                  <span className="sr-only">Mulai Edit Foto</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Kartu 3: Konversi & Kelola PDF */}
+            {/* Kartu 3: Konversi File */}
             <div
-              className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-300 dark:hover:border-teal-700 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
             >
-              <div>
-                <div className="h-36 sm:h-40 rounded-2xl bg-gradient-to-b from-teal-50/80 to-stone-50 dark:from-stone-800 dark:to-stone-850 border border-teal-100/60 dark:border-stone-700/60 flex items-center justify-center p-3 overflow-hidden relative">
-                  <img
-                    src={kituFeatureConvert}
-                    alt="Kitu Konversi File"
-                    className="max-h-32 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
-                  />
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={kituFeatureConvert}
+                  alt="Kitu Konversi File"
+                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
+                />
+                <div className="min-w-0 flex-1 pr-6">
+                  <div className="flex items-center gap-1.5">
+                    <Files className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                      Konversi File
+                    </h3>
+                  </div>
+                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                    Ubah antar format file (PDF, DOCX, JPG, dll).
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                  Konversi &amp; Kelola PDF
-                </h3>
-                <p className="text-[13px] sm:text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                  Gabungkan PDF, pisahkan halaman, ubah Word/Excel ke PDF, kompresi cerdas, serta jalankan OCR dokumen teks.
-                </p>
               </div>
 
-              <div className="pt-4 mt-auto">
+              <div className="absolute right-3.5 bottom-3.5">
                 <button
                   type="button"
                   onClick={() => onNavigate('tools')}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-teal-800 dark:hover:bg-teal-700 text-stone-800 dark:text-stone-200 hover:text-white dark:hover:text-white text-[13px] font-bold transition-all cursor-pointer"
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
                 >
-                  <span>Konversi Sekarang</span>
+                  <span className="sr-only">Konversi Sekarang</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Kartu 4: Pendekkan Tautan URL */}
+            {/* Kartu 4: Pendekkan URL */}
             <div
-              className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-300 dark:hover:border-teal-700 rounded-3xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
             >
-              <div>
-                <div className="h-36 sm:h-40 rounded-2xl bg-gradient-to-b from-teal-50/80 to-stone-50 dark:from-stone-800 dark:to-stone-850 border border-teal-100/60 dark:border-stone-700/60 flex items-center justify-center p-3 overflow-hidden relative">
-                  <img
-                    src={kituFeatureShortener}
-                    alt="Kitu URL Shortener"
-                    className="max-h-32 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-200"
-                  />
+              <div className="flex items-center gap-3.5">
+                <img
+                  src={kituFeatureShortener}
+                  alt="Kitu URL Shortener"
+                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
+                />
+                <div className="min-w-0 flex-1 pr-6">
+                  <div className="flex items-center gap-1.5">
+                    <Link2 className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                      Pendekkan URL
+                    </h3>
+                  </div>
+                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                    Buat tautan lebih ringkas, rapi, dan mudah dibagikan.
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                  Pendekkan Tautan
-                </h3>
-                <p className="text-[13px] sm:text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                  Bikin tautan panjang jadi ringkas dan rapi dengan domain kustom satuk.it, cepat diakses dan mudah dibagikan ke mana pun.
-                </p>
               </div>
 
-              <div className="pt-4 mt-auto">
+              <div className="absolute right-3.5 bottom-3.5">
                 <button
                   type="button"
                   onClick={() => onNavigate('tools')}
-                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-teal-800 dark:hover:bg-teal-700 text-stone-800 dark:text-stone-200 hover:text-white dark:hover:text-white text-[13px] font-bold transition-all cursor-pointer"
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
                 >
-                  <span>Buat Tautan Pendek</span>
+                  <span className="sr-only">Buat Tautan Pendek</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -543,74 +552,81 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </section>
 
-        {/* 5. Banner "Cara Menggunakan Satukit" (3 Langkah Mudah) */}
+        {/* 5. Banner Cara Menggunakan Satukit (3 Langkah Mudah) */}
         <section
           aria-labelledby="how-it-works-heading"
-          className="rounded-3xl bg-gradient-to-r from-teal-900 via-teal-850 to-teal-950 dark:from-stone-900 dark:via-stone-900 dark:to-stone-950 text-white p-6 sm:p-10 shadow-lg border border-teal-700/50 dark:border-stone-800 relative overflow-hidden"
+          className="rounded-[2rem] bg-[#edfcf6] dark:bg-[#092220] border border-[#bbf0dc] dark:border-teal-800/60 text-[#17383c] dark:text-white p-6 sm:p-8 shadow-xs relative overflow-hidden"
         >
-          {/* Subtle background glow */}
-          <div className="absolute top-0 right-0 w-80 h-80 rounded-full bg-teal-500/10 blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 space-y-6 sm:space-y-8">
-            <div className="text-center max-w-xl mx-auto space-y-2">
-              <span className="text-[13px] font-bold uppercase tracking-wider text-lime-400">
-                Mudah &amp; Cepat
-              </span>
-              <h2 id="how-it-works-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                3 Langkah Mudah Pakai Satukit
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_2.9fr] gap-6 lg:gap-8 items-center">
+            <div>
+              <h2 id="how-it-works-heading" className="text-2xl font-black tracking-tight text-[#17383c] dark:text-white">
+                Cara Menggunakan Satukit
               </h2>
-              <p className="text-[13px] sm:text-sm text-teal-100/80">
-                Bereskan dokumen dan tugas digital Anda dalam hitungan detik tanpa instalasi ribet
+              <p className="text-sm text-[#40565b] dark:text-stone-300 mt-1 leading-relaxed">
+                Hanya 3 langkah mudah, semua urusan digital jadi beres!
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
               {/* Langkah 1 */}
-              <div className="bg-white/10 dark:bg-stone-800/60 backdrop-blur-xs border border-white/10 dark:border-stone-700/50 rounded-2xl p-5 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-lime-400 text-teal-950 font-black text-lg flex items-center justify-center shadow-xs">
+              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
                   1
                 </div>
-                <h3 className="text-base font-bold text-white">Pilih Alat yang Dibutuhkan</h3>
-                <p className="text-[13px] sm:text-sm text-teal-100/80 leading-relaxed">
-                  Temukan alat yang kamu mau dari CV builder, konversi file PDF, kompresi, hapus background, sampai pemendek link.
-                </p>
+                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                  <Upload className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Pilih Fitur</h3>
+                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Pilih alat yang kamu butuhkan.</p>
+                </div>
               </div>
+
+              <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
 
               {/* Langkah 2 */}
-              <div className="bg-white/10 dark:bg-stone-800/60 backdrop-blur-xs border border-white/10 dark:border-stone-700/50 rounded-2xl p-5 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-lime-400 text-teal-950 font-black text-lg flex items-center justify-center shadow-xs">
+              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
                   2
                 </div>
-                <h3 className="text-base font-bold text-white">Unggah atau Masukkan Data</h3>
-                <p className="text-[13px] sm:text-sm text-teal-100/80 leading-relaxed">
-                  Proses dokumen langsung di perangkat browser Anda dengan perlindungan enkripsi lokal dan privasi aman 100%.
-                </p>
+                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unggah &amp; Proses</h3>
+                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Masukkan file atau data, lalu proses otomatis.</p>
+                </div>
               </div>
 
+              <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
+
               {/* Langkah 3 */}
-              <div className="bg-white/10 dark:bg-stone-800/60 backdrop-blur-xs border border-white/10 dark:border-stone-700/50 rounded-2xl p-5 space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-lime-400 text-teal-950 font-black text-lg flex items-center justify-center shadow-xs">
+              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
                   3
                 </div>
-                <h3 className="text-base font-bold text-white">Unduh Hasilnya Instan</h3>
-                <p className="text-[13px] sm:text-sm text-teal-100/80 leading-relaxed">
-                  Dapatkan hasil berkas beresolusi tinggi tanpa watermark, tanpa batasan langganan, dan siap digunakan seketika.
-                </p>
+                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unduh &amp; Gunakan</h3>
+                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Hasilnya siap digunakan!</p>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         {/* 6. Meja Draf Pengguna & Ledger Status (Arsip & Ruang Kerja Nyata) */}
-        <section aria-labelledby="recent-drafts-heading" className="space-y-6">
-          <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-3xl shadow-xs overflow-hidden">
+        <section aria-labelledby="recent-drafts-heading" className="space-y-6 relative">
+          <div className="bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/40 rounded-3xl shadow-xs overflow-hidden">
             {/* Accent Header Stripe */}
             <div className="h-1.5 w-full bg-gradient-to-r from-teal-700 via-teal-600 to-lime-500" />
 
             {/* Status Ledger Bar (4 Indikator) */}
             <div
               aria-label="Ringkasan status meja kerja"
-              className="bg-stone-50/70 dark:bg-stone-850/80 border-b border-stone-200/90 dark:border-stone-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-stone-200/90 dark:divide-stone-800"
+              className="bg-stone-50/70 dark:bg-[#081a1d] border-b border-stone-200/90 dark:border-teal-800/40 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-stone-200/90 dark:divide-teal-800/40"
             >
               <div className="px-5 py-3.5 sm:px-6 sm:py-4 min-w-0">
                 <span className="text-[13px] font-medium text-stone-600 dark:text-stone-400 block">
@@ -769,7 +785,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 ) : (
                   <div
-                    className="space-y-2.5 min-h-[220px]"
+                    className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl divide-y divide-stone-200/90 dark:divide-stone-800 overflow-hidden shadow-2xs min-h-[220px]"
                     data-testid="dashboard-drafts-list"
                   >
                     {recentDrafts.map(item => {
@@ -777,10 +793,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       return (
                         <div
                           key={item.id}
-                          className={`p-4 sm:p-5 bg-white dark:bg-stone-850 border rounded-2xl transition duration-150 flex items-center justify-between gap-3 min-w-0 ${
+                          className={`p-4 sm:p-5 transition duration-150 flex items-center justify-between gap-3 min-w-0 ${
                             isCurrentActive
-                              ? 'border-teal-700 dark:border-teal-500 border-l-4 shadow-2xs'
-                              : 'border-stone-200/90 dark:border-stone-800 hover:border-stone-300 dark:hover:border-stone-700'
+                              ? 'bg-teal-50/70 dark:bg-teal-950/50 border-l-4 border-l-teal-700 dark:border-l-teal-400'
+                              : 'hover:bg-stone-50/80 dark:hover:bg-stone-800/80'
                           }`}
                         >
                           <div className="min-w-0 flex-1">
@@ -806,7 +822,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 />
                               )}
                               {isCurrentActive && (
-                                <span className="text-[13px] font-semibold px-2 py-0.5 rounded-md bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
+                                <span className="text-[13px] font-semibold px-2 py-0.5 rounded-md bg-teal-100/70 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800 shrink-0">
                                   Aktif
                                 </span>
                               )}
@@ -883,7 +899,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </p>
                 </div>
 
-                <div className="bg-white dark:bg-stone-850 border border-stone-200/90 dark:border-stone-800 rounded-2xl divide-y divide-stone-200/90 dark:divide-stone-800 overflow-hidden shadow-2xs">
+                <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl divide-y divide-stone-200/90 dark:divide-stone-800 overflow-hidden shadow-2xs">
                   {/* Modul 1: CV Builder */}
                   <button
                     type="button"
@@ -965,7 +981,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </section>
 
         {/* 7. Footer Pengembang */}
-        <Footer className="mt-8" />
+        <div className="pt-6">
+          <Footer />
+        </div>
       </div>
     </main>
   )

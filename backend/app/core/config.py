@@ -57,5 +57,14 @@ class Settings(BaseModel):
     SHORTENER_ADMIN_HMAC_SECRET: str = "satukit-shortener-secret-local"
     SHORTENER_FALLBACK_DB_PATH: Path = BASE_DIR / "data" / "shortener_fallback.db"
 
+    # Konfigurasi Pengunduh Media (YouTube, Instagram, TikTok)
+    MEDIA_DOWNLOAD_MAX_FILE_SIZE_MB: int = 250
+    MEDIA_DOWNLOAD_TIMEOUT_SECONDS: int = 1200
+    MEDIA_DOWNLOAD_HOURLY_JOB_LIMIT: int = 3
+    MEDIA_DOWNLOAD_DAILY_QUOTA_MB: int = 1024
+    MEDIA_DOWNLOAD_FILE_TTL_SECONDS: int = 900
+    MEDIA_DOWNLOAD_GLOBAL_RUNNING_LIMIT: int = 1
+    MEDIA_DOWNLOAD_QUEUE_CAPACITY: int = 2
+
 
 settings = Settings()

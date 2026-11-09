@@ -35,8 +35,8 @@ test.describe('Dashboard / Beranda Batched Multi-Viewport & Quality Gate Verific
     const dashboard = page.getByTestId('dashboard-view')
     await expect(dashboard).toBeVisible()
 
-    // Verifikasi jumlah alat dokumen terhubung dinamis (20 utilitas)
-    await expect(page.getByTestId('stat-tools-count')).toHaveText('20')
+    // Verifikasi jumlah alat dokumen terhubung dinamis (25 utilitas)
+    await expect(page.getByTestId('stat-tools-count')).toHaveText('25')
 
     // Verifikasi arah warna Editorial Paper & Forest Teal (bebas kelas ungu indigo/violet/purple pada Beranda & Navbar)
     const hasPurpleClasses = await page.evaluate(() => {
@@ -98,7 +98,7 @@ test.describe('Dashboard / Beranda Batched Multi-Viewport & Quality Gate Verific
     // Batch pemeriksaan seluruh 5 viewport: bebas horizontal overflow & elemen utama terlihat
     for (const vp of VIEWPORTS) {
       await page.setViewportSize({ width: vp.width, height: vp.height })
-      await expect(page.getByRole('heading', { name: /Rancang CV Unggul/i })).toBeVisible()
+      await expect(page.getByRole('heading', { name: /Satu Tempat,\s*Banyak Solusi Digital/i })).toBeVisible()
       await expect(page.getByTestId('btn-dashboard-create-cv')).toBeVisible()
       await expect(page.getByTestId('card-workspace-builder')).toBeVisible()
       await expect(page.getByTestId('card-workspace-ats')).toBeVisible()

@@ -1446,7 +1446,7 @@ export const PdfEditorModal: React.FC<PdfEditorModalProps> = ({ isOpen, onClose 
           </div>
 
           {/* Bottom Action: Big Red CTA "Terapkan & Unduh PDF" like iLovePDF */}
-          <div className="p-4 border-t border-stone-700 bg-stone-850">
+          <div className="p-4 border-t border-stone-700 bg-stone-900">
             <button
               onClick={handleApplyAndDownload}
               disabled={isApplying}

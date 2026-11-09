@@ -57,6 +57,7 @@ const renderNavbar = (
     onUpdateTemplate: vi.fn(),
     onExportDocx: vi.fn(),
     onExportPdf: vi.fn(),
+    onExportPrint: vi.fn(),
     onOpenImportModal: vi.fn(),
     onCreateNew: vi.fn(),
     onLoadDraft: vi.fn(),
@@ -159,9 +160,13 @@ describe('Navbar draft management', () => {
     expect(screen.queryByText('Draft CV')).not.toBeInTheDocument()
   })
 
-  it('menampilkan tombol navigasi Beranda dan logo mengarahkan ke home serta memuat maskot animasi', () => {
+  it('menampilkan navigasi dan logo resmi tanpa kontrol akun atau harga palsu', () => {
     const onNavigate = vi.fn()
-    renderNavbar({ onNavigate })
+    renderNavbar({ onNavigate, activeWorkspace: 'home' })
+
+    expect(screen.queryByRole('button', { name: /^Harga$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Masuk$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Daftar Gratis$/i })).not.toBeInTheDocument()
 
     const homeNavBtn = screen.getByRole('button', { name: /^Beranda$/i })
     expect(homeNavBtn).toBeInTheDocument()
@@ -169,14 +174,55 @@ describe('Navbar draft management', () => {
     expect(onNavigate).toHaveBeenCalledWith('home')
 
     const logoBtn = screen.getByTestId('btn-logo-home')
-    expect(screen.getByTestId('animated-mascot')).toBeInTheDocument()
-
-    // Hover mengaktifkan ekspresi berkedip pada maskot
-    fireEvent.mouseEnter(logoBtn)
-    expect(screen.getByTestId('animated-mascot')).toHaveAttribute('data-emotion', 'berkedip')
-    fireEvent.mouseLeave(logoBtn)
+    expect(screen.getByTestId('satukit-horizontal-logo')).toBeInTheDocument()
 
     fireEvent.click(logoBtn)
     expect(onNavigate).toHaveBeenCalledWith('home')
+  })
+
+  it('membuka mega menu CV Builder saat tombol CV Builder diklik dan menampilkan menu utama tanpa desain & format', () => {
+    const onNavigate = vi.fn()
+    const { props } = renderNavbar({ onNavigate, activeWorkspace: 'home' })
+
+    const cvMenuBtn = screen.getByTestId('btn-nav-cv-builder')
+    expect(screen.queryByTestId('cv-mega-menu')).not.toBeInTheDocument()
+
+    fireEvent.click(cvMenuBtn)
+    expect(screen.getByTestId('cv-mega-menu')).toBeInTheDocument()
+    expect(screen.getByText('Fitur CV Builder ATS')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-create-new')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-open-drafts')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-import')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-ats-score')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-export-pdf')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-export-docx')).toBeInTheDocument()
+    expect(screen.getByTestId('mega-menu-export-print')).toBeInTheDocument()
+
+    // Kolom Desain & Format tidak ditampilkan di mega menu
+    expect(screen.queryByTestId('mega-menu-template')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mega-menu-theme')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mega-menu-language')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('mega-menu-create-new'))
+    expect(props.onCreateNew).toHaveBeenCalled()
+    expect(onNavigate).toHaveBeenCalledWith('builder')
+    expect(screen.queryByTestId('cv-mega-menu')).not.toBeInTheDocument()
+  })
+
+  it('menjalankan aksi ekspor PDF dan cetak dari mega menu CV Builder', () => {
+    const onNavigate = vi.fn()
+    const { props } = renderNavbar({ onNavigate, activeWorkspace: 'home' })
+
+    fireEvent.click(screen.getByTestId('btn-nav-cv-builder'))
+    fireEvent.click(screen.getByTestId('mega-menu-export-pdf'))
+
+    expect(props.onExportPdf).toHaveBeenCalled()
+    expect(onNavigate).toHaveBeenCalledWith('builder')
+    expect(screen.queryByTestId('cv-mega-menu')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('btn-nav-cv-builder'))
+    fireEvent.click(screen.getByTestId('mega-menu-export-print'))
+    expect(props.onExportPrint).toHaveBeenCalled()
+    expect(onNavigate).toHaveBeenCalledWith('builder')
   })
 })

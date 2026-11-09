@@ -27,6 +27,12 @@ if not exist "frontend\dist\index.html" (
     )
 )
 
+:: 2.5 Cek model AI U2NetP untuk fitur Hapus Latar Belakang Foto
+if exist "backend\models\u2netp.onnx" goto :model_ready
+echo [INFO] Mengunduh model AI U2NetP untuk fitur Hapus Latar Belakang Foto 4.3 MB...
+"%PYTHON_EXE%" -c "import urllib.request, os; os.makedirs('backend/models', exist_ok=True); urllib.request.urlretrieve('https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx', 'backend/models/u2netp.onnx')"
+:model_ready
+
 :: 3. Buka browser secara otomatis setelah jeda singkat
 start "" cmd /c "timeout /t 2 /nobreak >nul && start http://127.0.0.1:8000"
 

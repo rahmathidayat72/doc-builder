@@ -27,13 +27,12 @@ import {
   ChevronDown,
   HelpCircle,
   Info,
-  Tag,
 } from 'lucide-react'
 import { type ResumeDraft, type ResumeDraftSummary, type ResumeLanguage } from '../../types/resume'
 import { type PendingDelete } from '../../hooks/useResumeDraft'
 import { TEMPLATES } from '../../templates/registry'
 import { useDismiss } from '../../hooks/useDismiss'
-import { AnimatedDocumentMascot } from './AnimatedDocumentMascot'
+import { BrandLogo } from '../brand/BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 
 export type Workspace = 'home' | 'builder' | 'ats' | 'tools'
@@ -111,13 +110,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showFontPicker, setShowFontPicker] = useState(false)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [showFiturDropdown, setShowFiturDropdown] = useState(false)
-  const [infoModal, setInfoModal] = useState<'harga' | 'panduan' | 'tentang' | 'masuk' | null>(null)
+  const [showCvMenu, setShowCvMenu] = useState(false)
+  const [infoModal, setInfoModal] = useState<'panduan' | 'tentang' | null>(null)
   const [draftSearch, setDraftSearch] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [isLogoHovered, setIsLogoHovered] = useState(false)
-  const [isLogoClicked, setIsLogoClicked] = useState(false)
 
   const query = draftSearch.trim().toLowerCase()
   const filteredDrafts = query
@@ -144,10 +141,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     setShowFontPicker(false)
     setShowTemplatePicker(false)
     setShowExportMenu(false)
-    setShowFiturDropdown(false)
+    setShowCvMenu(false)
   }
 
-  const anyMenuOpen = showColorPicker || showFontPicker || showTemplatePicker || showExportMenu || showFiturDropdown
+  const anyMenuOpen = showColorPicker || showFontPicker || showTemplatePicker || showExportMenu || showCvMenu
   const menusRef = useDismiss<HTMLDivElement>(anyMenuOpen, closeMenus)
   const draftsPanelRef = useDismiss<HTMLDivElement>(showDraftsModal, () => {
     if (renamingId) {
@@ -159,34 +156,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="shrink-0 bg-[#FAF9F6]/95 dark:bg-stone-900/95 backdrop-blur border-b border-stone-200/90 dark:border-stone-800 z-30 relative transition-colors">
-        <div className="h-16 px-3 sm:px-5 flex items-center gap-3.5">
+      <header className="shrink-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur-xl border-b border-teal-900/10 dark:border-stone-800 z-30 relative transition-colors shadow-[0_8px_30px_rgba(15,118,110,0.06)]">
+        <div ref={menusRef}>
+        <div className="min-h-18 max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-8 py-2 flex flex-wrap items-center gap-2 sm:gap-3.5">
           <button
             type="button"
-            onClick={() => {
-              setIsLogoClicked(true)
-              setTimeout(() => setIsLogoClicked(false), 800)
-              onNavigate?.('home')
-            }}
-            onMouseEnter={() => setIsLogoHovered(true)}
-            onMouseLeave={() => setIsLogoHovered(false)}
-            className="group flex items-center gap-2.5 shrink-0 rounded-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 py-1"
+            onClick={() => onNavigate?.('home')}
+            className="group flex items-center shrink-0 rounded-xl cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 py-1"
             aria-label="Buka Beranda Satukit"
             data-testid="btn-logo-home"
           >
-            <AnimatedDocumentMascot
-              activeWorkspace={activeWorkspace}
-              isSaving={isSaving}
-              lastSaved={lastSaved}
-              isHovered={isLogoHovered}
-              isClicked={isLogoClicked}
-              className="w-11 h-11 sm:w-12 sm:h-12"
-            />
-            <span className="font-bold tracking-tight text-base sm:text-lg text-stone-900 dark:text-stone-100 hidden sm:block">Satukit</span>
+            <span className="inline-flex sm:hidden">
+              <BrandLogo variant="icon" size="lg" priority />
+            </span>
+            <span className="hidden sm:inline-flex max-w-[168px]">
+              <BrandLogo size="lg" priority className="[&_img]:max-w-full" />
+            </span>
           </button>
 
-          {/* Concept Pill Navigation (Single responsive nav) */}
-          <nav className="flex items-center gap-0.5 sm:gap-1 p-1 bg-stone-200/70 dark:bg-stone-800/90 border border-stone-200/90 dark:border-stone-700 rounded-full shadow-2xs" aria-label="Navigasi utama">
+          {/* Navigasi produk memakai kontrak route yang sudah ada. */}
+          <nav className="order-3 sm:order-none w-full sm:w-auto flex items-center justify-center gap-0.5 sm:gap-1 p-1 bg-teal-50/70 dark:bg-stone-800/90 border border-teal-900/10 dark:border-stone-700 rounded-full shadow-2xs overflow-x-auto scrollbar-none" aria-label="Navigasi utama">
             <button
               type="button"
               onClick={() => {
@@ -204,104 +193,45 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Beranda</span>
             </button>
 
-            {/* Fitur Dropdown Menu (Desktop) */}
-            <div className="relative hidden lg:block">
+            {/* CV Builder Mega Menu Trigger */}
+            <div className="relative">
               <button
                 type="button"
                 onClick={() => {
-                  const next = !showFiturDropdown
+                  const next = !showCvMenu
                   closeMenus()
-                  setShowFiturDropdown(next)
+                  setShowCvMenu(next)
                 }}
-                aria-expanded={showFiturDropdown}
+                aria-expanded={showCvMenu}
                 aria-haspopup="true"
-                className={`h-8 px-3 rounded-full flex items-center gap-1 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
-                  showFiturDropdown
-                    ? 'bg-white/90 dark:bg-stone-900/90 text-teal-900 dark:text-teal-300 shadow-2xs'
+                className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+                  showCvMenu || activeWorkspace === 'builder'
+                    ? 'bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700'
                     : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50'
                 }`}
+                aria-current={activeWorkspace === 'builder' ? 'page' : undefined}
+                data-testid="btn-nav-cv-builder"
               >
-                <span>Fitur</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-150 ${showFiturDropdown ? 'rotate-180' : ''}`} />
+                <FileText className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
+                <span>CV Builder</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showCvMenu ? 'rotate-180' : ''}`} />
               </button>
-              {showFiturDropdown && (
-                <div className="absolute left-0 mt-2 p-2 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-2xl shadow-xl z-50 w-64 space-y-1 origin-top-left animate-pop-in">
-                  <button
-                    type="button"
-                    onClick={() => { closeMenus(); onNavigate?.('builder') }}
-                    className="w-full p-2.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer"
-                  >
-                    <div className="p-2 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-400">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-stone-900 dark:text-stone-100">CV Builder ATS</div>
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">Buat CV ramah ATS dan ekspor instan</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { closeMenus(); onNavigate?.('ats') }}
-                    className="w-full p-2.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer"
-                  >
-                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-400">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-stone-900 dark:text-stone-100">ATS Optimizer</div>
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">Evaluasi skor dan kecocokan lowongan</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { closeMenus(); onNavigate?.('tools') }}
-                    className="w-full p-2.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer"
-                  >
-                    <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-400">
-                      <Wrench className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-stone-900 dark:text-stone-100">Alat Dokumen &amp; Foto</div>
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400 leading-tight">20 utilitas PDF, konversi, &amp; hapus latar</div>
-                    </div>
-                  </button>
-                </div>
-              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                closeMenus()
-                onNavigate?.('builder')
-              }}
-              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
-                activeWorkspace === 'builder'
-                  ? 'bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700'
-                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50'
-              }`}
-              aria-current={activeWorkspace === 'builder' ? 'page' : undefined}
-            >
-              <FileText className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
-              <span className="hidden sm:inline">CV Builder</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                closeMenus()
-                onNavigate?.('ats')
-              }}
-              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
-                activeWorkspace === 'ats'
-                  ? 'bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700'
-                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50'
-              }`}
-              aria-current={activeWorkspace === 'ats' ? 'page' : undefined}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
-              <span className="hidden md:inline">ATS Optimizer</span>
-            </button>
+            {activeWorkspace === 'ats' && (
+              <button
+                type="button"
+                onClick={() => {
+                  closeMenus()
+                  onNavigate?.('ats')
+                }}
+                className="h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700 cursor-pointer"
+                aria-current="page"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
+                <span className="hidden md:inline">ATS Optimizer</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -322,16 +252,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               type="button"
-              onClick={() => { closeMenus(); setInfoModal('harga') }}
-              className="h-8 px-3 rounded-full hidden xl:flex items-center gap-1 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50 transition cursor-pointer"
-            >
-              <span>Harga</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => { closeMenus(); setInfoModal('panduan') }}
-              className="h-8 px-3 rounded-full hidden xl:flex items-center gap-1 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50 transition cursor-pointer"
+              className="h-8 px-3 rounded-full hidden sm:flex items-center gap-1 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50 transition cursor-pointer"
             >
               <span>Panduan</span>
             </button>
@@ -339,23 +261,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => { closeMenus(); setInfoModal('tentang') }}
-              className="h-8 px-3 rounded-full hidden xl:flex items-center gap-1 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50 transition cursor-pointer"
+              className="h-8 px-3 rounded-full hidden sm:flex items-center gap-1 text-xs font-semibold text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50 transition cursor-pointer"
             >
               <span>Tentang</span>
             </button>
           </nav>
 
-          <div ref={menusRef} className="ml-auto flex items-center gap-2 min-w-0">
+          <div className="contents">
             {activeWorkspace === 'builder' && draft && (
-              <>
-                <div className="hidden xl:flex min-w-0 items-center gap-2 mr-1">
+              <div
+                className="order-4 basis-full min-w-0 flex flex-wrap lg:flex-nowrap items-center gap-2 pt-2 border-t border-[#b7ddd4] dark:border-stone-700"
+                data-testid="builder-context-toolbar"
+              >
+                <div className="flex basis-full min-w-0 items-center gap-2" data-testid="builder-title-status">
                   <input
                     type="text"
                     value={draft.title}
                     onChange={e => onUpdateTitle(e.target.value)}
                     placeholder="Judul Resume"
                     aria-label="Judul Resume"
-                    className="w-36 2xl:w-48 text-sm font-semibold text-stone-900 bg-white focus:bg-white focus:ring-2 focus:ring-teal-700 px-2.5 py-1.5 rounded-lg border border-stone-300 outline-none transition"
+                    className="w-36 sm:w-48 lg:w-64 text-sm font-semibold text-stone-900 dark:text-stone-100 bg-white dark:bg-stone-800 focus:ring-2 focus:ring-teal-700 px-2.5 py-1.5 rounded-xl border border-[#b7ddd4] dark:border-stone-700 outline-none transition"
                     data-testid="input-draft-title"
                   />
                   <span className="flex items-center gap-1 text-2xs font-medium text-stone-600 whitespace-nowrap">
@@ -367,7 +292,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </div>
 
-                <div className="hidden lg:flex items-center gap-1 border-l border-stone-200 pl-2">
+                <div className="flex flex-wrap items-center gap-2 ml-auto shrink-0" data-testid="builder-design-controls">
                   <div className="relative">
                     <button
                       type="button"
@@ -473,7 +398,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
 
                   <div
-                    className="flex items-center p-0.5 bg-stone-200/60 rounded-lg border border-stone-200 ml-1"
+                    className="flex items-center p-0.5 bg-stone-200/60 dark:bg-stone-800 rounded-lg border border-stone-200 dark:border-stone-700"
                     role="group"
                     aria-label="Pilih bahasa CV"
                   >
@@ -506,6 +431,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                       EN
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => onTogglePrivateMode(!privateMode)}
+                    className="block p-2 text-stone-600 dark:text-stone-300 hover:text-teal-900 dark:hover:text-teal-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition"
+                    title="Mode privasi"
+                    aria-pressed={privateMode}
+                    data-testid="btn-private-mode"
+                  >
+                    {privateMode ? <Lock className="w-4 h-4 text-amber-700" /> : <Unlock className="w-4 h-4" />}
+                  </button>
                 </div>
 
                 {atsScore !== undefined && (
@@ -513,7 +448,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     key={atsScore}
                     type="button"
                     onClick={onOpenAtsScore}
-                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-50 text-teal-900 text-xs font-bold border border-teal-200 transition-colors hover:bg-teal-100"
+                    className="flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-200 text-xs font-bold border border-teal-200 dark:border-teal-800 transition-colors hover:bg-teal-100"
                     title="Buka rincian skor ATS"
                     data-testid="badge-ats-score"
                   >
@@ -524,24 +459,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   type="button"
                   onClick={onOpenImportModal}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-800 bg-white hover:bg-stone-100 border border-stone-300 rounded-lg transition"
+                  className="flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs font-semibold text-stone-800 dark:text-stone-100 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-[#b7ddd4] dark:border-stone-700 rounded-xl transition"
                   data-testid="btn-open-import"
                 >
                   <Upload className="w-4 h-4" /> Impor
                 </button>
 
-                <div className="relative">
+                <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       closeMenus()
                       setShowExportMenu(true)
                     }}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 rounded-lg shadow-2xs transition"
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-[#079875] hover:bg-[#087b64] rounded-xl shadow-2xs transition"
                     data-testid="btn-export-menu"
                   >
                     <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">Unduh</span>
+                    <span>Unduh</span>
                   </button>
                   {showExportMenu && (
                     <div className="absolute right-0 mt-2 p-2 bg-white border border-stone-200 rounded-xl shadow-2xl z-50 w-56 space-y-1 origin-top-right animate-pop-in">
@@ -576,31 +511,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   )}
                 </div>
-              </>
-            )}
-
-            {activeWorkspace === 'home' && (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setInfoModal('masuk')}
-                  className="hidden md:inline-flex px-3 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition cursor-pointer"
-                >
-                  Masuk
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onCreateNew) onCreateNew()
-                    else onNavigate?.('builder')
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 shadow-2xs transition cursor-pointer"
-                >
-                  Daftar Gratis
-                </button>
               </div>
             )}
 
+            <div className="ml-auto flex items-center gap-2 min-w-0">
             {/* Theme Toggle Button */}
             <ThemeToggle className="ml-1" />
 
@@ -608,65 +522,271 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => setShowDraftsModal(true)}
-                className="p-2 sm:px-3 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-stone-200/70 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-lg transition flex items-center gap-1.5"
+                className="p-1.5 sm:px-2.5 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-full transition flex items-center gap-1.5 cursor-pointer"
                 data-testid="btn-open-drafts"
                 title="Kelola draft CV"
               >
-                <FolderOpen className="w-4 h-4" />
-                <span className="hidden 2xl:inline">Draft ({draftsList.length})</span>
+                <FolderOpen className="w-4 h-4 text-teal-800 dark:text-teal-400" />
+                <span className="hidden xl:inline">Draft ({draftsList.length})</span>
               </button>
             )}
+            </div>
           </div>
         </div>
 
-        {activeWorkspace === 'builder' && draft && (
-          <div className="lg:hidden px-3 pb-2 flex items-center gap-2 overflow-x-auto">
-            <input
-              type="text"
-              value={draft.title}
-              onChange={e => onUpdateTitle(e.target.value)}
-              aria-label="Judul Resume"
-              className="min-w-36 flex-1 text-xs font-semibold px-3 py-2 bg-white border border-stone-300 rounded-lg outline-none"
-            />
-            <div
-              className="flex items-center p-0.5 bg-stone-200/60 rounded-lg border border-stone-200 shrink-0"
-              role="group"
-              aria-label="Pilih bahasa CV (mobile)"
-            >
-              <button
-                type="button"
-                onClick={() => onUpdateLanguage?.('id')}
-                className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
-                  (draft.resumeLanguage || 'id') === 'id'
-                    ? 'bg-white text-teal-900 shadow-2xs'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-                aria-pressed={(draft.resumeLanguage || 'id') === 'id'}
-                data-testid="btn-lang-id-mobile"
-                title="Bahasa CV: Indonesia"
-              >
-                ID
-              </button>
-              <button
-                type="button"
-                onClick={() => onUpdateLanguage?.('en')}
-                className={`px-2 py-1 text-2xs font-bold rounded-md transition ${
-                  draft.resumeLanguage === 'en'
-                    ? 'bg-white text-teal-900 shadow-2xs'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-                aria-pressed={draft.resumeLanguage === 'en'}
-                data-testid="btn-lang-en-mobile"
-                title="Bahasa CV: English"
-              >
-                EN
-              </button>
+        {/* Mega Menu Horizontal Khusus CV Builder */}
+        {showCvMenu && (
+          <div
+            className="absolute left-0 right-0 top-full bg-[#fffdfa] dark:bg-stone-900 border-b border-[#b7ddd4] dark:border-stone-800 shadow-[0_24px_48px_rgba(15,118,110,0.14)] z-40 max-h-[80vh] overflow-y-auto custom-scrollbar animate-pop-in"
+            data-testid="cv-mega-menu"
+          >
+            <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#b7ddd4]/70 dark:border-stone-800">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-[#dff8f0] dark:bg-stone-800 text-[#079875] dark:text-teal-300 border border-[#b7ddd4] dark:border-stone-700 shadow-2xs">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-[#17383c] dark:text-stone-100 flex items-center gap-2">
+                      Fitur CV Builder ATS
+                      <span className="px-2 py-0.5 text-3xs font-bold rounded-full bg-[#079875] text-white">
+                        100% Gratis &amp; Offline
+                      </span>
+                    </h3>
+                    <p className="text-xs text-[#53676b] dark:text-stone-400">
+                      Rancang resume profesional berstandar industri yang lolos sistem Applicant Tracking System.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeMenus}
+                  className="p-1.5 rounded-lg text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition"
+                  aria-label="Tutup menu CV"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Kolom 1: Mulai & Kelola */}
+                <div className="space-y-3">
+                  <p className="text-2xs font-extrabold uppercase tracking-wider text-[#079875] dark:text-teal-400 flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Mulai &amp; Kelola
+                  </p>
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onCreateNew()
+                        onNavigate?.('builder')
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-create-new"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <Plus className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Buat CV Baru
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Mulai dari formulir kosong terstruktur standar ATS
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        setShowDraftsModal(true)
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-open-drafts"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Draf Resume ({draftsList.length})
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Kelola, duplikasi, dan lanjutkan draf lokal tersimpan
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('builder')
+                        onOpenImportModal()
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-import"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <Upload className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Impor Berkas CV
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Impor draf dari file JSON atau resume Satukit
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Kolom 2: Optimasi & Ekspor */}
+                <div className="space-y-3">
+                  <p className="text-2xs font-extrabold uppercase tracking-wider text-[#079875] dark:text-teal-400 flex items-center gap-1.5">
+                    <Download className="w-3.5 h-3.5" /> Optimasi &amp; Ekspor
+                  </p>
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('builder')
+                        onOpenAtsScore?.()
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-ats-score"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Skor ATS {atsScore !== undefined ? `(${atsScore})` : ''}
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Evaluasi kelengkapan, kontak, dampak kuantitatif &amp; kata kunci
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('builder')
+                        onExportPdf()
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-export-pdf"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <Download className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Unduh Format PDF
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Dokumen siap kirim resolusi tinggi standar cetak A4
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('builder')
+                        onExportDocx()
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-export-docx"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Unduh Format Word (.docx)
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Format fleksibel yang dapat diedit di Microsoft Word
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('builder')
+                        if (onExportPrint) onExportPrint()
+                        else window.print()
+                      }}
+                      className="w-full p-2.5 rounded-xl hover:bg-[#effbf6] dark:hover:bg-stone-800 text-left flex items-start gap-3 transition cursor-pointer group"
+                      data-testid="mega-menu-export-print"
+                    >
+                      <div className="p-2 rounded-lg bg-teal-50 dark:bg-stone-800 text-[#079875] dark:text-teal-400 group-hover:bg-[#079875] group-hover:text-white transition-colors shrink-0">
+                        <Printer className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17383c] dark:text-stone-200 group-hover:text-[#079875] dark:group-hover:text-teal-300">
+                          Cetak Dokumen (Print)
+                        </div>
+                        <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
+                          Kirim langsung ke mesin pencetak atau dialog cetak peramban
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Kolom 3: Kartu Ringkasan Standar ATS */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-[#effbf6] to-[#dff8f0] dark:from-stone-800/80 dark:to-stone-800/40 border border-[#b7ddd4] dark:border-stone-700 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#079875]/10 text-[#079875] dark:text-teal-300 text-3xs font-extrabold uppercase tracking-wider">
+                      <ShieldCheck className="w-3 h-3" /> Standar ATS 2026
+                    </span>
+                    <h4 className="text-xs font-extrabold text-[#17383c] dark:text-stone-100 leading-snug">
+                      Kenapa CV Satukit Lebih Mudah Lolos?
+                    </h4>
+                    <ul className="text-3xs text-[#53676b] dark:text-stone-300 space-y-1.5 leading-relaxed pt-1">
+                      <li className="flex items-start gap-1.5">
+                        <Check className="w-3 h-3 text-[#079875] shrink-0 mt-0.5" />
+                        <span>Hirarki heading baku ramah parser ATS</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <Check className="w-3 h-3 text-[#079875] shrink-0 mt-0.5" />
+                        <span>Bebas tabel rumit &amp; grafis penipu parser</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <Check className="w-3 h-3 text-[#079875] shrink-0 mt-0.5" />
+                        <span>Data 100% lokal tanpa kirim ke server asing</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeMenus()
+                      onNavigate?.('builder')
+                    }}
+                    className="mt-4 w-full py-2 px-3 text-center text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] rounded-xl transition shadow-2xs cursor-pointer"
+                  >
+                    Buka Editor CV
+                  </button>
+                </div>
+              </div>
             </div>
-            <button type="button" onClick={() => onTogglePrivateMode(!privateMode)} className="p-2 border border-stone-300 bg-white rounded-lg" title="Mode privasi">
-              {privateMode ? <Lock className="w-4 h-4 text-amber-700" /> : <Unlock className="w-4 h-4 text-stone-600" />}
-            </button>
           </div>
         )}
+        </div>
       </header>
 
       {pendingDelete && (
@@ -860,33 +980,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/80 text-teal-800 dark:text-teal-400 flex items-center justify-center">
-                {infoModal === 'harga' && <Tag className="w-5 h-5" />}
                 {infoModal === 'panduan' && <HelpCircle className="w-5 h-5" />}
                 {infoModal === 'tentang' && <Info className="w-5 h-5" />}
-                {infoModal === 'masuk' && <Lock className="w-5 h-5" />}
               </div>
               <h3 id="info-modal-title" className="text-lg font-bold text-stone-900 dark:text-stone-100">
-                {infoModal === 'harga' && 'Harga & Paket Satukit'}
                 {infoModal === 'panduan' && 'Panduan Penggunaan Satukit'}
                 {infoModal === 'tentang' && 'Tentang Satukit'}
-                {infoModal === 'masuk' && 'Akses Instan Tanpa Login'}
               </h3>
             </div>
 
             <div className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed space-y-3">
-              {infoModal === 'harga' && (
-                <>
-                  <p className="font-semibold text-teal-900 dark:text-teal-300">
-                    Satukit 100% Gratis &amp; Terbuka Selamanya.
-                  </p>
-                  <p>
-                    Tidak ada biaya langganan, tidak ada watermark pada ekspor PDF/Word, dan tidak ada batasan kuota fitur dasar.
-                  </p>
-                  <p>
-                    Semua pemrosesan data (CV, kompresi, konversi, OCR) diproses langsung di perangkat browser Anda untuk privasi maksimal.
-                  </p>
-                </>
-              )}
               {infoModal === 'panduan' && (
                 <ol className="list-decimal pl-4 space-y-2">
                   <li><strong>Pilih Alat:</strong> Gunakan menu Beranda atau tab Tools untuk memilih CV Builder, Konversi PDF, Edit Foto, atau URL Shortener.</li>
@@ -901,19 +1004,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </p>
                   <p>
                     Ditemani maskot <strong>Kitu</strong> yang lincah dan berdaya guna, Satukit membantu jutaan pencari kerja dan profesional mengelola tugas digital mereka dengan cepat, rapi, dan aman.
-                  </p>
-                </>
-              )}
-              {infoModal === 'masuk' && (
-                <>
-                  <p className="font-semibold text-teal-900 dark:text-teal-300">
-                    Privasi Berbasis Local-First — Tanpa Kata Sandi!
-                  </p>
-                  <p>
-                    Satukit tidak mewajibkan registrasi akun konvensional. Draf CV, riwayat konversi, dan preferensi Anda tersimpan secara otomatis di memori lokal browser perangkat ini.
-                  </p>
-                  <p>
-                    Anda dapat langsung mulai menyusun resume atau menggunakan utilitas tanpa hambatan form login.
                   </p>
                 </>
               )}

@@ -4,6 +4,659 @@ Laporan ini mencatat setiap eksekusi task, Planned vs Actual, hasil pengujian, a
 
 ---
 
+## HOTFIX-DARK-MODE-CONTRAST-001 — Perbaikan Kontras Dark Mode Kartu Draf & Direktori Ruang Kerja — 2026-11-09
+
+**Task:** `HOTFIX-DARK-MODE-CONTRAST-001`
+**Requirement:** BUS-006, NFR-UX-001, NFR-ACC-001
+
+### Ringkasan
+Memperbaiki masalah kontras keterbacaan teks pada kartu draf CV dan direktori ruang kerja Dashboard serta tombol aksi PdfEditorModal saat mode gelap (dark mode) aktif. Akar masalah adalah penggunaan kelas Tailwind fiktif/tidak terdaftar `dark:bg-stone-850` dan `bg-stone-850`, yang menyebabkan browser mengabaikan kelas latar gelap dan tetap menggunakan latar belakang putih (`bg-white`) sementara warna teks berubah menjadi putih/terang (`dark:text-stone-100`).
+
+Solusi:
+1. Mengganti `dark:bg-stone-850` dengan `dark:bg-stone-900` pada kontainer draf CV (`data-testid="dashboard-drafts-list"`) dan kontainer Direktori Ruang Kerja di `Dashboard.tsx`.
+2. Mengganti `bg-stone-850` dengan `bg-stone-900` pada bilah aksi bawah `PdfEditorModal.tsx`.
+3. Menambahkan pengujian regresi pada `dashboard.test.tsx` untuk memastikan kelas kontainer draf dan ruang kerja menggunakan `dark:bg-stone-900` dan tidak ada kelas invalid `stone-850`.
+
+### File Diubah
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/pdf-tools/PdfEditorModal.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Dashboard Tests | `npx vitest run src/components/dashboard/__tests__/dashboard.test.tsx` | PASS | 10/10 tests passing |
+| Vitest Full Suite | `npm test` | PASS | 47 files, 353/353 tests passing |
+| Oxlint Linter | `npm run lint` | PASS | 0 error |
+| Frontend Build | `npm run build` | PASS | `tsc -b && vite build` bersih tanpa error |
+| Backend Pytest Suite | `pytest` | PASS | 189/189 tests passing |
+
+---
+
+## FEAT-MEDIA-DOWNLOADER-001 — Pengunduh Media Publik YouTube, Instagram, dan TikTok (Alat ke-25) — 2026-11-09
+
+**Task:** `FEAT-MEDIA-DOWNLOADER-001`
+**Requirement:** BUS-005, NFR-SEC-001, NFR-SEC-008, NFR-PERF-001
+
+### Ringkasan
+Implementasi fitur "Pengunduh Media" sebagai alat ke-25 pada katalog Alat Dokumen Satukit (`App.tsx`). Menyediakan backend worker async dan antarmuka modal `MediaDownloaderModal.tsx` untuk mengunduh video MP4 (maksimal 720p) dan gambar publik dari YouTube, Instagram, dan TikTok dengan perlindungan anti-SSRF ketat, pembatasan kuota/rate limit, dan pengiriman berkas sekali pakai (single-use delivery).
+
+Fitur utama:
+1. Validasi platform & Anti-SSRF: allowlist domain resmi YouTube, Instagram, dan TikTok; verifikasi resolusi DNS untuk menolak loopback, IP privat RFC1918, link-local, multicast, dan metadata cloud AWS/GCP/Azure (`169.254.169.254`).
+2. Penolakan konten terlarang: tolak playlist, channel, profil pengguna, stories, live stream, dan siaran premiere; hanya mendukung konten tunggal publik.
+3. Batasan spesifikasi: video MP4 maksimal 720p, ukuran maksimal 250 MB, durasi maksimal 30 menit tanpa transcoding CPU yang membebani server; untuk carousel/foto Instagram dan TikTok hanya mengekstrak item pertama.
+4. Kuota & batas laju: rate limit 3 proses/jam dan kuota bandwidth 1 GB/hari per akun dan per IP; maksimal 1 job aktif per pengguna dan 2 antrean global.
+5. Single-use delivery: tautan berkas memiliki TTL 15 menit, otomatis dihapus dari server setelah pertama kali diunduh oleh pengguna (`status = claimed`).
+6. Hak cipta & etika: pengguna wajib mencentang konfirmasi izin/kepemilikan hak cipta atas konten sebelum proses dimulai.
+7. Frontend interaktif: modal responsif dengan pemilihan format (video/gambar), polling status real-time, tombol pembatalan antrean/proses, dan tombol unduh langsung.
+
+### Kesesuaian dengan Code Plan
+- Seluruh spesifikasi backend (skema tabel `media_download_jobs` & `media_download_usage`, `media_downloader.py`, router API `/api/media-downloads`, lifecycle start/stop di `main.py`) terpasang sesuai rencana.
+- Seluruh 9 skenario uji backend di `test_media_downloader.py` (validasi URL, SSRF, kuota, rate limit, worker run, API flow 202/200/410) lulus 100%.
+- Seluruh pengujian frontend di `media_downloader.test.tsx` (7 unit test) dan katalog 25 utilitas di `dashboard.spec.ts` terverifikasi.
+
+### File Dibuat
+- `backend/app/services/media_downloader.py`
+- `backend/app/api/media_downloader.py`
+- `backend/tests/test_media_downloader.py`
+- `frontend/src/services/mediaDownloader.ts`
+- `frontend/src/components/tools/MediaDownloaderModal.tsx`
+- `frontend/src/components/tools/__tests__/media_downloader.test.tsx`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/db/session.py`
+- `backend/app/main.py`
+- `frontend/src/App.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest Media Downloader | `pytest backend/tests/test_media_downloader.py` | PASS | 9/9 tests passing |
+| Pytest Full Suite | `pytest backend/tests/` | PASS | 189/189 tests passing, 0 regression |
+| Vitest Media Downloader | `npm test -- media_downloader.test.tsx` | PASS | 7/7 tests passing |
+| Vitest Full Suite | `npm test` | PASS | 47 files, 353/353 tests passing |
+| Frontend Oxlint | `npm run lint` | PASS | 0 error |
+| Frontend Typecheck & Build | `npm run build` | PASS | `tsc -b && vite build` bersih tanpa error |
+
+---
+
+## FEAT-QR-GENERATOR-001 — Generator QR Code Mandiri (Alat ke-24) — 2026-11-09
+
+**Task:** `FEAT-QR-GENERATOR-001`
+**Requirement:** BUS-005, NFR-UX-001, NFR-ACC-001, NFR-SEC-001
+
+### Ringkasan
+Implementasi fitur "Generate QR Code" sebagai alat ke-24 pada katalog Alat Dokumen Satukit (`App.tsx`). Fitur ini menyediakan modal mandiri `QrCodeGeneratorModal.tsx` dengan alur pembuatan kode QR 100% lokal di browser via library `qrcode@1.5.4` (ECC Level M, quiet zone margin 4 modul), tanpa transmisi data ke server.
+
+Fitur utama:
+1. Mode input ganda: Teks Biasa dan Tautan (URL) dengan penghitung byte UTF-8 real-time (`TextEncoder`) dan batas maksimal 2.000 byte.
+2. Validasi tautan aman: memastikan format URL valid, mewajibkan skema `http:` atau `https:` (menolak `javascript:`, `data:`, `file:`), serta menolak URL yang menyertakan username/password.
+3. Kustomisasi visual: preset ukuran ekspor (256×256, 512×512, 1024×1024 px; default 512 px) serta kustomisasi warna modul dan latar (preset Classic, Forest, Navy, Charcoal, serta input warna kustom).
+4. Pemeriksaan kontras warna: menghitung rasio kontras berdasarkan luminansi relatif; otomatis memblokir eksekusi tombol generate dan unduh jika rasio kontras < 3:1 atau jika warna modul QR lebih terang dari warna latar.
+5. Indikator pembaruan (stale state): jika teks/tautan atau warna diubah setelah kode QR digenerate, pratinjau menampilkan peringatan status usang dan tombol unduh dinonaktifkan sampai tombol Generate ditekan kembali.
+6. Opsi ekspor ganda: unduh gambar raster PNG (`satukit-qr-code.png`) dan gambar vektor tajam SVG (`satukit-qr-code.svg`).
+7. Privasi data: konten teks dan tautan tidak disimpan ke browser storage (IndexedDB/localStorage) dan dibersihkan saat modal ditutup.
+
+### Kesesuaian dengan Code Plan
+- `qrcode@1.5.4` dan `@types/qrcode@1.5.6` terpasang di `frontend/package.json` dengan 0 audit vulnerability.
+- `QrCodeGeneratorModal.tsx` terdaftar pada kategori `convert` di `App.tsx` dengan ikon `QrCode` dan badge "Baru".
+- Unit test suite `qr_code_generator.test.tsx` mencakup 14 pengujian lengkap (validasi input kosong, batas 2.000 byte, skema URL, kredensial URL, kontras warna, render kanvas, stale state, ukuran, unduh PNG/SVG, aksesibilitas axe WCAG).
+- Integrasi pencarian dan pembukaan modal teruji di `app.integration.test.tsx`.
+- Katalog alat pada Playwright `dashboard.spec.ts` diselaraskan ke 24 utilitas.
+
+### File Dibuat
+- `frontend/src/components/tools/QrCodeGeneratorModal.tsx`
+- `frontend/src/components/tools/__tests__/qr_code_generator.test.tsx`
+
+### File Diubah
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Unit & Accessibility | `npm run test -- qr_code_generator.test.tsx` | PASS | 14/14 tests passing, 0 axe violations |
+| Vitest App Integration | `npm run test -- app.integration.test.tsx` | PASS | 8/8 tests passing (termasuk alat ke-24) |
+| Vitest Full Suite | `npm run test` | PASS | 46 files, 346/346 tests passing |
+| Backend Pytest | `pytest backend/tests` | PASS | 180/180 tests passing |
+| Linter | `npm run lint` | PASS | Oxlint 0 errors |
+| Frontend Build | `npm run build` | PASS | Vite bundle berhasil |
+| Dependency Audit | `npm audit --omit=dev` | PASS | 0 vulnerabilities |
+
+### Acceptance Criteria
+- [x] Kartu "Generate QR Code" muncul di kategori Konversi pada katalog Alat Dokumen Satukit.
+- [x] Pembuatan QR berjalan 100% lokal di browser tanpa dependensi/beban server.
+- [x] Mode Teks dan URL berfungsi dengan batas payload 2.000 byte.
+- [x] Skema URL non-HTTP/HTTPS dan URL dengan kredensial ditolak.
+- [x] Preset ukuran (256, 512, 1024 px) berfungsi.
+- [x] Kustomisasi warna modul dan latar dengan pencegahan kontras tidak layak (< 3:1).
+- [x] Ekspor PNG dan SVG berhasil dengan nama `satukit-qr-code.png` dan `.svg`.
+- [x] 0 pelanggaran aksesibilitas axe WCAG.
+- [x] 100% pengujian otomatis lolos verifikasi.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## FEAT-WEBP-TO-JPG-001 — Konverter WebP ke JPG Mandiri (Alat ke-23) — 2026-11-09
+
+**Task:** `FEAT-WEBP-TO-JPG-001`
+**Requirement:** BUS-005, NFR-UX-001, NFR-ACC-001, NFR-SEC-001
+
+### Ringkasan
+Implementasi fitur "WebP ke JPG" sebagai alat ke-23 pada katalog Alat Dokumen Satukit (`App.tsx`). Fitur ini menyediakan modal mandiri `WebpToJpgModal.tsx` dengan alur konversi 100% lokal di browser via native Canvas 2D API (`toBlob('image/jpeg', quality)`), tanpa upload jaringan atau beban komputasi server.
+
+Fitur utama:
+1. Fidelitas ukuran & rasio penuh: menjaga dimensi dan resolusi asli berkas WebP tanpa crop atau downscaling.
+2. Penanganan transparansi WebP: perataan latar kanvas dengan default warna Putih (`#FFFFFF`), preset warna (Hitam, Abu-abu, Krem), dan color picker kustom sebelum pengikatan raster JPG.
+3. Kontrol kualitas kompresi JPG: slider rentang 60%–100% dengan default rekomendasi 92%.
+4. Validasi keamanan & batas memori: batas ukuran maksimal 25 MB, batas dimensi 64 juta piksel (8000×8000), serta verifikasi struktur header magic bytes `RIFF` (0..3) dan `WEBP` (8..11).
+5. Penanganan WebP animasi: konversi bingkai (frame) pertama secara utuh disertai catatan informatif pada antarmuka.
+6. Pembersihan memori: pencabutan Object URL (`URL.revokeObjectURL`) saat reset berkas atau penutupan modal.
+
+### Kesesuaian dengan Code Plan
+- `WebpToJpgModal.tsx` dibangun mandiri dan terdaftar pada katalog `App.tsx` (total 23 alat).
+- Kartu alat "WebP ke JPG" hadir di kategori Gambar dengan ikon `FileImage` dan badge "Baru".
+- Unit test suite `webp_to_jpg.test.tsx` mencakup 16 pengujian: pembukaan/penutupan modal, validasi ekstensi & MIME, validasi batas 25 MB, validasi berkas 0 byte, validasi magic bytes, batas dimensi 64 MP, penanganan error corrupt, pratinjau & meta, preset/custom background, slider kualitas, reset, konversi & unduh canvas, error toBlob, dan aksesibilitas axe WCAG.
+- Integrasi pencarian dan pembukaan modal teruji di `app.integration.test.tsx`.
+- Katalog alat pada Playwright `dashboard.spec.ts` diselaraskan ke 23 utilitas.
+
+### File Dibuat
+- `frontend/src/components/image-tools/WebpToJpgModal.tsx`
+- `frontend/src/components/image-tools/__tests__/webp_to_jpg.test.tsx`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Unit & Accessibility | `npm run test -- webp_to_jpg.test.tsx` | PASS | 16/16 tests passing, 0 axe violations |
+| Vitest App Integration | `npm run test -- app.integration.test.tsx` | PASS | 8/8 tests passing (termasuk alat ke-23) |
+| Vitest Full Suite | `npm run test` | PASS | 45 files, 332/332 tests passing |
+| Backend Pytest | `pytest backend/tests` | PASS | 180/180 tests passing |
+| Linter | `npm run lint` | PASS | Oxlint 0 errors |
+| Frontend Build | `npm run build` | PASS | Vite build berhasil tanpa error |
+
+### Acceptance Criteria
+- [x] Kartu "WebP ke JPG" muncul di kategori Gambar pada katalog Alat Dokumen Satukit.
+- [x] Konversi berjalan 100% lokal di browser tanpa dependensi/beban server.
+- [x] Dimensi, resolusi, dan rasio aspek asli dipertahankan tanpa crop atau downscaling.
+- [x] Transparansi WebP diratakan dengan warna latar (default putih + preset & color picker).
+- [x] Kontrol kualitas slider JPG 60%–100% (default 92%).
+- [x] WebP animasi diproses frame pertama dengan keterangan informatif.
+- [x] Validasi batas 25 MB, batas 64 MP, dan magic bytes RIFF/WEBP.
+- [x] 0 pelanggaran aksesibilitas axe WCAG.
+- [x] 100% pengujian otomatis lolos verifikasi.
+
+### Status
+Selesai dan terverifikasi.
+
+---
+
+## FEAT-PROFILE-MAKER-001 — Photo Profile Maker Mandiri & Kontrol Zoom Out Anti-Terpotong — 2026-11-09
+
+**Task:** `FEAT-PROFILE-MAKER-001`
+**Requirement:** BUS-016, FR-046, FR-047, NFR-UX-001, NFR-PERF-005
+
+### Ringkasan
+Implementasi Photo Profile Maker mandiri sebagai alat ke-22 pada katalog Alat Dokumen Satukit (`App.tsx`). Fitur ini menyediakan modal pembuat foto profil / avatar media sosial (`PhotoProfileMakerModal.tsx`) dengan crop lingkaran atau rounded-square, dukungan mode Foto Asli (instan tanpa AI) atau Hapus Latar Belakang (AI U2NetP lokal), pilihan latar (solid, gradasi 135deg, bokeh blur, transparan), border kustom, dan preset ukuran platform (Umum 512px, HD 1080px, LinkedIn 400px, WhatsApp 500px, Instagram 1080px).
+Untuk mengatasi masalah subjek foto yang terpotong di tepi bingkai avatar:
+1. Mode Pemotongan Objek (Fit Mode) & Safe Headroom Avatar: default awal foto adalah "Pas Utuh (Tidak Terpotong)" (`object-contain`). Pada avatar lingkaran, diterapkan safe headroom padding 32px (12px untuk persegi), sehingga bagian atas kepala dan rambut langsung tampil utuh tanpa terpotong sejak pertama kali foto dipilih. Opsi "Isi Penuh (Crop Frame)" (`object-cover`) tetap dapat dipilih via toggle jika pengguna menginginkan crop penuh.
+2. Ekspor kanvas HTML5 menggunakan `Math.min` dan penskalaan area aman (`targetSize - safePadding * 2`) saat mode Pas Utuh agar hasil unduhan identik 1:1 dengan pratinjau tanpa pemotongan kepala.
+3. Rentang slider zoom diperluas dari min 20% hingga 300% (bukan hanya zoom in).
+4. Disediakan tombol Zoom Out (`-`) dan Zoom In (`+`) bertahap 10%.
+5. Disediakan tombol preset "Pas Utuh" (`btn-zoom-fit`) yang mempertahankan ukuran proporsional citra asli tanpa terpotong.
+6. Dukungan mouse wheel zoom pada kanvas pratinjau.
+7. Ekspor kanvas HTML5 menghasilkan gambar profil beresolusi tinggi dalam format PNG atau JPG.
+
+### Kesesuaian dengan Code Plan
+- `PhotoProfileMakerModal.tsx` dibangun mandiri dan terdaftar pada katalog `App.tsx` (total 22 alat).
+- Fit Mode toggle (`btn-fit-contain` & `btn-fit-cover`) terintegrasi, default contain saat AI nobg selesai.
+- Range slider zoom: `min="20"` s/d `max="300"`.
+- Tombol aksi: `btn-zoom-out`, `btn-zoom-in`, `btn-zoom-fit`, `btn-zoom-100`, dan `btn-reset-position`.
+- Kanvas pratinjau interaktif mendukung pointer dragging, wheel scrolling, dan sinkronisasi 1:1 dengan ekspor canvas.
+- Menambahkan 17 unit test di `photo_profile_maker.test.tsx` (17/17 passing, 0 pelanggaran WCAG axe).
+- E2E Playwright `dashboard.spec.ts` diperbarui dan lulus verifikasi dinamis (22 utilitas).
+
+### File Dibuat
+- `frontend/src/components/image-tools/PhotoProfileMakerModal.tsx`
+- `frontend/src/components/image-tools/__tests__/photo_profile_maker.test.tsx`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Unit & Accessibility | `npm run test -- photo_profile_maker.test.tsx` | PASS | 17/17 tests passing, 0 axe violations |
+| Vitest Full Suite | `npm run test` | PASS | 44 files, 316/316 tests passing |
+| Backend Pytest | `python -m pytest` | PASS | 180/180 tests passing |
+| Playwright E2E | `npx playwright test e2e/dashboard.spec.ts` | PASS | 1/1 multi-viewport tests passing (22 utilitas) |
+| Linter | `npm run lint` | PASS | Oxlint 0 errors |
+| Typecheck & Build | `npm run build` | PASS | `tsc -b && vite build` bersih tanpa error |
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FEAT-BG-BLUR-001 — Fitur Efek Blur Background (Bokeh) Foto — 2026-11-09
+
+**Task:** `FEAT-BG-BLUR-001`
+**Requirement:** BUS-016, FR-046, FR-047, NFR-UX-001, NFR-PERF-005
+
+### Ringkasan
+Implementasi efek latar belakang buram (bokeh/blur) pada modal Hapus Latar Belakang Foto (`RemoveBackgroundModal.tsx`). Fitur menambahkan opsi preset "Blur Latar" pada daftar pilihan gaya latar belakang. Dilengkapi panel pengaturan intensitas blur interaktif dengan slider kontinu (4–40 px) dan preset cepat (Ringan 8px, Sedang 16px, Kuat 28px). Frame pratinjau menampilkan simulasi bokeh lapis ganda secara real-time (lapisan belakang: foto asli berfilter CSS blur; lapisan depan: subjek hasil segmentasi AI U2NetP tajam dan terpotong rapi). Saat diunduh, HTML5 Canvas mengomposisikan latar blur berskala resolusi kanvas dengan overdraw pengaman tepi (+6%) dan subjek tajam berpenjangkaran bawah. Pengguna dapat memilih format ekspor PNG atau JPG.
+
+### Kesesuaian dengan Code Plan
+- Menambahkan preset `{ id: 'blur', label: 'Blur Latar', color: 'blur' }` ke `BG_PRESETS`.
+- Menyimpan referensi URL berkas asli `originalFileUrl` dan pembersihan memori otomatis pada unmount/reset.
+- Menambahkan state `blurIntensity` (default 16) dan `exportFormat` (default 'png').
+- Menambahkan panel kontrol intensitas blur (`blur-controls-panel`) berisi slider dan 3 preset cepat.
+- Frame pratinjau menampilkan lapisan gambar asli dengan CSS `filter: blur(...)` dan `scale-110`.
+- Canvas ekspor merender latar blur via `ctx.filter` dan menumpuk subjek transparan di atasnya.
+- Toggle format ekspor (PNG/JPG) tersedia di footer meja kerja.
+- Menambahkan 2 unit test baru di `remove_background.test.tsx` (13/13 passing, 0 axe accessibility violations).
+
+### File Diubah
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/image-tools/__tests__/remove_background.test.tsx`
+- `.agent/PROJECT-STATE.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Test Targeted | `npm run test -- src/components/image-tools/__tests__/remove_background.test.tsx` | PASS | 13/13 tests pass (termasuk kontrol blur, canvas komposit, dan axe) |
+| Linter Frontend | `npm run lint` | PASS | 0 error |
+| Typecheck & Vite Build | `npm run build` | PASS | tsc -b dan bundle Vite 453ms sukses |
+| Full Frontend Suite | `npm run test` | PASS | 299/299 tests pass (43 test files) |
+| Full Backend Suite | `pytest` | PASS | 180/180 tests pass |
+
+### Acceptance Criteria
+- [x] Preset "Blur Latar" tersedia pada pilihan gaya latar belakang
+- [x] Panel slider (4-40px) dan preset (Ringan, Sedang, Kuat) muncul saat blur dipilih
+- [x] Pratinjau langsung menampilkan efek blur di latar dan subjek tajam di depan
+- [x] Kanvas unduhan merender foto asli berfilter blur dan menumpuk subjek tanpa merusak penjangkaran bawah pasfoto
+- [x] Pengguna dapat memilih format ekspor (PNG atau JPG) saat mode blur/warna aktif
+- [x] Nama berkas unduh mencantumkan keterangan `blur` dan format yang dipilih (contoh: `<nama>_blur.png` atau `<nama>_3x4_blur.jpg`)
+- [x] 100% tes unit (299 frontend, 180 backend) lulus tanpa regresi dan 0 pelanggaran WCAG 2.2 AA
+
+### Keputusan dan Technical Debt
+- Efek blur dieksekusi 100% client-side via CSS filter & HTML5 Canvas sehingga latensi instan dan CPU server tidak terbebani proses inferensi ganda.
+- Proteksi tepi pudar (`blur bleed`) diatasi dengan overdraw proporsional 106% pada kanvas dan `scale-110` dengan `overflow-hidden` pada kontainer pratinjau.
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FEAT-BG-RESIZE-001 — Opsi Ukuran Pasfoto & Dimensi Dokumen pada Hapus Latar Belakang — 2026-11-09
+
+**Task:** `FEAT-BG-RESIZE-001`
+**Requirement:** FR-046, FR-047, NFR-UX-001
+
+### Ringkasan
+Penambahan opsi ukuran pasfoto standar (Asli, 2×3 cm, 3×4 cm, 4×6 cm, 1:1 Persegi) pada modal Hapus Latar Belakang Foto (`RemoveBackgroundModal.tsx`). Antarmuka menyajikan selector chip ukuran pasfoto lengkap dengan dimensi piksel @300 DPI, penyesuaian rasio aspek frame pratinjau langsung, pemangkasan baris transparan bawah (`getSubjectBottomTrimmedBlob`), serta penjangkaran subjek persis ke tepi bawah kanvas (`object-bottom`, `items-end`, `dy = targetHeight - dh`) sehingga karakter tidak mengambang ("mentok ke bawah"). Penamaan berkas unduh otomatis mencantumkan ukuran dan warna latar (contoh: `foto_3x4_red.png` atau `foto_1x1_nobg.png`).
+
+### Kesesuaian dengan Code Plan
+- Menambahkan `SIZE_PRESETS` (original, 2x3, 3x4, 4x6, 1x1).
+- Menambahkan state `selectedSize` dan pemilih ukuran interaktif dengan ikon `Crop`.
+- Frame pratinjau adaptif mengikuti rasio aspek ukuran terpilih (`aspect-ratio: 2/3`, `3/4`, `4/6`, `1/1`).
+- Pemangkasan otomatis baris piksel transparan di bawah baju/tubuh (`getSubjectBottomTrimmedBlob`) dan penjangkaran posisi bawah (`object-bottom`, `items-end`).
+- Logika unduh canvas memotong dan menyejajarkan subjek mentok ke tepi bawah (`dy = targetHeight - dh`).
+- Menambahkan unit test di `remove_background.test.tsx` untuk pemilihan ukuran dan pemotongan canvas.
+
+### File Diubah
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/image-tools/__tests__/remove_background.test.tsx`
+- `backend/app/main.py` (panggilan `init_db()` saat `create_app()`)
+- `backend/tests/test_job_manager.py` (autouse mock disk healthy)
+- `start-satukit.bat` & `start-satukit.ps1` (auto-download model U2NetP jika belum ada)
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Targeted Tests | `npm run test -- src/components/image-tools/__tests__/remove_background.test.tsx` | PASS | 11/11 tests passed (0 fail) |
+| Frontend Full Tests | `npm run test` | PASS | 297/297 passed (43 test files) |
+| Frontend Linter | `npm run lint` | PASS | 0 error |
+| Frontend Build | `npm run build` | PASS | TypeScript & Vite build sukses (482ms) |
+| Backend Tests | `python -m pytest` | PASS | 180/180 passed (0 fail, 0 skipped) |
+
+### Acceptance Criteria
+- [x] Opsi ukuran pasfoto (Asli, 2×3 cm, 3×4 cm, 4×6 cm, 1:1) tersedia sebelum unduh
+- [x] Pratinjau langsung menampilkan proporsi dan rasio aspek ukuran yang dipilih
+- [x] Karakter subjek tidak mengambang, tepi bawah baju mentok ke batas bawah pasfoto (`object-bottom`, `dy = targetHeight - dh`)
+- [x] Kanvas unduh memotong citra secara proporsional dengan penjangkaran bawah tanpa distorsi wajah
+- [x] Nama berkas unduh mencantumkan ukuran dan warna latar belakang
+- [x] Semua unit tests (297 frontend, 180 backend) lulus 100%
+
+---
+
+## REBRAND-SATUKIT-021 — Pembersihan Ornamen Bocor & Penataan Ulang Draf Beranda — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-021`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+Pembersihan visual Beranda (`Dashboard.tsx`) dari ornamen batik absolut di pembungkus footer yang mencuat ke atas menimpa kartu Meja Draf Pengguna. Wadah draf ditata ulang menjadi satu kontainer bersatu `rounded-2xl divide-y border` dengan sorotan item aktif `border-l-4 border-l-teal-700 bg-teal-50/70`, simetris dengan Direktori Ruang Kerja di kolom sampingnya. Hierarki font dinaikkan ke minimum `>= 13px` untuk memenuhi quality gate Playwright E2E typography dan accessibility.
+
+### Kesesuaian dengan Code Plan
+- Eliminasi elemen `batikLeft` dan `batikRight` pada pembungkus footer di `Dashboard.tsx`.
+- Penggantian kartu draf terpisah menjadi satu kontainer bergaris bagi (`divide-y divide-stone-200/90`).
+- Kenaikan ukuran teks langkah kerja (1, 2, 3) dan deskripsi kartu fitur ke `text-[13px]`/`text-sm` agar tidak melanggar batas tipografi `>= 13px`.
+- Pembaruan `dashboard.spec.ts` untuk memverifikasi 20 utilitas aktif.
+
+### File Diubah
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit + integration + axe | `npm run test` | PASS | 295/295 passed (43 test files) |
+| Lint | `npm run lint` | PASS | 0 error |
+| Build | `npm run build` | PASS | TypeScript & Vite build sukses |
+| E2E Playwright | `npx playwright test e2e/dashboard.spec.ts e2e/builder.spec.ts --reporter=line` | PASS | 3/3 passed (multi-viewport, typography >= 13px, CLS <= 0.1, keyboard nav, mega menu) |
+
+### Bukti Visual
+- Beranda kondisi tanpa draf: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\dashboard-drafts-section.png`
+- Beranda kondisi ada draf aktif: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\dashboard-drafts-with-data.png`
+
+### Acceptance Criteria
+- [x] Ornamen batik absolut di footer dihapus (tidak menimpa draf)
+- [x] Kontainer draf menyatu dan simetris dengan direktori ruang kerja
+- [x] Tipografi minimum `>= 13px` terpenuhi
+- [x] Seluruh unit (295/295) dan E2E (3/3) lolos verifikasi
+
+---
+
+## REBRAND-SATUKIT-020 — Penyesuaian Mega Menu CV Builder: Eliminasi Desain & Format — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-020`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+Kolom `DESAIN & FORMAT` dihilangkan dari mega menu CV Builder karena opsi template, warna, dan font telah tersedia langsung di toolbar konteks Builder. Mega menu kini terstruktur dalam 3 kolom fokus menu utama: Mulai & Kelola, Optimasi & Ekspor (termasuk aksi Cetak Dokumen), serta Kartu Ringkasan Standar ATS 2026. Background panel diubah menjadi solid `#fffdfa` untuk menghilangkan tembus pandang teks latar belakang.
+
+### Kesesuaian dengan Code Plan
+- Scope presisi: modifikasi `Navbar.tsx` (grid 3 kolom, hapus sub-item desain/format, tambah print, hilangkan transparansi tembus pandang), pembaruan unit test di `navbar_drafts.test.tsx`.
+- Desain & format tetap utuh di toolbar konteks Builder baris kedua.
+
+### File Diubah
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit + integration + axe | `npm run test -- src/components/layout/__tests__/navbar_drafts.test.tsx` | PASS | 8/8 passed |
+| Unit cross-suite | `npm run test -- src/components/builder/__tests__/builder.test.tsx src/__tests__/app.integration.test.tsx src/components/layout/__tests__/navbar_drafts.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 31/31 passed |
+| Lint | `npm run lint` | PASS | 0 error |
+| Build | `npm run build` | PASS | Production build lolos |
+| E2E Playwright | `npx playwright test e2e/builder.spec.ts --reporter=line` | PASS | 2/2 passed |
+
+### Bukti Visual
+- Desktop 1440x900: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\cv-mega-menu-desktop-1440x900.png`
+
+### Acceptance Criteria
+- [x] Kolom Desain & Format dihapus dari mega menu
+- [x] Mega menu fokus pada menu utama (Mulai & Kelola, Optimasi & Ekspor, Standar ATS 2026)
+- [x] Aksi Cetak Dokumen terintegrasi di Optimasi & Ekspor
+- [x] Background solid `#fffdfa` tanpa ghosting teks halaman bawah
+- [x] Seluruh unit dan E2E test lulus
+
+---
+
+## REBRAND-SATUKIT-019 — Mega Menu Horizontal Khusus CV Builder — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-019`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+Dropdown `Fitur` umum di Navbar diganti dengan mega menu horizontal khusus ekosistem CV Builder. Trigger menu menyatu pada tombol navigasi `btn-nav-cv-builder`. Panel mega menu terbentang horizontal di bawah Navbar dengan 4 kolom fungsional: Mulai & Kelola, Desain & Format, Optimasi & Ekspor, serta Kartu Standar ATS 2026. Dismissal otomatis via klik luar dan tombol Escape terintegrasi di `menusRef`.
+
+### Kesesuaian dengan Code Plan
+- Scope terarah: `Navbar.tsx` (state `showCvMenu`, mega menu panel, trigger `btn-nav-cv-builder`), `navbar_drafts.test.tsx` (unit test pembukaan & aksi), `builder.spec.ts` (E2E toggle & navigasi).
+- Seluruh handler draf, impor, ekspor, template, bahasa, dan skor ATS dihubungkan langsung tanpa menambah dependensi baru.
+- Batasan tinggi `max-h-[80vh]` dan scroll internal diterapkan agar aman di mobile/tablet.
+
+### File Diubah
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `frontend/e2e/builder.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit + integration + axe | `npm run test -- src/components/builder/__tests__/builder.test.tsx src/__tests__/app.integration.test.tsx src/components/layout/__tests__/navbar_drafts.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 31/31 passed |
+| Lint | `npm run lint` | PASS | 0 error |
+| Build | `npm run build` | PASS | TypeScript & Vite production build sukses |
+| E2E Playwright | `npx playwright test e2e/builder.spec.ts --reporter=line` | PASS | 2/2 passed (termasuk toggle mega menu) |
+
+### Bukti Visual
+- Desktop 1440x900: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\cv-mega-menu-desktop-1440x900.png`
+- Mobile 390x844: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\cv-mega-menu-mobile-390x844.png`
+
+### Acceptance Criteria
+- [x] Tombol/dropdown Fitur lama diganti menu CV Builder
+- [x] Tipe mega menu horizontal dengan panel lebar terstruktur
+- [x] Isi menu fokus ke fitur CV Builder (buat baru, draf, impor, template, warna/font, bahasa, skor ATS, ekspor PDF/DOCX)
+- [x] Seluruh handler draf, dialog, rute, aksesibilitas, dan dark mode tetap utuh
+- [x] Tanpa dependensi eksternal baru
+
+### Risiko Tersisa
+- Tidak ada. Seluruh aksi mega menu memanfaatkan handler props yang sudah ada di Navbar.
+
+---
+
+## REBRAND-SATUKIT-018 — Hotfix Dua Baris Navbar/Toolbar Builder — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-018`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+Navbar Builder dipisah menjadi dua baris permanen: baris 1 logo + navigasi global + tema + draft; baris 2 toolbar konteks (judul CV, status simpan, kontrol desain, bahasa, privasi, ATS, impor, unduh). Toolbar mobile wrap menjadi dua baris sehingga tidak ada tumpang tindih pada viewport sempit. Handler, draft, impor, ekspor, template, preview, dan output CV tidak berubah.
+
+### Kesesuaian dengan Code Plan
+- Scope sempit: hanya `Navbar.tsx`, `App.tsx` (kelas scrollbar tab), `e2e/builder.spec.ts` (assertion overlap).
+- `ResumePreview.tsx`, schema, API, backend, template tidak disentuh.
+- Logo ganda di mobile diperbaiki dengan `span` wrapper responsif menggantikan dua `BrandLogo` bersyarat.
+- `Lock`/`Unlock` import dikembalikan karena privasi mode dipindah ke toolbar konteks.
+
+### File Diubah
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `frontend/e2e/builder.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit + integration + axe | `npm run test -- ...builder/navbar/app/accessibility` | PASS | 29/29 |
+| Lint | `npm run lint` | PASS | 0 error; warning lama di file luar scope |
+| Build | `npm run build` | PASS | TypeScript dan Vite sukses |
+| E2E Builder | `npx playwright test e2e/builder.spec.ts` | PASS | 1/1; bounding-box 1440 dan 1920 tidak tumpang tindih |
+| Diff hygiene | `git diff --check` | PASS | Tidak ada whitespace error |
+
+### Bukti Visual
+- Desktop 1440: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-1440x900.png`
+- Mobile editor: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-mobile-editor-390x844.png`
+- Mobile preview: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-mobile-preview-390x844.png`
+
+### Acceptance Criteria
+- [x] Navigasi global dan toolbar Builder di baris terpisah
+- [x] Desktop lebar tidak ada tumpang tindih
+- [x] Mobile editor/preview tidak overflow horizontal
+- [x] Handler, draft, ekspor, template tetap
+- [x] Keyboard, dark mode, axe tetap lulus
+
+### Risiko Tersisa
+- ATS, Tools, dan modal utilitas belum dipoles; task terpisah.
+- Warning lint lama di luar scope dan chunk Vite >500 kB tetap ada.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## REBRAND-SATUKIT-017 — Penyelarasan CV Builder Satukit — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-017`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+CV Builder diselaraskan dengan fondasi landing Satukit memakai perubahan kelas minimum: kanvas krem hangat, tab mint/toska, CTA bulat, progress lime-toska, panel preview, switcher mobile, serta topbar responsive. Struktur editor 44/56, template, data draft, autosave, ekspor, dan output CV tidak berubah.
+
+### Kesesuaian dengan Code Plan
+- Scope sesuai plan: `App.tsx`, responsive Builder di `Navbar.tsx`, integration assertion lama, E2E Builder, screenshot temp, dan tracking.
+- `ResumePreview.tsx` tidak diubah karena kontrak template/preview existing sudah memenuhi kebutuhan.
+- Screenshot awal menemukan topbar 1440 menumpuk; breakpoint title/control diperbaiki dalam scope lalu seluruh test diulang.
+- Tidak ada dependency, API, schema, backend, template, atau format output yang berubah.
+
+### File Diubah/Dibuat
+- `frontend/src/App.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/builder.spec.ts` (baru)
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit + integration + axe | `npm run test -- src/components/builder/__tests__/builder.test.tsx src/__tests__/app.integration.test.tsx src/components/layout/__tests__/navbar_drafts.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 29/29 test; warning jsdom canvas existing |
+| Lint | `npm run lint` | PASS | 0 error; warning lama di file luar scope |
+| Build | `npm run build` | PASS | TypeScript dan Vite sukses; warning chunk >500 kB existing |
+| E2E Builder | `npx playwright test e2e/builder.spec.ts --reporter=json` | PASS | Desktop/mobile, zoom 200%, keyboard, dark mode, preview switch, anti-purple |
+| Diff hygiene | `git diff --check` | PASS | Tidak ada whitespace error |
+
+### Bukti Visual
+- Desktop: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-1440x900.png`
+- Editor desktop: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-editor-1440x900.png`
+- Mobile editor: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-mobile-editor-390x844.png`
+- Mobile preview: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\builder-mobile-preview-390x844.png`
+
+### Acceptance Criteria
+- [x] Builder memakai token dan nuansa Satukit
+- [x] Struktur/behavior editor, preview, draft, dan ekspor tetap
+- [x] Desktop 1440 tidak menumpuk
+- [x] Mobile editor/preview operabel
+- [x] Zoom 200% tanpa overflow horizontal
+- [x] Keyboard, dark mode, dan axe tetap lulus
+
+### Risiko Tersisa
+- ATS, Tools, dan modal utilitas belum dipoles dalam task ini.
+- Warning lint lama di luar scope dan chunk Vite >500 kB tetap ada.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
+## REBRAND-SATUKIT-016 — Koreksi Fidelitas Landing Satukit — 2026-11-09
+
+**Task:** `REBRAND-SATUKIT-016`
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+Landing dan shared chrome diselaraskan kembali dengan `Satukit_Landing_Page_Concept.png`: logo horizontal resmi, hero Kitu dan lanskap Nusantara, kategori tujuh alat, empat kartu fitur, banner tiga langkah, serta token warna guideline. Kontrol `Harga`, `Masuk`, dan `Daftar Gratis` disembunyikan karena fungsi aktual belum tersedia.
+
+### Kesesuaian dengan Code Plan
+- Scope/file/symbol sesuai plan: `Dashboard`, `Navbar`, token global, test dashboard/Navbar, dan E2E contract.
+- `App.tsx`, `ThemeToggle.tsx`, dan `Footer.tsx` tidak perlu diubah; fondasi existing sudah memakai token/kelas yang sesuai. Diff lebih kecil dipilih.
+- Tidak ada dependency, API, schema, route, draft storage, atau backend yang berubah.
+- Penyimpangan disetujui: `npm install --ignore-scripts` menyinkronkan metadata root `frontend/package-lock.json` ke nama/versi manifest (`satukit-frontend@0.1.0`); pengguna memilih mempertahankannya. Dependency graph tidak berubah.
+- Playwright dan Chromium/headless shell dipulihkan setelah persetujuan pengguna. Screenshot awal mengungkap Navbar mobile terpotong dan overflow zoom 200%; CSS responsive diperbaiki dalam scope lalu seluruh verifikasi diulang.
+
+### File Diubah
+- `frontend/src/index.css`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `frontend/src/components/layout/__tests__/navbar_drafts.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `frontend/package-lock.json` (sinkronisasi metadata nama/versi yang disetujui)
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted unit + axe | `npm run test -- src/components/dashboard/__tests__/dashboard.test.tsx src/components/layout/__tests__/navbar_drafts.test.tsx src/components/__tests__/accessibility.test.tsx` | PASS | 23/23 test; warning jsdom canvas existing |
+| Lint | `npm run lint` | PASS | 0 error; warning existing di file luar scope |
+| Build | `npm run build` | PASS | TypeScript dan Vite sukses; warning chunk >500 kB existing |
+| E2E multi-viewport | `npx playwright test e2e/dashboard.spec.ts --reporter=json` | PASS | 1/1 suite; viewport 1440/1024/820/768/390, zoom 200%, CLS, keyboard, route, dan dark mode |
+| Diagnosis overflow | `node C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-overflow-check.cjs` | PASS | `dashboard-view`: `scrollWidth = clientWidth = 720` pada zoom 200% setelah perbaikan |
+| Screenshot visual | `node C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual-capture.cjs` | PASS | Desktop 1680×936 dan mobile 390×844 |
+| Overlay visual | PowerShell `System.Drawing` 50% overlay | PASS | `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\landing-overlay-50.png` |
+| Diff hygiene | `git diff --check` | PASS | Tidak ada whitespace error |
+
+### Acceptance Criteria
+- [x] Hierarki hero, Kitu, lanskap, kategori, fitur, dan tiga langkah mengikuti referensi
+- [x] Logo resmi Satukit dipakai di Navbar
+- [x] Kontrol akun/harga palsu tidak dirender
+- [x] Route, CTA aktual, draft, theme toggle, dark mode contract, dan test ID tetap
+- [x] Unit/accessibility/build/lint lulus
+- [x] Multi-viewport, zoom 200%, CLS, dan screenshot overlay dijalankan ulang
+
+### Bukti Visual
+- Desktop: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\landing-1680x936.png`
+- Mobile: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\landing-mobile-390x844.png`
+- Overlay 50%: `C:\Users\ASUS\AppData\Local\Temp\opencode\satukit-visual\landing-overlay-50.png`
+- Checklist: struktur Navbar/hero/Kitu/lanskap/kategori/empat fitur/tiga langkah cocok; spacing dan ukuran aset adaptif, bukan klaim pixel-perfect identik.
+
+### Risiko Tersisa
+- Full workspace/modal theme alignment tetap task terpisah.
+- Warning lint lama pada file luar scope dan warning chunk Vite >500 kB tetap ada; tidak memblokir task ini.
+
+### Status
+✅ Selesai dan terverifikasi.
+
+---
+
 ## Inisialisasi Proyek — 2026-10-20
 
 **Task:** Bootstrap Repository & Dokumentasi Induk

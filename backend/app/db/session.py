@@ -59,6 +59,44 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_type ON auth_tokens(user_id, token_type);
+
+CREATE TABLE IF NOT EXISTS media_download_jobs (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ip_address TEXT,
+    url TEXT NOT NULL,
+    platform TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    progress_percent REAL DEFAULT 0.0,
+    file_path TEXT,
+    filename TEXT,
+    file_size_bytes INTEGER DEFAULT 0,
+    error_message TEXT,
+    error_code TEXT,
+    reserved_bytes INTEGER DEFAULT 0,
+    actual_bytes INTEGER DEFAULT 0,
+    created_at REAL NOT NULL,
+    started_at REAL,
+    completed_at REAL,
+    expires_at REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_jobs_user_status ON media_download_jobs(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_status ON media_download_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_media_jobs_expires_at ON media_download_jobs(expires_at);
+
+CREATE TABLE IF NOT EXISTS media_download_usage (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    ip_address TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    bytes_used INTEGER NOT NULL,
+    timestamp REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_usage_user_time ON media_download_usage(user_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_media_usage_ip_time ON media_download_usage(ip_address, timestamp);
 """
 
 

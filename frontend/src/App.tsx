@@ -43,7 +43,11 @@ import { PdfPageNumbersModal } from './components/pdf-tools/PdfPageNumbersModal'
 import { PdfToMarkdownModal } from './components/pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from './components/image-tools/ImageResizeModal'
 import { RemoveBackgroundModal } from './components/image-tools/RemoveBackgroundModal'
+import { PhotoProfileMakerModal } from './components/image-tools/PhotoProfileMakerModal'
+import { WebpToJpgModal } from './components/image-tools/WebpToJpgModal'
 import { UrlShortenerModal } from './components/tools/UrlShortenerModal'
+import { QrCodeGeneratorModal } from './components/tools/QrCodeGeneratorModal'
+import { MediaDownloaderModal } from './components/tools/MediaDownloaderModal'
 import { ContactForm } from './components/builder/ContactForm'
 import { SectionOrderForm } from './components/builder/SectionOrderForm'
 import { SummaryForm } from './components/builder/SummaryForm'
@@ -75,6 +79,10 @@ import {
   Archive,
   Minimize2,
   Sparkles,
+  Focus,
+  CircleUser,
+  FileImage,
+  QrCode,
   Link2,
   Image as ImageIcon,
   Layers3,
@@ -179,6 +187,11 @@ export function App() {
   const [pdfToolsTab, setPdfToolsTab] = useState<'merge' | 'split' | 'compress' | 'img2pdf' | 'pdf2img'>('merge')
   const [showImageResizeModal, setShowImageResizeModal] = useState(false)
   const [showRemoveBackgroundModal, setShowRemoveBackgroundModal] = useState(false)
+  const [showPhotoProfileModal, setShowPhotoProfileModal] = useState(false)
+  const [showWebpToJpgModal, setShowWebpToJpgModal] = useState(false)
+  const [showQrCodeModal, setShowQrCodeModal] = useState(false)
+  const [showMediaDownloaderModal, setShowMediaDownloaderModal] = useState(false)
+  const [removeBgInitialMode, setRemoveBgInitialMode] = useState<string>('transparent')
   const [showUrlShortenerModal, setShowUrlShortenerModal] = useState(false)
   const [importUndo, setImportUndo] = useState<{
     draftId: string
@@ -409,7 +422,40 @@ export function App() {
       icon: Sparkles,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
-      action: () => setShowRemoveBackgroundModal(true)
+      action: () => {
+        setRemoveBgInitialMode('transparent')
+        setShowRemoveBackgroundModal(true)
+      }
+    },
+    {
+      title: 'Blur Background',
+      category: 'image' as ToolCategory,
+      desc: 'Buat efek bokeh/blur artistik pada latar belakang foto dengan subjek tetap tajam secara instan.',
+      icon: Focus,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => {
+        setRemoveBgInitialMode('blur')
+        setShowRemoveBackgroundModal(true)
+      }
+    },
+    {
+      title: 'Photo Profile Maker',
+      category: 'image' as ToolCategory,
+      desc: 'Buat foto profil & avatar media sosial (LinkedIn, WA, IG) dengan crop lingkaran, latar warna/gradasi/blur, dan border kustom.',
+      icon: CircleUser,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowPhotoProfileModal(true)
+    },
+    {
+      title: 'WebP ke JPG',
+      category: 'image' as ToolCategory,
+      desc: 'Konversi gambar WebP ke JPG dengan fidelitas ukuran asli, opsi warna latar, dan kontrol kualitas.',
+      icon: FileImage,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowWebpToJpgModal(true)
     },
     {
       title: 'Resize Gambar',
@@ -499,6 +545,15 @@ export function App() {
       action: () => setShowPdfToMarkdownModal(true)
     },
     {
+      title: 'Generate QR Code',
+      category: 'convert' as ToolCategory,
+      desc: 'Buat kode QR instan dari tautan atau teks dengan kustomisasi warna, ukuran, dan ekspor PNG & SVG.',
+      icon: QrCode,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowQrCodeModal(true)
+    },
+    {
       title: 'Pemendek URL',
       category: 'organize' as ToolCategory,
       desc: 'Buat tautan singkat berlatensi rendah di edge serverless untuk CV online, dokumen, atau portofolio.',
@@ -506,6 +561,15 @@ export function App() {
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
       action: () => setShowUrlShortenerModal(true)
+    },
+    {
+      title: 'Pengunduh Media',
+      category: 'convert' as ToolCategory,
+      desc: 'Unduh video MP4 (maks 720p) dan gambar publik dari YouTube, Instagram, dan TikTok secara aman.',
+      icon: Download,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowMediaDownloaderModal(true)
     }
   ]
   const normalizedToolQuery = toolQuery.trim().toLowerCase()
@@ -580,11 +644,11 @@ export function App() {
       {activeWorkspace === 'builder' && (
         <>
       {/* Switcher Tab Mobile (Editor vs Preview) */}
-      <div className="lg:hidden shrink-0 p-1.5 bg-[#FAF9F6] dark:bg-stone-900 border-b border-stone-200 dark:border-stone-800 transition-colors">
-        <div className="relative grid grid-cols-2 p-1 bg-stone-200/70 dark:bg-stone-800 rounded-xl">
+      <div className="lg:hidden shrink-0 px-3 py-2 bg-[#fffaf1] dark:bg-stone-900 border-b border-[#b7ddd4] dark:border-stone-800 transition-colors">
+        <div className="relative grid grid-cols-2 p-1 bg-[#dff8f0] dark:bg-stone-800 border border-[#b7ddd4] dark:border-stone-700 rounded-2xl shadow-2xs">
           <span
             aria-hidden="true"
-            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-lg bg-white dark:bg-stone-900 shadow-2xs transition-transform duration-300 ease-out ${
+            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white dark:bg-stone-900 shadow-[0_4px_14px_rgba(15,118,110,0.12)] transition-transform duration-300 ease-out ${
               mobileTab === 'preview' ? 'translate-x-full' : 'translate-x-0'
             }`}
           />
@@ -617,13 +681,14 @@ export function App() {
       <main className="flex-1 min-h-0 flex overflow-hidden animate-fade-in">
         {/* Kolom Kiri: Form Editor */}
         <section
-          className={`w-full lg:w-[44%] min-h-0 flex-col bg-white dark:bg-stone-900 border-r border-stone-200/90 dark:border-stone-800 transition-colors ${
+          className={`w-full lg:w-[44%] min-w-0 min-h-0 flex-col bg-[#fffdf8] dark:bg-stone-900 border-r border-[#b7ddd4] dark:border-stone-800 transition-colors ${
             mobileTab === 'editor' ? 'flex' : 'hidden lg:flex'
           }`}
+          data-testid="builder-editor-panel"
         >
           {/* Section Tabs Navigation */}
           <nav
-            className="shrink-0 flex overflow-x-auto border-b border-stone-200 dark:border-stone-800 px-2 sm:px-4 gap-0.5 scrollbar-none bg-[#FAF9F6]/60 dark:bg-stone-900/60 transition-colors"
+            className="shrink-0 flex overflow-x-auto border-b border-[#b7ddd4] dark:border-stone-800 px-2 sm:px-4 gap-1 bg-[#effbf6]/90 dark:bg-stone-900/60 transition-colors [scrollbar-width:thin] sm:scrollbar-none"
             aria-label="Bagian CV"
           >
             {SECTIONS.map(s => {
@@ -636,20 +701,20 @@ export function App() {
                   type="button"
                   onClick={() => setActiveSection(s.id)}
                   aria-current={isActive ? 'step' : undefined}
-                  className={`group relative flex items-center gap-1.5 px-3 py-3 text-xs font-semibold whitespace-nowrap transition-colors duration-150 ${
-                    isActive ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                  className={`group relative flex items-center gap-1.5 px-3 py-3 text-xs font-bold whitespace-nowrap rounded-t-xl transition-colors duration-150 ${
+                    isActive ? 'bg-white/80 text-[#0f766e] dark:bg-stone-800/70 dark:text-teal-300' : 'text-[#53676b] dark:text-stone-400 hover:bg-white/50 hover:text-[#26343a] dark:hover:text-stone-200'
                   }`}
                   data-testid={`tab-${s.id}`}
                 >
                   <Icon
                     className={`w-3.5 h-3.5 transition-colors ${
-                      isActive ? 'text-teal-800 dark:text-teal-400' : 'text-stone-500 dark:text-stone-500 group-hover:text-stone-700 dark:group-hover:text-stone-300'
+                      isActive ? 'text-[#079875] dark:text-teal-400' : 'text-[#66807d] dark:text-stone-500 group-hover:text-[#26343a] dark:group-hover:text-stone-300'
                     }`}
                   />
                   {s.label}
                   <span
                     aria-hidden="true"
-                    className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-teal-800 dark:bg-teal-400 origin-center transition-transform duration-300 ease-out ${
+                    className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#079875] dark:bg-teal-400 origin-center transition-transform duration-300 ease-out ${
                       isActive ? 'scale-x-100' : 'scale-x-0'
                     }`}
                   />
@@ -659,14 +724,14 @@ export function App() {
           </nav>
 
           {/* Form Content Area (scroll independen) */}
-          <div ref={formScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+          <div ref={formScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[linear-gradient(180deg,#fffdf8_0%,#fff8ec_100%)] dark:bg-none dark:bg-stone-900">
           <div className="p-4 sm:p-6 max-w-2xl mx-auto w-full">
             {!draft ? (
               <div
                 className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in"
                 data-testid="builder-empty-state"
               >
-                <div className="w-12 h-12 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-[#dff8f0] dark:bg-stone-800 text-[#079875] dark:text-teal-300 border border-[#b7ddd4] dark:border-stone-700 flex items-center justify-center shadow-2xs">
                   <FileText className="w-6 h-6" />
                 </div>
                 <div className="max-w-sm">
@@ -679,7 +744,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-xl transition shadow-2xs cursor-pointer"
+                    className="px-4 py-2.5 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full transition shadow-[0_8px_20px_rgba(7,152,117,0.2)] cursor-pointer"
                     data-testid="btn-builder-create-new"
                   >
                     + Buat CV Baru Sekarang
@@ -687,7 +752,7 @@ export function App() {
                   <button
                     type="button"
                     onClick={handleImportFromDashboard}
-                    className="px-4 py-2 text-xs font-semibold text-stone-800 dark:text-stone-200 bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl transition cursor-pointer"
+                    className="px-4 py-2.5 text-xs font-bold text-[#17383c] dark:text-stone-200 bg-white dark:bg-stone-800 border-2 border-[#079875] dark:border-teal-600 hover:bg-[#effbf6] dark:hover:bg-stone-700 rounded-full transition cursor-pointer"
                     data-testid="btn-builder-import"
                   >
                     Impor Berkas
@@ -756,12 +821,12 @@ export function App() {
 
           {/* Footer Navigasi Langkah */}
           {draft && (
-            <div className="shrink-0 border-t border-stone-200 dark:border-stone-800 bg-[#FAF9F6]/95 dark:bg-stone-900/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3 transition-colors">
+            <div className="shrink-0 border-t border-[#b7ddd4] dark:border-stone-800 bg-[#effbf6]/95 dark:bg-stone-900/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3 transition-colors shadow-[0_-8px_24px_rgba(15,118,110,0.05)]">
               <button
                 type="button"
                 onClick={() => goToSection(activeIndex - 1)}
                 disabled={isFirstSection}
-                className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 rounded-lg border border-stone-300 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-[#40565b] dark:text-stone-300 bg-white dark:bg-stone-800 rounded-full border border-[#b7ddd4] dark:border-stone-700 hover:bg-[#fffaf1] dark:hover:bg-stone-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Bagian sebelumnya"
                 data-testid="btn-section-prev"
               >
@@ -777,7 +842,7 @@ export function App() {
                 </div>
                 <div className="h-1 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-teal-800 dark:bg-teal-400 transition-[width] duration-500 ease-out"
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#079875,#a3e635)] dark:bg-teal-400 transition-[width] duration-500 ease-out"
                     style={{ width: `${((activeIndex + 1) / SECTIONS.length) * 100}%` }}
                   />
                 </div>
@@ -787,7 +852,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => openExportModal('pdf')}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-lg shadow-2xs transition"
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
                   data-testid="btn-section-finish"
                 >
                   <Download className="w-4 h-4" />
@@ -797,7 +862,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => goToSection(activeIndex + 1)}
-                  className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-white bg-teal-800 hover:bg-teal-900 dark:bg-teal-700 dark:hover:bg-teal-600 rounded-lg shadow-2xs transition"
+                  className="flex items-center gap-1 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
                   aria-label="Bagian berikutnya"
                   data-testid="btn-section-next"
                 >
@@ -811,9 +876,10 @@ export function App() {
 
         {/* Kolom Kanan: Live Preview A4 */}
         <aside
-          className={`w-full lg:w-[56%] h-full min-h-0 ${
+          className={`w-full lg:w-[56%] min-w-0 h-full min-h-0 bg-[#e8f7f1] dark:bg-stone-950 ${
             mobileTab === 'preview' ? 'block animate-fade-in' : 'hidden lg:block'
           }`}
+          data-testid="builder-preview-panel"
         >
           <ResumePreview draft={draft} onPageCountChange={setExportPageCount} />
         </aside>
@@ -1125,14 +1191,40 @@ export function App() {
 
       {/* Modal Hapus Latar Belakang */}
       <RemoveBackgroundModal
+        key={removeBgInitialMode}
         isOpen={showRemoveBackgroundModal}
         onClose={() => setShowRemoveBackgroundModal(false)}
+        initialBg={removeBgInitialMode}
+      />
+
+      {/* Modal Photo Profile Maker */}
+      <PhotoProfileMakerModal
+        isOpen={showPhotoProfileModal}
+        onClose={() => setShowPhotoProfileModal(false)}
+      />
+
+      {/* Modal WebP ke JPG */}
+      <WebpToJpgModal
+        isOpen={showWebpToJpgModal}
+        onClose={() => setShowWebpToJpgModal(false)}
       />
 
       {/* Modal Pemendek URL */}
       <UrlShortenerModal
         isOpen={showUrlShortenerModal}
         onClose={() => setShowUrlShortenerModal(false)}
+      />
+
+      {/* Modal Generate QR Code */}
+      <QrCodeGeneratorModal
+        isOpen={showQrCodeModal}
+        onClose={() => setShowQrCodeModal(false)}
+      />
+
+      {/* Modal Pengunduh Media Publik */}
+      <MediaDownloaderModal
+        isOpen={showMediaDownloaderModal}
+        onClose={() => setShowMediaDownloaderModal(false)}
       />
 
       {/* Modal Keamanan PDF (Unlock & Protect) */}

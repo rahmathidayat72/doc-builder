@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import time
 from pathlib import Path
@@ -14,6 +15,16 @@ from app.services.job_manager import (
     ConversionJobManager,
     JobBusyError,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_healthy_disk():
+    total = 100 * 1024 * 1024 * 1024
+    usage_healthy = shutil._ntuple_diskusage(
+        total, 20 * 1024 * 1024 * 1024, 80 * 1024 * 1024 * 1024
+    )
+    with patch("shutil.disk_usage", return_value=usage_healthy):
+        yield
 
 
 def test_job_manager_allows_only_one_active_job(tmp_path: Path):

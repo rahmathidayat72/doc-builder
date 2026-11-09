@@ -52,7 +52,7 @@ describe('Dashboard Component Suite', () => {
     )
 
     expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Rancang CV Unggul/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Satu Tempat,\s*Banyak Solusi Digital/i })).toBeInTheDocument()
     expect(screen.getByTestId('dashboard-drafts-empty')).toBeInTheDocument()
     expect(screen.getByText(/Belum ada CV yang dibuat/i)).toBeInTheDocument()
     expect(screen.getByTestId('stat-total-drafts')).toHaveTextContent('0')
@@ -238,11 +238,11 @@ describe('Dashboard Component Suite', () => {
 
     resolveCreate()
     await waitFor(() => {
-      expect(createBtn).toHaveTextContent('Buat CV Baru')
+      expect(createBtn).toHaveTextContent('Coba Sekarang')
     })
   })
 
-  it('menerapkan arah desain Editorial Paper & Forest Teal dengan tekstur kertas .paper-canvas tanpa kelas warna ungu (indigo/violet/purple)', () => {
+  it('menerapkan fondasi merek Satukit dan komposisi landing referensi tanpa kelas warna ungu', () => {
     const { container } = render(
       <Dashboard
         draft={sampleDraft}
@@ -260,9 +260,14 @@ describe('Dashboard Component Suite', () => {
     expect(container.innerHTML).not.toMatch(/indigo-|violet-|purple-/)
     const dashboardView = screen.getByTestId('dashboard-view')
     expect(dashboardView.className).toContain('paper-canvas')
-    expect(screen.getByTestId('btn-dashboard-create-cv').className).toContain('bg-teal-800')
+    expect(screen.getByTestId('btn-dashboard-create-cv')).toHaveTextContent('Coba Sekarang')
+    expect(screen.getByRole('heading', { name: /Fitur Unggulan Satukit/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Cara Menggunakan Satukit/i })).toBeInTheDocument()
     const builderCard = screen.getByTestId('card-workspace-builder')
     expect(builderCard.parentElement?.className).toContain('bg-white')
+    expect(builderCard.parentElement?.className).toContain('dark:bg-stone-900')
+    expect(screen.getByTestId('dashboard-drafts-list').className).toContain('dark:bg-stone-900')
+    expect(container.innerHTML).not.toContain('stone-850')
     expect(builderCard.className).not.toContain('paper-canvas')
   })
 

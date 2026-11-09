@@ -23,6 +23,14 @@ if (-not (Test-Path $IndexHtml)) {
     npm --prefix frontend run build
 }
 
+# 2.5 Cek model AI U2NetP
+$ModelFile = Join-Path $ScriptDir "backend\models\u2netp.onnx"
+if (-not (Test-Path $ModelFile)) {
+    Write-Host "[INFO] Mengunduh model AI U2NetP untuk fitur Hapus Latar Belakang Foto (4.3 MB)..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Force -Path (Join-Path $ScriptDir "backend\models") | Out-Null
+    Invoke-WebRequest -Uri "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx" -OutFile $ModelFile
+}
+
 # 3. Buka browser
 Start-Job -ScriptBlock {
     Start-Sleep -Seconds 2

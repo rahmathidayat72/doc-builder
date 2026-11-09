@@ -301,6 +301,24 @@ describe('App integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hapus pencarian alat' }))
     expect(screen.getByRole('heading', { name: 'Split PDF' })).toBeInTheDocument()
+
+    // Buka alat WebP ke JPG
+    fireEvent.change(search, { target: { value: 'webp' } })
+    expect(screen.getByRole('heading', { name: 'WebP ke JPG' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('heading', { name: 'WebP ke JPG' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-close-webp-modal')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-close-webp-modal'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Buka alat Generate QR Code
+    fireEvent.change(search, { target: { value: 'qr code' } })
+    expect(screen.getByRole('heading', { name: 'Generate QR Code' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('heading', { name: 'Generate QR Code' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-close-qr-modal')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-close-qr-modal'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('mengakses aplikasi tanpa hash membuka Beranda utama (Dashboard)', async () => {
@@ -311,7 +329,7 @@ describe('App integration', () => {
       expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
     })
     expect(window.location.hash).toBe('#/home')
-    expect(screen.getByRole('heading', { name: /Rancang CV Unggul/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Satu Tempat,\s*Banyak Solusi Digital/i })).toBeInTheDocument()
     expect(screen.getByTestId('card-workspace-builder')).toBeInTheDocument()
     expect(screen.getByTestId('card-workspace-tools')).toBeInTheDocument()
   })

@@ -19,15 +19,68 @@ status: "IN_PROGRESS"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
-current_phase: "phase-15"
+current_phase: "phase-13"
 current_task: null
-last_completed_task: "REBRAND-SATUKIT-015"
+last_completed_task: "HOTFIX-DARK-MODE-CONTRAST-001"
 blocked_reason: null
-last_updated: "2026-11-08"
+last_updated: "2026-11-09"
 ```
 
 ## Ringkasan Fokus
-Fase Rebranding Penuh ke **Satukit** (**Phase 15**) telah SELESAI 100% (`REBRAND-SATUKIT-001` s/d `REBRAND-SATUKIT-015` SELESAI):
+Hotfix kontras dark mode `HOTFIX-DARK-MODE-CONTRAST-001` **selesai dan terverifikasi**:
+1. Mengeliminasi kelas fiktif Tailwind `stone-850` pada `Dashboard.tsx` (kartu draf & direktori ruang kerja) dan `PdfEditorModal.tsx` menjadi `dark:bg-stone-900`.
+2. Menghilangkan bug teks putih di atas latar putih pada mode gelap.
+3. Menambahkan unit test regresi di `dashboard.test.tsx`.
+4. Seluruh verifikasi PASS (353/353 Vitest, 189/189 Pytest, 0 Oxlint error, Vite build lolos).
+
+Fitur Pengunduh Media Publik `FEAT-MEDIA-DOWNLOADER-001` (alat ke-25 pada katalog Alat Dokumen Satukit) **selesai dan terverifikasi**. Modal mandiri `MediaDownloaderModal.tsx` terdaftar pada `App.tsx` dengan ikon `Download` di kategori Konversi. Menyediakan fitur:
+1. Pemrosesan async berbasis worker background thread & antrean terisolasi (`media_download_jobs` & `media_download_usage`).
+2. Penegakan Anti-SSRF: verifikasi resolusi DNS nama host dan penolakan IP loopback, IP privat RFC1918, link-local, multicast, dan metadata cloud AWS/GCP/Azure.
+3. Batasan media: video MP4 maks 720p, 250 MB, dan durasi 30 menit tanpa transcoding CPU; ekstraksi gambar/carousel item pertama.
+4. Single-use delivery: tautan berlaku 15 menit, dan berkas di server langsung dibersihkan setelah pengunduhan pertama atau kedaluwarsa.
+5. Kuota dan pembatasan: rate limit 3 job/jam dan kuota 1 GB/hari per akun dan per IP, maksimal 1 job aktif per pengguna dan 2 kapasitas antrean global.
+6. Perlindungan legalitas & hak cipta: penolakan skema non-HTTPS, penolakan playlist/profil/channel/livestream, dan kewajiban centang konfirmasi hak cipta oleh pengguna.
+7. Verifikasi lengkap: 9/9 Pytest (`test_media_downloader.py`), 189/189 Pytest full suite PASS, 7/7 Vitest (`media_downloader.test.tsx`), 353/353 Vitest full suite PASS, `stat-tools-count` 25 alat di dashboard E2E, Vite build PASS, Oxlint 0 error.
+
+Fitur Generate QR Code mandiri `FEAT-QR-GENERATOR-001` (alat ke-24 pada katalog Alat Dokumen Satukit) **selesai dan terverifikasi**. Modal mandiri `QrCodeGeneratorModal.tsx` terdaftar pada `App.tsx` dengan ikon `QrCode` di kategori Konversi. Menyediakan fitur:
+1. Konversi 100% lokal di browser via library `qrcode@1.5.4` (ECC Level M, margin 4 modul), tanpa upload jaringan atau pencatatan server.
+2. Mode input fleksibel: Teks Biasa dan Tautan (URL) dengan penghitungan byte UTF-8 akurat (maks 2.000 byte).
+3. Validasi keamanan ketat: penolakan skema non-HTTP/HTTPS (`javascript:`, `data:`, `file:`) dan penolakan URL dengan kredensial tertanam (`user:pass@host`).
+4. Pengaturan visual: preset ukuran ekspor (256×256, 512×512, 1024×1024 px; default 512 px) serta kustomisasi warna modul dan latar belakang (preset Classic, Forest, Navy, Charcoal, serta HTML5 color pickers).
+5. Validasi rasio kontras warna: deteksi luminansi relatif dan rasio kontras minimum 3:1; otomatis memblokir generate dan unduhan jika modul lebih terang dari latar atau kontras tidak memadai untuk pemindaian.
+6. Tombol eksekusi manual ("Generate QR Code") dengan status usang (stale indicator) jika input diubah setelah generate.
+7. Opsi ekspor ganda: unduh gambar bitmap PNG (`satukit-qr-code.png`) dan gambar vektor tajam SVG (`satukit-qr-code.svg`).
+8. Verifikasi: 14/14 Vitest unit tests (`qr_code_generator.test.tsx`), 346/346 Vitest full suite PASS, 180/180 Pytest backend PASS, Vite build PASS, Oxlint 0 error, 0 axe accessibility violations.
+
+Fitur WebP ke JPG mandiri `FEAT-WEBP-TO-JPG-001` (alat ke-23 pada katalog Alat Dokumen Satukit) **selesai dan terverifikasi**. Modal mandiri `WebpToJpgModal.tsx` terdaftar pada `App.tsx` dengan ikon `FileImage`. Menyediakan fitur:
+1. Konversi 100% lokal via browser Canvas API (`toBlob('image/jpeg', quality)`) tanpa unggah atau beban server.
+2. Fidelitas ukuran penuh: menjaga dimensi, resolusi, dan rasio aspek asli citra tanpa crop atau downscaling paksa.
+3. Penanganan transparansi WebP: perataan latar kanvas dengan default warna Putih (`#FFFFFF`), preset warna (Hitam, Abu-abu, Krem), dan color picker kustom sebelum digambar.
+4. Kontrol kualitas kompresi JPG: slider rentang 60%–100% dengan default rekomendasi 92%.
+5. Validasi keamanan & batas memori: batas ukuran maksimal 25 MB, batas dimensi 64 juta piksel (8000×8000), serta verifikasi struktur header magic bytes `RIFF` (0..3) dan `WEBP` (8..11).
+6. Penanganan WebP animasi: konversi bingkai (frame) pertama secara utuh disertai catatan informatif pada antarmuka.
+7. Verifikasi: 16/16 Vitest unit tests (`webp_to_jpg.test.tsx`), 332/332 Vitest full suite PASS, 180/180 Pytest backend PASS, Vite build PASS, Oxlint 0 error, 0 axe accessibility violations.
+
+Fitur Photo Profile Maker mandiri `FEAT-PROFILE-MAKER-001` (alat ke-22 pada katalog Alat Dokumen Satukit) **selesai dan terverifikasi**. Modal mandiri `PhotoProfileMakerModal.tsx` terdaftar pada `App.tsx` dengan ikon `CircleUser`. Menyediakan fitur:
+1. Mode subjek foto: Foto Asli (cepat lokal tanpa beban server) dan Hapus Latar Belakang (model segmentasi AI U2NetP lokal).
+2. Mode pemotongan objek (Fit Mode) & Safe Headroom Avatar: default awal saat foto dipilih atau diunggah adalah "Pas Utuh (Tidak Terpotong)" (`object-contain`). Bingkai avatar lingkaran secara otomatis menerapkan safe headroom padding 32px (12px untuk persegi), dan penskalaan ekspor kanvas disinkronkan 1:1 (`targetSize - safePadding * 2`) sehingga kepala dan rambut subjek tidak terpotong oleh kelengkungan busur atas lingkaran avatar sejak pertama kali dibuka. Opsi "Isi Penuh (Crop Frame)" tetap tersedia via selector jika pengguna menginginkan crop penuh.
+3. Bentuk avatar: Lingkaran (`circle`) dan Persegi (`square rounded-2xl`).
+4. Kontrol zoom dan anti-terpotong: rentang zoom diperluas menjadi 20%–300%, dilengkapi tombol Zoom Out (`btn-zoom-out`), Zoom In (`btn-zoom-in`), preset "Pas Utuh" (`btn-zoom-fit`) yang mempertahankan ukuran proporsional citra asli tanpa terpotong, preset 100%, serta wheel scroll pada kanvas pratinjau.
+5. Latar belakang: Transparan checkerboard, warna solid (Putih, Slate, Teal, Sky, Amber, Kustom), gradasi linear diagonal 135deg (Sunset, Ocean, Emerald), dan Blur Latar belakang asli (bokeh).
+6. Garis tepi (Border): pilihan tebal (0px, 4px, 8px, 14px) dan warna (Putih, Teal, Charcoal, Gold).
+7. Preset platform tujuan: Umum 512×512, HD 1080×1080, LinkedIn 400×400, WhatsApp 500×500, Instagram 1080×1080.
+8. Komposit canvas ekspor: unduh gambar profil PNG (transparan atau latar) dan JPG (latar putih untuk lingkaran), dengan penskalaan `Math.min` dan padding aman saat mode Pas Utuh agar hasil unduhan identik 1:1 tanpa pemotongan.
+9. Verifikasi: 17/17 Vitest unit tests (`photo_profile_maker.test.tsx`), 316/316 Vitest full suite PASS, 180/180 Pytest backend PASS, 1/1 Playwright dashboard spec PASS (22 alat), Oxlint 0 error, Vite build PASS, 0 axe accessibility violations.
+
+Fitur efek Blur Background foto `FEAT-BG-BLUR-001` **selesai dan terverifikasi**. Opsi "Blur Latar" ditambahkan ke selector gaya latar belakang di modal `RemoveBackgroundModal.tsx`. Pengguna dapat mengatur intensitas blur melalui slider (4–40 px) atau preset instan (Ringan 8px, Sedang 16px, Kuat 28px) dengan pratinjau bokeh real-time. Subjek hasil segmentasi AI U2NetP tetap tajam di lapisan depan dengan penjangkaran bawah ("mentok ke bawah"), sementara latar belakang asli diburamkan. Pengguna juga dapat memilih format ekspor (PNG atau JPG) saat mengunduh. Seluruh proses blur dilakukan di browser via Web APIs (HTML5 Canvas & CSS filter) tanpa beban komputasi tambahan di server.
+
+Fitur opsi ukuran pasfoto sebelum unduh `FEAT-BG-RESIZE-001` **selesai dan terverifikasi**. Modal Hapus Latar Belakang Foto (`RemoveBackgroundModal.tsx`) kini menyediakan preset ukuran standar: Asli (resolusi penuh), 2×3 cm (236×354 px), 3×4 cm (354×472 px — CPNS/BUMN/SKCK), 4×6 cm (472×709 px — Ijazah/Buku Nikah/Visa), dan 1:1 Persegi (600×600 px — Avatar profil). Panggung pratinjau menyesuaikan rasio aspek secara responsif. Unduh kanvas memotong subjek secara proporsional terpusat (`center cover`) dengan nama berkas deskriptif (`<nama>_<ukuran>_<warna>.png`).
+
+Task pembersihan visual Beranda dan penataan ulang draf `REBRAND-SATUKIT-021` **selesai dan terverifikasi**. Ornamen batik absolut (`batikLeft`, `batikRight`) pada pembungkus footer di `Dashboard.tsx` telah dieliminasi sehingga tidak lagi bocor menimpa Meja Draf Pengguna. Wadah kartu draf disatukan menjadi kontainer tunggal `rounded-2xl divide-y border` dengan sorotan item aktif `border-l-4 border-l-teal-700 bg-teal-50/70`, simetris dengan Direktori Ruang Kerja. Seluruh tipografi teks deskripsi dan langkah kerja diperbarui ke minimum `>= 13px` untuk memenuhi quality gate Playwright E2E accessibility (3/3 passing).
+
+Task penyesuaian mega menu horizontal CV Builder `REBRAND-SATUKIT-020` **selesai dan terverifikasi**. Kolom Desain & Format dihilangkan dari mega menu karena sudah tersedia di toolbar konteks Builder. Mega menu kini berfokus pada 3 kolom menu utama: Mulai & Kelola (Buat Baru, Draf, Impor), Optimasi & Ekspor (Skor ATS, Unduh PDF, Unduh Word, Cetak), serta Kartu Standar ATS 2026 dengan background solid `#fffdfa` bebas ghosting teks halaman bawah.
+
+Fase Rebranding Penuh ke **Satukit** (**Phase 15**) tercatat selesai untuk `REBRAND-SATUKIT-001` s/d `REBRAND-SATUKIT-020`:
 - Pixel-Perfect Mockup Landing Page Satukit & Engine Dark Mode Penuh (`REBRAND-SATUKIT-011` s/d `REBRAND-SATUKIT-015`, 2026-11-08): Menyesuaikan tampilan Landing Page Beranda Satukit sama persis dengan konsep visual mockup `Satukit_Landing_Page_Concept.png`. Mengintegrasikan hero lanskap budaya siluet candi & batik Kawung, tagline brush underline "Satu Tempat, Banyak Solusi Digital", maskot Kitu wadah besek + speech bubble + 3 floating badges (100% Gratis, Super Cepat, Tanpa Login & Aman), quick category bar (7 utilitas interaktif), 4 kartu fitur unggulan Kitu (CV Builder ATS, Edit & Sentuh Foto, Konversi & Kelola PDF, Pendekkan Tautan), banner 3 langkah mudah, serta integrasi draf CV lokal. Mengimplementasikan engine Dark Mode global (`ThemeContext.tsx`, `ThemeToggle.tsx`, `@variant dark`, script anti-FOUC di `index.html`) dengan sakelar ☀️/🌙 di Navbar dan persistensi di `localStorage` (`satukit_theme`). Menyelaraskan seluruh ruang kerja (CV Builder editor, kanvas A4 studio, ATS Optimizer, direktori Tools, modal utilitas, Footer) dalam mode terang dan gelap serasi. Verifikasi menyeluruh: 293/293 Vitest unit tests lulus (43 files), 7/7 accessibility tests (0 axe violations), Playwright E2E batched multi-viewport (1440, 1024, 820, 768, 390 px, zoom 200%, CLS <= 0.1, tipografi >= 13px, dark mode toggle) lulus, 180/180 Pytest backend lulus, dan secret scan bersih.
 - Seluruh rangkaian fase implementasi desktop/lokal (Fase 01 s/d Fase 09) telah SELESAI 100%. **Phase 10 (VPS Foundation & Security Hardening)** telah SELESAI (`TASK-10.1` dan `TASK-10.2`). Fitur prioritas **Hapus Latar Belakang Foto (U2NetP AI)** pada **Phase 13** telah SELESAI (`TASK-13.1`). **Phase 12 (Standalone Serverless URL Shortener & UI Integration)** telah SELESAI 100% (`TASK-12.1`, `TASK-12.2`, `TASK-12.3`, dan `TASK-12.4` SELESAI):
 - Frontend URL Shortener Modal & Backend Adapter Integration (`TASK-12.4`, 2026-11-08): Mengintegrasikan fitur Pemendek URL ke antarmuka utama aplikasi Doc-builder. Menambahkan kartu alat "Pemendek URL" pada katalog Alat Dokumen (`App.tsx`, menggenapkan menjadi 20 alat dokumen aktif dengan badge "Baru" dan ikon `Link2`). Membangun komponen modal interaktif `UrlShortenerModal.tsx` yang dilengkapi validasi Anti-SSRF (skema HTTPS publik), generator slug acak 6 karakter, kartu hasil tautan singkat dengan tombol salin satu-klik dan tombol uji, riwayat tautan sesi pengguna (`localStorage`), serta link pintas ke Portal Admin Zero Trust. Menyediakan adapter backend FastAPI (`/api/shortener/create` dan `/api/shortener/config` di `shortener.py`) yang menjembatani frontend ke Cloudflare Workers edge dengan tanda tangan HMAC rahasia server atau SQLite fallback lokal. Verifikasi: 280/280 Vitest frontend tests (7/7 `url_shortener.test.tsx`, 7/7 `accessibility.test.tsx`), 179/179 Pytest backend (6/6 `test_shortener_api.py`), Vite build PASS, Ruff check PASS.
