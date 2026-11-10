@@ -1,5 +1,5 @@
 """Router Adapter Layanan Pemendek URL untuk Frontend Satukit
-Menghubungkan antarmuka Satukit ke Cloudflare Workers Edge API (atau Local Fallback).
+Menghubungkan antarmuka Satukit ke Cloudflare Workers Edge API (atau Local Fallback PostgreSQL).
 """
 
 from __future__ import annotations
@@ -9,18 +9,21 @@ import hmac
 import ipaddress
 import re
 import secrets
-import sqlite3
 import string
 import time
 from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.core.config import settings
+from app.db.repositories.shortener_repository import ShortenerRepository
 
 router = APIRouter(prefix="/shortener", tags=["shortener"])
+redirect_router = APIRouter(tags=["redirect"])
 
 SLUG_REGEX = re.compile(r"^[a-zA-Z0-9_-]{1,100}$")
 
@@ -109,29 +112,18 @@ def generate_random_slug(length: int = 6) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def get_fallback_db() -> sqlite3.Connection:
-    """Membuka koneksi database SQLite lokal untuk fallback offline."""
-    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(settings.SHORTENER_FALLBACK_DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS urls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            slug TEXT UNIQUE NOT NULL,
-            destination_url TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'active'
-                CHECK(status IN ('active', 'revoked', 'tombstone')),
-            click_count INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            revoked_at TEXT,
-            last_accessed_at TEXT
-        );
-        """
-    )
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_urls_slug ON urls(slug);")
-    conn.commit()
-    return conn
+def get_shortener_repo() -> ShortenerRepository:
+    """Mengembalikan repository shortener aktif (PostgreSQL atau isolated SQLite fallback)."""
+    default_sqlite_path = settings.BASE_DIR / "data" / "shortener_fallback.db"
+    if settings.SHORTENER_FALLBACK_DB_PATH != default_sqlite_path:
+        return ShortenerRepository.from_db_path(settings.SHORTENER_FALLBACK_DB_PATH)
+    try:
+        repo = ShortenerRepository()
+        with repo._session() as session:
+            session.execute(select(1))
+        return repo
+    except Exception:
+        return ShortenerRepository.from_db_path(settings.SHORTENER_FALLBACK_DB_PATH)
 
 
 @router.post("/create")
@@ -194,45 +186,36 @@ async def create_short_url(payload: CreateShortUrlRequest, request: Request):
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=err
                 )
     except (httpx.RequestError, httpx.TimeoutException):
-        # Edge tidak merespons / offline -> gunakan Local SQLite Fallback
+        # Edge tidak merespons / offline -> gunakan Local Fallback
         pass
 
-    # 2. Local SQLite Fallback
-    conn = get_fallback_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, status FROM urls WHERE slug = ?", (slug,))
-        row = cursor.fetchone()
-        if row:
-            if row["status"] in ("revoked", "tombstone"):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        "Slug ini telah dicabut dan dilarang digunakan kembali "
-                        "secara permanen (no slug reuse)."
-                    ),
-                )
+    # 2. Local Fallback via ShortenerRepository
+    repo = get_shortener_repo()
+    existing = repo.get_by_slug(slug)
+    if existing:
+        if existing["status"] in ("revoked", "tombstone"):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Slug ini telah digunakan oleh tautan aktif lain.",
+                detail=(
+                    "Slug ini telah dicabut dan dilarang digunakan kembali "
+                    "secara permanen (no slug reuse)."
+                ),
             )
-
-        cursor.execute(
-            "INSERT INTO urls (slug, destination_url, status) VALUES (?, ?, 'active')",
-            (slug, dest_url),
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Slug ini telah digunakan oleh tautan aktif lain.",
         )
-        conn.commit()
 
-        return {
-            "success": True,
-            "slug": slug,
-            "destination_url": dest_url,
-            "short_url": f"{edge_url}/{slug}",
-            "source": "local-fallback",
-            "status": "active",
-        }
-    finally:
-        conn.close()
+    repo.create(slug=slug, destination_url=dest_url)
+
+    return {
+        "success": True,
+        "slug": slug,
+        "destination_url": dest_url,
+        "short_url": f"{edge_url}/{slug}",
+        "source": "local-fallback",
+        "status": "active",
+    }
 
 
 @router.get("/config")
@@ -242,3 +225,24 @@ async def get_shortener_config():
         "base_url": settings.SHORTENER_EDGE_URL.rstrip("/"),
         "admin_portal_url": f"{settings.SHORTENER_EDGE_URL.rstrip('/')}/admin",
     }
+
+
+@redirect_router.get("/s/{slug}")
+def redirect_short_url(slug: str):
+    """Handler HTTP 302 Redirect Lokal untuk tautan singkat di fallback persistensi."""
+    repo = get_shortener_repo()
+    result = repo.record_click(slug)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tautan singkat tidak ditemukan.",
+        )
+
+    dest_url, link_status = result
+    if link_status in ("revoked", "tombstone"):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Tautan singkat ini telah dicabut.",
+        )
+
+    return RedirectResponse(url=dest_url, status_code=status.HTTP_302_FOUND)

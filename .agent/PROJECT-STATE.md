@@ -19,14 +19,24 @@ status: "IN_PROGRESS"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
-current_phase: "phase-13"
+current_phase: "phase-16"
 current_task: null
-last_completed_task: "HOTFIX-DARK-MODE-CONTRAST-001"
+last_completed_task: "DB-POSTGRES-007"
 blocked_reason: null
-last_updated: "2026-11-09"
+last_updated: "2026-11-10"
 ```
 
 ## Ringkasan Fokus
+Migrasi PostgreSQL Phase 16 (`DB-POSTGRES-001` hingga `DB-POSTGRES-007`) **selesai dan terverifikasi**:
+1. Setup dependensi SQLAlchemy 2, Alembic, psycopg binary, dan konfigurasi `DATABASE_URL`.
+2. Model deklaratif 7 tabel di `backend/app/db/models.py` dan script migrasi baseline Alembic `001_initial_schema.py`.
+3. Abstraksi `AuthRepository` dan `AuthService` bermigrasi penuh mendelegasikan query ke repository relasional.
+4. `ShortenerRepository` dan rute redirect publik `GET /s/{slug}` (302/404/410) terpasang dengan counter klik atomik.
+5. Uji konkurensi, race condition, transaction rollback, dan proteksi SQL injection lolos pengujian.
+6. Hardening PostgreSQL VPS (DEC-021: 280 MB peak RAM < 400 MB target, loopback 127.0.0.1, least-privilege non-superuser user).
+7. SQLite Retirement Gate lolos: startup backend tidak lagi menciptakan atau menginisialisasi `docbuilder.db`.
+8. Verifikasi menyeluruh: 210/210 Pytest PASS (0 regresi), 0 lint error.
+
 Hotfix kontras dark mode `HOTFIX-DARK-MODE-CONTRAST-001` **selesai dan terverifikasi**:
 1. Mengeliminasi kelas fiktif Tailwind `stone-850` pada `Dashboard.tsx` (kartu draf & direktori ruang kerja) dan `PdfEditorModal.tsx` menjadi `dark:bg-stone-900`.
 2. Menghilangkan bug teks putih di atas latar putih pada mode gelap.

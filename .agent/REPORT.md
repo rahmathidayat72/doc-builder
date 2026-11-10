@@ -5625,3 +5625,370 @@ Lanjutkan ke `REBRAND-SATUKIT-010` (Full Rebranding Verification & Compatibility
 ### Status
 ✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-011` s/d `REBRAND-SATUKIT-015`).
 
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-001` — Arsitektur PostgreSQL, Driver psycopg, Setup Migration SQLAlchemy/Alembic
+**Requirement:** `BUS-017`, `NFR-PERF-006`, `NFR-REL-001`
+
+### Ringkasan
+Fondasi driver dan migration PostgreSQL terpasang:
+1. Menambahkan dependensi `sqlalchemy>=2.0.36`, `alembic>=1.14.0`, dan `psycopg[binary]>=3.2.0` pada `backend/pyproject.toml` dan menginstalnya ke virtualenv backend.
+2. Menambahkan konfigurasi `DATABASE_URL` pada `backend/app/core/config.py` yang membaca environment variable dengan fallback default `postgresql+psycopg://satukit_user:satukit_pass@127.0.0.1:5432/satukit`.
+3. Menyusun modul persistensi `backend/app/db/postgres.py` dengan SQLAlchemy 2 `Base`, factory `create_postgres_engine` dengan connection pool konservatif (size 5, overflow 10 untuk RAM 2.2 GiB co-located DEC-021), `SessionLocal`, serta context manager `get_db_session`.
+4. Menginisialisasi direktori migrasi Alembic (`backend/alembic.ini`, `backend/alembic/env.py`, `script.py.mako`, `versions/`) dan mengonfigurasi `env.py` agar runtime dinamis mengarah ke `settings.DATABASE_URL` dan `Base.metadata`.
+5. Menyusun unit test `backend/tests/test_postgres_setup.py` untuk validasi dependensi, parsing config, engine builder, dan integritas Alembic script directory (4/4 PASS).
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada penyimpangan material.
+- Arsitektur sinkron dipertahankan (YAGNI asyncpg, psycopg 3 sync driver).
+
+### File Dibuat
+- `backend/app/db/postgres.py`
+- `backend/alembic.ini`
+- `backend/alembic/env.py`
+- `backend/alembic/script.py.mako`
+- `backend/alembic/README`
+- `backend/tests/test_postgres_setup.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `backend/app/core/config.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Postgres Setup Unit Test | `pytest tests/test_postgres_setup.py` | PASS | 4/4 passed (driver, config, engine, alembic) |
+| Auth Regression Suite | `pytest tests/test_auth_api.py tests/test_auth_service.py` | PASS | 18/18 passed |
+| Python Lint | `ruff check app/core/config.py app/db/postgres.py alembic/env.py tests/test_postgres_setup.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Dependensi backend PostgreSQL (`sqlalchemy`, `alembic`, `psycopg`) terpasang.
+- [x] Konfigurasi `DATABASE_URL` PostgreSQL tersedia dan dapat di-override lewat env.
+- [x] Setup migrasi Alembic dan engine SQLAlchemy 2 siap digunakan untuk skema baseline.
+- [x] Seluruh unit test lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-001`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-002` (Skema PostgreSQL & Migration Baseline: users, oauth_accounts, user_sessions, auth_tokens, shortener fallback, media_downloader).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-002` — Skema PostgreSQL & Migration Baseline: users, oauth_accounts, user_sessions, auth_tokens, shortener fallback, media_downloader
+**Requirement:** `BUS-017`, `NFR-SEC-006`, `NFR-SEC-007`
+
+### Ringkasan
+Baseline skema PostgreSQL dan migrasi Alembic selesai dibangun:
+1. Menyusun model ORM deklaratif SQLAlchemy 2 di `backend/app/db/models.py` mencakup 7 tabel: `User`, `OAuthAccount`, `UserSession`, `AuthToken`, `ShortUrl`, `MediaDownloadJob`, dan `MediaDownloadUsage`.
+2. Menyusun migration script baseline Alembic `backend/alembic/versions/001_initial_schema.py` dengan fungsi `upgrade()` dan `downgrade()` atomik, foreign key cascade, dan indeks pencarian.
+3. Menghubungkan metadata model ke runner `alembic/env.py` dengan resolusi dinamis URL database.
+4. Membuat unit test siklus hidup migrasi di `backend/tests/test_postgres_migration.py`: menguji registrasi metadata 7 model, eksekusi `upgrade(head)` yang membuat seluruh tabel + kolom + FK, dan eksekusi `downgrade(base)` yang membersihkan seluruh tabel secara deterministik (PASS).
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Mencakup dua tabel Pengunduh Media (`media_download_jobs`, `media_download_usage`) agar tidak terjadi drift arsitektur.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `backend/app/db/models.py`
+- `backend/alembic/versions/001_initial_schema.py`
+- `backend/tests/test_postgres_migration.py`
+
+### File Diubah
+- `backend/alembic/env.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Migration Lifecycle Test | `pytest tests/test_postgres_migration.py` | PASS | 2/2 passed (metadata & upgrade/downgrade) |
+| Postgres Setup Unit Test | `pytest tests/test_postgres_setup.py` | PASS | 4/4 passed |
+| Auth Regression Suite | `pytest tests/test_auth_api.py tests/test_auth_service.py` | PASS | 18/18 passed |
+| Python Lint | `ruff check app/db/models.py alembic/versions/001_initial_schema.py tests/test_postgres_migration.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Skema PostgreSQL baseline mendefinisikan 7 tabel lengkap dengan relasi dan indeks.
+- [x] Migration script Alembic `001_initial_schema.py` lolos uji `upgrade` dan `downgrade`.
+- [x] Model deklaratif SQLAlchemy 2 terhubung ke `Base.metadata`.
+- [x] Seluruh unit test dan lint lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-002`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-003` (Abstraksi Repository Database & Migrasi AuthService ke PostgreSQL).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-003` — Abstraksi Repository Database & Migrasi AuthService ke PostgreSQL
+**Requirement:** `BUS-017`, `NFR-SEC-006`, `NFR-SEC-007`
+
+### Ringkasan
+Migrasi layer autentikasi ke abstraksi repository SQLAlchemy 2 selesai dilaksanakan:
+1. Membangun kelas repository `AuthRepository` di `backend/app/db/repositories/auth_repository.py` untuk mengabstraksi query data `User`, `OAuthAccount`, `UserSession`, dan `AuthToken` dengan SQLAlchemy 2 ORM syntax (`select`, `delete`, session context manager atomik).
+2. Menyediakan factory method adapter `AuthRepository.from_db_manager` untuk mempertahankan kompatibilitas terhadap instance `DatabaseManager` dan test fixture lama sampai tahap `DB-POSTGRES-007`.
+3. Merefaktor `backend/app/services/auth_service.py` agar murni mendelegasikan query persistensi ke `self.repo` (`AuthRepository`), menghilangkan seluruh string raw SQL dari service layer sambil mempertahankan kontrak publik `UserRecord`, exceptions, dan API signature.
+4. Menambahkan optimasi pada `validate_session` untuk mengenali token sesi guest lokal (`session_manager.verify_session`) dan menangani kegagalan koneksi database secara graceful.
+5. Menulis unit test repository di `backend/tests/test_auth_repository.py` untuk menguji siklus hidup CRUD user, session, oauth linkage, password reset token, dan dependency injection.
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Backward compatibility adapter dipertahankan.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `backend/app/db/repositories/__init__.py`
+- `backend/app/db/repositories/auth_repository.py`
+- `backend/tests/test_auth_repository.py`
+
+### File Diubah
+- `backend/app/services/auth_service.py`
+- `backend/pyproject.toml`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Auth & Postgres Tests | `pytest tests/test_auth_service.py tests/test_auth_api.py tests/test_auth_repository.py tests/test_postgres_setup.py tests/test_postgres_migration.py` | PASS | 27/27 passed (100%) |
+| ATS Endpoint Integration | `pytest tests/test_ats.py` | PASS | 6/6 passed |
+| Python Lint | `ruff check app/services/auth_service.py app/db/repositories/auth_repository.py tests/test_auth_repository.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Abstraksi `AuthRepository` selesai dibangun dengan SQLAlchemy 2 ORM.
+- [x] `AuthService` bersih dari query raw SQL dan murni mendelegasikan ke `AuthRepository`.
+- [x] Adapter kompatibilitas `from_db_manager` menjaga kelulusan test fixture lama.
+- [x] Seluruh unit test autentikasi dan integrasi lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-003`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-004` (Migrasi Local Shortener Fallback ke PostgreSQL & Handler HTTP 302 Redirect Lokal).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-004` — Migrasi Local Shortener Fallback ke PostgreSQL & Handler HTTP 302 Redirect Lokal (`GET /s/{slug}`)
+**Requirement:** `BUS-015`, `FR-048`, `NFR-PERF-004`
+
+### Ringkasan
+Migrasi local shortener fallback ke model persistensi relasional selesai diimplementasikan:
+1. Membuat repository `ShortenerRepository` di `backend/app/db/repositories/shortener_repository.py` yang memanfaatkan model deklaratif `ShortUrl` dari SQLAlchemy 2.
+2. Menggantikan seluruh query raw SQLite di `backend/app/api/shortener.py` dengan metode repository yang aman dari SQL injection.
+3. Membangun handler HTTP 302 Redirect publik `GET /s/{slug}` (serta alias `/api/s/{slug}`) yang melakukan lookup slug, mengecek status tautan, dan menaikkan counter `click_count` serta `last_accessed_at` secara atomik.
+4. Menambahkan pengecekan status: menghasilkan HTTP 404 jika slug tidak ditemukan, HTTP 410 (Gone) jika status 'revoked' atau 'tombstone', dan HTTP 302 Redirect ke destination URL jika status 'active'.
+5. Memperbarui `SecurityMiddleware` agar rute redirect publik `/s/` dan `/api/s/` dapat diakses langsung oleh pengunjung umum tanpa session cookie.
+6. Menulis pengujian komprehensif di `backend/tests/test_shortener_api.py` yang memvalidasi redirect 302, 404, 410, atomic counter, dan siklus hidup engine repository (10/10 PASS).
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `backend/app/db/repositories/shortener_repository.py`
+
+### File Diubah
+- `backend/app/db/repositories/__init__.py`
+- `backend/app/api/shortener.py`
+- `backend/app/main.py`
+- `backend/app/core/middleware.py`
+- `backend/tests/test_shortener_api.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Shortener Suite | `pytest tests/test_shortener_api.py` | PASS | 10/10 passed (302, 404, 410, atomic counter) |
+| Auth & Postgres Tests | `pytest tests/test_auth_service.py tests/test_auth_api.py tests/test_auth_repository.py tests/test_postgres_setup.py tests/test_postgres_migration.py` | PASS | 27/27 passed |
+| Python Lint | `ruff check app/api/shortener.py app/db/repositories/shortener_repository.py app/main.py tests/test_shortener_api.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Local shortener fallback menggunakan model `ShortUrl` dan `ShortenerRepository`.
+- [x] Endpoint `GET /s/{slug}` menghasilkan HTTP 302 ke URL tujuan dan mencatat klik atomik.
+- [x] Endpoint mengembalikan HTTP 404 jika slug tidak ditemukan.
+- [x] Endpoint mengembalikan HTTP 410 jika status 'revoked' atau 'tombstone'.
+- [x] Seluruh unit test shortener lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-004`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-005` (Pengujian Integrasi, Konkurensi, & Keamanan PostgreSQL).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-005` — Pengujian Integrasi, Konkurensi, & Keamanan PostgreSQL (Race condition, Transaction rollback, Injection guard)
+**Requirement:** `BUS-017`, `NFR-SEC-006`, `NFR-PERF-006`
+
+### Ringkasan
+Pengujian intensif konkurensi, integritas transaksi, dan pertahanan keamanan berhasil dilakukan:
+1. Menemukan dan memperbaiki potensi race condition pada penghitung klik tautan (`ShortenerRepository.record_click`) dengan mengimplementasikan pembaruan atomik di level SQL (`click_count = ShortUrl.click_count + 1`).
+2. Menemukan dan memperkuat `AuthService.register_user` dalam menangani race condition pendaftaran simultan multi-thread dengan menangkap `IntegrityError` unik dari database dan mengonversinya menjadi `UserAlreadyExistsError`.
+3. Menulis suite pengujian terdedikasi di `backend/tests/test_postgres_concurrency_security.py`:
+   - Pengujian konkurensi: 25 klik simultan via multi-thread menghasilkan akumulasi `click_count = 25` secara presisi.
+   - Pengujian race condition: 10 pendaftaran simultan dengan email yang sama hanya meloloskan tepat 1 pendaftaran sukses dan 9 lainnya ditolak secara deterministik.
+   - Pengujian rollback: Transaksi yang gagal di tengah proses dibatalkan menyeluruh tanpa menyisakan baris piatu (orphan rows).
+   - Pengujian SQL injection: Payload berbahaya klasik (`' OR '1'='1`, `DROP TABLE`, `UNION SELECT`) dinetralkan penuh oleh SQLAlchemy ORM parameter binding.
+   - Pengujian timing attack: Hash password Argon2id dan perbandingan waktu konstan berjalan stabil.
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `backend/tests/test_postgres_concurrency_security.py`
+
+### File Diubah
+- `backend/app/db/repositories/shortener_repository.py`
+- `backend/app/services/auth_service.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Concurrency & Security Tests | `pytest tests/test_postgres_concurrency_security.py` | PASS | 5/5 passed (100%) |
+| Full Database & Auth Suite | `pytest tests/test_auth_service.py tests/test_auth_api.py tests/test_auth_repository.py tests/test_postgres_setup.py tests/test_postgres_migration.py tests/test_shortener_api.py tests/test_postgres_concurrency_security.py` | PASS | 42/42 passed |
+| Python Lint | `ruff check app/services/auth_service.py app/db/repositories/shortener_repository.py tests/test_postgres_concurrency_security.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Concurrency test (multi-thread klik & pendaftaran simultan) lulus 100%.
+- [x] Transaction rollback terverifikasi atomik tanpa kebocoran data.
+- [x] SQL injection defense dan timing attack defense teruji aman.
+- [x] Seluruh unit test dan lint lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-005`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-006` (Hardening PostgreSQL Co-located di VPS: Tuning RAM shared_buffers 128MB, loopback listen 127.0.0.1, least-privilege app user).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-006` — Hardening PostgreSQL Co-located di VPS: Tuning RAM shared_buffers 128MB, loopback listen 127.0.0.1, least-privilege app user
+**Requirement:** `BUS-017`, `NFR-SEC-012`, `NFR-REL-007`
+
+### Ringkasan
+Hardening PostgreSQL co-located untuk target VPS 2.2 GiB RAM (DEC-021) selesai dikonfigurasi dan diuji:
+1. Menyusun file konfigurasi `scripts/postgres/satukit_postgres.conf`:
+   - `listen_addresses = '127.0.0.1'` (loopback only, tidak pernah terekspos ke WAN publik VPS).
+   - `shared_buffers = 128MB` (sesuai DEC-021 untuk batasan RAM 2.2 GiB).
+   - `work_mem = 4MB`, `maintenance_work_mem = 32MB`, `max_connections = 30`.
+   - Estimasi pemakaian RAM teoritis puncak: 280 MB (jauh di bawah batas plafon 400 MB).
+   - Enkripsi password `scram-sha-256` dan logging query lambat (>250ms).
+2. Menyusun script inisialisasi basis data dan least-privilege role di `scripts/postgres/init_least_privilege_user.sql`:
+   - Role `satukit_user` dibuat non-superuser (`NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT`).
+   - Mencabut izin skema `public` dari `PUBLIC`.
+   - Memberikan hak akses presisi (`CONNECT`, `USAGE`, `CREATE` on schema `public`).
+3. Membuat script verifikasi otomatis di `scripts/postgres/check_postgres_hardening.py` untuk validasi spesifikasi memori dan konfigurasi.
+4. Menambahkan unit test di `backend/tests/test_postgres_hardening.py` (2/2 PASS).
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `scripts/postgres/satukit_postgres.conf`
+- `scripts/postgres/init_least_privilege_user.sql`
+- `scripts/postgres/check_postgres_hardening.py`
+- `backend/tests/test_postgres_hardening.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Hardening Unit Test | `pytest tests/test_postgres_hardening.py` | PASS | 2/2 passed (memory budget & least privilege) |
+| Hardening Verification Script | `python scripts/postgres/check_postgres_hardening.py` | PASS | 280MB peak RAM < 400MB budget |
+| Python Lint | `ruff check ../scripts/postgres/check_postgres_hardening.py tests/test_postgres_hardening.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Konfigurasi PostgreSQL loopback 127.0.0.1 dan `shared_buffers` 128MB terdefinisi.
+- [x] Plafon memori RAM database total di bawah 400 MB terbukti.
+- [x] Script pembuatan role non-superuser least privilege siap pakai di VPS.
+- [x] Seluruh unit test hardening lulus 100%.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-006`).
+
+### Rekomendasi Berikutnya
+Lanjut ke `DB-POSTGRES-007` (SQLite Retirement Gate: Pemutusan dependency SQLite backend, pengalihan inisialisasi startup ke PostgreSQL).
+
+---
+
+## Hasil Task
+
+**Task:** `DB-POSTGRES-007` — SQLite Retirement Gate: Pemutusan dependency SQLite backend, pengalihan inisialisasi startup ke PostgreSQL
+**Requirement:** `BUS-017`, `NFR-REL-001`
+
+### Ringkasan
+Gerbang penghentian inisialisasi persistensi SQLite pada runtime utama backend (`DB-POSTGRES-007`) berhasil dicapai:
+1. Mengalihkan pemanggilan inisialisasi database di `backend/app/main.py` (`lifespan` dan `create_app`) dari `init_db()` SQLite ke `init_postgres_db()` SQLAlchemy metadata.
+2. Memverifikasi bahwa saat aplikasi dijalankan, berkas basis data SQLite lama `data/docbuilder.db` tidak lagi dibuat otomatis atau diakses saat startup.
+3. Menulis pengujian regresi terdedikasi di `backend/tests/test_sqlite_retirement.py` untuk mengonfirmasi bahwa eksekusi startup `create_app()` pada lingkungan bersih tidak menghasilkan berkas SQLite `docbuilder.db`.
+4. Menjalankan seluruh test suite Pytest backend secara komprehensif: 210/210 pengujian PASS (0 regresi).
+5. Seluruh rangkaian task Phase 16 (`DB-POSTGRES-001` hingga `DB-POSTGRES-007`) tuntas 100%.
+
+### Kesesuaian dengan Rencana
+- Scope/file/symbol/behavior sesuai plan.
+- Tidak ada penyimpangan material.
+
+### File Dibuat
+- `backend/tests/test_sqlite_retirement.py`
+
+### File Diubah
+- `backend/app/main.py`
+- `backend/app/db/postgres.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| SQLite Retirement Test | `pytest tests/test_sqlite_retirement.py` | PASS | 1/1 passed, no docbuilder.db created on startup |
+| Full Backend Test Suite | `pytest` | PASS | 210/210 passed (0 regresi) |
+| Python Lint | `ruff check tests/test_sqlite_retirement.py app/main.py app/db/postgres.py` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Inisialisasi startup backend dialihkan murni ke PostgreSQL.
+- [x] Berkas `docbuilder.db` tidak lagi diinisialisasi atau dibuat saat startup aplikasi.
+- [x] Seluruh suite pengujian Pytest backend lulus 100% tanpa regresi.
+
+### Status
+✅ Selesai dan terverifikasi (`DB-POSTGRES-007`). Phase 16 tuntas.
+
+
+
+
+
+
+
+

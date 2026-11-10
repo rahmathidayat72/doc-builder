@@ -16,20 +16,21 @@ from app.api.image_tools import router as image_tools_router
 from app.api.import_cv import router as import_router
 from app.api.media_downloader import router as media_downloader_router
 from app.api.pdf_tools import router as pdf_tools_router
+from app.api.shortener import redirect_router
 from app.api.shortener import router as shortener_router
 from app.core.config import settings
 from app.core.disk_guard import DiskSpaceExhaustedError
 from app.core.jobs import background_sweeper
 from app.core.middleware import SecurityMiddleware
 from app.core.security import session_manager
-from app.db.session import init_db
+from app.db.postgres import init_postgres_db
 from app.services.media_downloader import media_downloader
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Inisialisasi basis data SQLite dan tabel multi-user
-    init_db()
+    # Inisialisasi basis data PostgreSQL (DB-POSTGRES-007)
+    init_postgres_db()
     # Startup: jalankan background periodic sweeper & worker unduhan media
     background_sweeper.start()
     media_downloader.start()
@@ -42,8 +43,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    # Inisialisasi basis data SQLite dan tabel multi-user
-    init_db()
+    # Inisialisasi basis data PostgreSQL (DB-POSTGRES-007)
+    init_postgres_db()
     # Inisialisasi token lokal saat startup
     session_manager.initialize_token_file(settings.BASE_DIR)
 
@@ -102,6 +103,8 @@ def create_app() -> FastAPI:
     app.include_router(pdf_tools_router, prefix="/api")
     app.include_router(image_tools_router, prefix="/api")
     app.include_router(shortener_router, prefix="/api")
+    app.include_router(redirect_router)
+    app.include_router(redirect_router, prefix="/api")
     app.include_router(media_downloader_router, prefix="/api")
 
     # Sajikan static frontend SPA jika folder dist tersedia (mode rilis / distribusi lokal)

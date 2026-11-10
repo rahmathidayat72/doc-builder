@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Settings(BaseModel):
@@ -31,6 +32,12 @@ class Settings(BaseModel):
     TEMP_WORKSPACE_DIR: Path = BASE_DIR / "temp_workspace"
     DATA_DIR: Path = BASE_DIR / "data"
     DATABASE_PATH: Path = BASE_DIR / "data" / "docbuilder.db"
+    DATABASE_URL: str = Field(
+        default_factory=lambda: os.getenv(
+            "DATABASE_URL",
+            "postgresql+psycopg://satukit_user:satukit_pass@127.0.0.1:5432/satukit",
+        )
+    )
     MODELS_DIR: Path = BASE_DIR / "models"
     U2NETP_MODEL_PATH: Path = BASE_DIR / "models" / "u2netp.onnx"
 

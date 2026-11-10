@@ -82,7 +82,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             )
 
         # 2. Periksa Endpoint Terproteksi
-        if path.startswith("/api") and path not in PUBLIC_PATHS:
+        is_public = path in PUBLIC_PATHS or path.startswith("/s/") or path.startswith("/api/s/")
+        if path.startswith("/api") and not is_public:
             session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
                 LEGACY_SESSION_COOKIE_NAME
             )
