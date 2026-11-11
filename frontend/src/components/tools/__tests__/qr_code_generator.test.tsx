@@ -36,7 +36,7 @@ describe('QrCodeGeneratorModal Component Suite', () => {
     expect(screen.getByTestId('input-qr-text')).toBeInTheDocument()
     expect(screen.getByTestId('btn-generate-qr')).toBeInTheDocument()
     expect(screen.getByTestId('btn-close-qr-modal')).toBeInTheDocument()
-    expect(screen.getByText(/Diproses 100% lokal di browser/i)).toBeInTheDocument()
+    expect(screen.getByText(/Diproses langsung di browser/i)).toBeInTheDocument()
   })
 
   it('memanggil onClose saat tombol tutup atau Escape ditekan', () => {

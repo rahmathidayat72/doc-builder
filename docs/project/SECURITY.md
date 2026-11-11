@@ -6,7 +6,7 @@
 - **Data Owner:** User (Owner Proyek)
 - **Approval Authority:** User (Owner Proyek)
 - **Tanggal Evaluasi Awal:** 2026-10-20
-- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol dan risk register; 2026-10-27 — implementasi audit trail JSONL; 2026-11-08 — Ekspansi model ancaman komprehensif untuk transformasi online VPS multi-user: otentikasi Email/Password & Google OAuth, pencegahan account takeover, pembatasan kuota CV 90 hari, backup terenkripsi Cloudflare R2 (7 hari), isolasi ML worker U2NetP (concurrency 1, antrean max 2, timeout 30s), anti-SSRF pada URL Shortener Cloudflare Workers + D1, dan disk fail-closed.
+- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol dan risk register; 2026-10-27 — implementasi audit trail JSONL; 2026-11-08 — Ekspansi model ancaman komprehensif untuk transformasi online VPS multi-user: otentikasi Email/Password & Google OAuth, pencegahan account takeover, pembatasan kuota CV 30 hari, backup terenkripsi Cloudflare R2 (7 hari), isolasi ML worker U2NetP (concurrency 1, antrean max 2, timeout 30s), anti-SSRF pada URL Shortener Cloudflare Workers + D1, dan disk fail-closed; 2026-11-11 — Penutupan entry point publik Google Auth dan Shortener Management (AUTH-ACCESS-001, DEC-023).
 - **Status Gate:** PENDING (Evaluasi Gerbang 2 untuk rilis Online v2.0).
 - **Release Gate Berikutnya:** PENDING — Seluruh kontrol baru wajib divalidasi dan diuji sebelum rilis publik.
 
@@ -37,7 +37,7 @@ Status bukti yang dipakai:
 | Web/Application/API | APPLICABLE | THR-006: Serangan CSRF, XSS, SSRF (URL Shortener), atau abuse API tanpa otentikasi | Cookie `HttpOnly`, `Secure`, `SameSite=Lax`, CSRF header token, Origin allowlist. URL Shortener: validasi tujuan HTTPS publik, tolak IP private RFC 1918/loopback/link-local/reserved (Anti-SSRF). API shortener: HMAC signature verification | `TERVERIFIKASI` (CSRF/Origin); `TERENCANA (ONLINE)` (SSRF guard & HMAC auth di Phase 12 - `RISK-SEC-005`) | LOW (Owner) |
 | Privilege Escalation | APPLICABLE | THR-007: Pengguna mengakses atau mengubah CV milik pengguna lain (IDOR / Broken Object Level Authorization) | Strict ownership check pada backend (`WHERE id = :cv_id AND user_id = :current_user_id`); peran Admin khusus URL Shortener dilindungi Cloudflare Access + HMAC | `TERENCANA (ONLINE)` — model otorisasi ownership dirancang di Phase 11 | LOW (Owner) |
 | Lateral Movement | APPLICABLE | THR-008: Worker subprocess membobol host VPS atau jaringan internal | Eksekusi subprocess di bawah user sistem non-root (`docbuilder`); isolasi direktori workspace; pembatasan network egress OS-level | `GAP` pada offline sandbox (`RISK-SEC-003`); kontrol VPS non-root dirancang di Phase 10 | MEDIUM provisional (Owner; `RISK-SEC-003`) |
-| Persistence | APPLICABLE | THR-009: File temporer atau draf kedaluwarsa menumpuk dan menghabiskan disk | Per-job cleanup; periodic sweeper otomatis untuk file anonim (>1 jam) dan draf CV (>90 hari); disk fail-closed guard pada 70%/80% | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 10 dan 11 (`RISK-SEC-007`) | LOW (Owner) |
+| Persistence | APPLICABLE | THR-009: File temporer atau draf kedaluwarsa menumpuk dan menghabiskan disk | Per-job cleanup; periodic sweeper otomatis untuk file anonim (>1 jam) dan draf CV (>30 hari); disk fail-closed guard pada 70%/80% | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 10 dan 11 (`RISK-SEC-007`) | LOW (Owner) |
 | Defense Evasion | APPLICABLE | THR-010: Penyerang memanipulasi atau menghapus log audit backend | Log audit append-only JSONL dengan permission `0600`/`0700`, rotasi harian, retensi 7 hari; log terisolasi dari akses web | `TERVERIFIKASI` — audit trail lokal diuji 10/10 PASS (`RISK-SEC-001`) | LOW (Owner) |
 | Exfiltration | APPLICABLE | THR-011: Kebocoran massal data CV pengguna atau draf lamaran | Draf CV disimpan terstruktur; kuota max 5 CV per akun; kuota global 5 GB; backup ke Cloudflare R2 dienkripsi simetris (AES-256-GCM) sebelum transit dan memiliki lifecycle deletion 7 hari; fitur hapus akun mandiri dengan pembersihan permanen | `TERENCANA (ONLINE)` — diimplementasikan pada Phase 11 & 13 (`RISK-SEC-007`) | LOW (Owner) |
 
@@ -45,8 +45,8 @@ Status bukti yang dipakai:
 | Skenario | Status | Kontrol / Bukti | Residual Risk |
 |---|---|---|---|
 | DoS & Resource Exhaustion (ML Worker) | APPLICABLE | Concurrency = 1, Queue max 2, penolakan 429 dengan `Retry-After: 30`, timeout keras 30 detik, penghentian subprocess untuk membebaskan RAM, fail-closed disk guard 80% | LOW (Owner; `RISK-SEC-004`) |
-| Account Takeover via Auto-Merge | APPLICABLE | Dilarang auto-merge antara email/password dan Google OAuth; wajib linking sadar via re-authentication di akun yang sudah login | LOW (Owner; `RISK-SEC-006`) |
-| Malicious URL Redirection / Phishing (URL Shortener) | APPLICABLE | Validasi skema HTTPS publik, penolakan IP internal RFC 1918, link creation khusus owner terotentikasi HMAC via Cloudflare Access, revoke instan (410 Gone), larangan daur ulang slug | LOW (Owner; `RISK-SEC-005`) |
+| Account Takeover via Auto-Merge | APPLICABLE | Dilarang auto-merge antara email/password dan Google OAuth; seluruh endpoint Google auth publik dan linking dinonaktifkan (AUTH-ACCESS-001) sampai backend authorization code resmi tersedia; wajib linking sadar via re-authentication | LOW (Owner; `RISK-SEC-006`) |
+| Malicious URL Redirection / Phishing (URL Shortener) | APPLICABLE | Validasi skema HTTPS publik, endpoint create/config shortener publik dinonaktifkan (AUTH-ACCESS-001), redirect publik /s/{slug} tetap beroperasi aman dengan counter atomik, link creation khusus owner terotentikasi HMAC via Cloudflare Access, revoke instan (410 Gone), larangan daur ulang slug | LOW (Owner; `RISK-SEC-005`) |
 | Loss / Compromise of Cloud Backup | APPLICABLE | Bucket Cloudflare R2 private tanpa akses publik; file snapshot dienkripsi AES-256-GCM di VPS sebelum upload; lifecycle rule otomatis hapus berkas cadangan setelah 7 hari | LOW (Owner; `RISK-SEC-007`) |
 
 ### 3.1 Evaluasi Cross-Cutting
@@ -59,6 +59,24 @@ Status bukti yang dipakai:
 | Destructive integrity / ransomware | APPLICABLE | Draft IndexedDB dapat diekspor sebagai file project; belum ada backup otomatis | MEDIUM provisional (Owner; review berikutnya) |
 | Third-party/provider compromise | NOT APPLICABLE | Tidak ada cloud/API pihak ketiga; LibreOffice dan Tesseract adalah binary lokal opsional | LOW (Owner) |
 | Business-logic abuse | APPLICABLE | Batas ukuran file, satu job aktif, validasi password/format; tidak ada akun atau transaksi finansial | LOW (Owner) |
+
+### 3.2 Model Ancaman & Kontrol Rak Berkas (File Shelf)
+| Threat ID | Skenario Ancaman | Kontrol Terkait | Tipe Kontrol | Mitigasi / Penanganan |
+|---|---|---|---|---|
+| `THR-018` | Eksekusi malware/trojan via berkas unggahan | `CTRL-018` | Preventive & Detective | Scan wajib daemon ClamAV Unix socket `INSTREAM` (`/run/clamav/clamd.ctl`). Signature >24 jam memblokir promosi file. File terinfeksi langsung dihapus seketika. |
+| `THR-019` | Exploit parser berkas Office / PDF RCE | `CTRL-019` | Preventive | Child process `bubblewrap --unshare-net` (`RLIMIT_AS=512 MiB`, timeout 30s); tolak makro, JavaScript, OLE/ActiveX, launch actions, external references. |
+| `THR-020` | DoS dekompresi / Zip Bomb / XML Entity Expansion | `CTRL-020` | Preventive | Tolak semua arsip (ZIP/RAR/TAR/GZ); parsing XML aman via `defusedxml`; batasi kedalaman entitas dan alokasi memori bwrap. |
+| `THR-021` | Polyglot file (misal PDF berkedok executable) | `CTRL-021` | Preventive | Validasi magic bytes multi-offset, inspeksi header/trailer ketat, tolak berkas yang memiliki struktur biner ganda. |
+| `THR-022` | Bypass autentikasi atau Broken Object Level Authorization (BOLA) | `CTRL-022` | Preventive | Verifikasi kepemilikan server-side berbasis `user_id` sesi; query filter wajib menyertakan `user_id`; return 404 pada file bukan milik sendiri. |
+| `THR-023` | Cross-tenant ciphertext swap / replay di storage R2 | `CTRL-023` | Preventive | Enkripsi AES-256-GCM envelope 49-byte dengan AAD terikat identitas: `satukit:fileshelf:v1:{user_id}:{item_id}:{content_type}`. |
+| `THR-024` | Pencurian kunci enkripsi di host VPS | `CTRL-024` | Preventive | Keyring root-owned (`0400`) di `/etc/satukit/keyring.json`; dipasok via systemd `LoadCredential=`; isolasi proteksi memori Linux. |
+| `THR-025` | Resource exhaustion / bandwidth exhaustion via download massal | `CTRL-025` | Preventive | Maksimal 1 download aktif per akun; kuota lease download global maksimal 2 secara bersamaan; rate limit rolling 30 download/jam. |
+| `THR-026` | Flooding upload & pembengkakan storage R2 | `CTRL-026` | Preventive | Maksimal 5 slot per akun (available + in-flight), max 1 in-flight upload, max 25 MB/file, rolling rate limit 10 upload/jam. |
+| `THR-027` | Tagihan tak terkendali / lonjakan Class A/B R2 | `CTRL-027` | Detective & Responsive | Polling Cloudflare GraphQL usage tiap 15m; fail-closed jika data >30m; hard ceiling 7 GB; alert Class A 700k/B 7M; blok upload pada Class A 800k dan blok download pada Class B 8M. |
+| `THR-028` | Kebocoran data lokasi sensitif EXIF/GPS | `CTRL-028` | Preventive & Compensating | Pelestarian byte asli gambar statis diimbangi kewajiban persetujuan checkbox peringatan UI sebelum upload (`RISK-SEC-014`). |
+| `THR-029` | File mentah tertinggal di direktori karantina lokal | `CTRL-029` | Preventive & Responsive | Karantina permission `0600`; pembersihan otomatis pasca-enkripsi atau saat reject; sweeper orphan background tiap 15 menit. |
+| `THR-030` | Akumulasi berkas lama melebihi masa retensi | `CTRL-030` | Preventive | Sweeper otomatis membersihkan berkas yang berusia >30 hari sejak `available_at`; job penghapusan asinkron R2 diselesaikan <24 jam. |
+| `THR-031` | Berkas terenkripsi/terproteksi password menyembunyikan malware | `CTRL-031` | Preventive | Tolak seluruh berkas PDF/Office yang terproteksi password atau terenkripsi menggunakan `msoffcrypto-tool` dan PyMuPDF metadata check. |
 
 ## 4. Remediation SLA & Quality Gates
 - **Critical Vulnerability:** Perbaikan dan patch dalam ≤ 24 jam.
@@ -155,9 +173,18 @@ Status bukti yang dipakai:
 | `RISK-SEC-004` | Potensi DoS CPU & RAM akibat inferensi ML U2NetP pada VPS 1 vCPU / 2.2 GiB RAM | HIGH (provisional) | VPS memiliki 1 vCPU Xeon dan 2.2 GiB RAM fisik; inferensi ML simultan dapat memicu thrashing swap atau OOM killer | Server unresponsive, web service down, proses lain terhenti mendadak | `MITIGATE` — Concurrency worker = 1, antrean tunggu max 2, penolakan 429/503 + `Retry-After: 30`, timeout keras 30 detik, penghentian subprocess pasca-inferensi untuk membebaskan RAM, fail-closed disk guard 80% | `MITIGATE` — diuji melalui feasibility spike di Phase 10 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 10 |
 | `RISK-SEC-005` | Risiko SSRF atau eksploitasi open redirect pada layanan URL Shortener publik | HIGH (provisional) | Layanan memendekkan URL publik dan mengalihkan pengunjung via HTTP 302 | Penyerang menggunakan pemendek URL untuk menjangkau endpoint internal, IP link-local metadata cloud, atau melancarkan kampanye phishing | `MITIGATE` — Validasi skema wajib `https:`, penolakan kredensial dalam URL, penolakan IP internal RFC 1918, loopback, link-local, dan reserved; API pembuatan link khusus owner via HMAC auth & Cloudflare Access | `MITIGATE` — diimplementasikan dan diuji di Phase 12 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 12 |
 | `RISK-SEC-006` | Risiko Account Takeover pada multi-login (Email/Password & Google OAuth) via auto-merge | HIGH (provisional) | Pengguna mendaftar dengan email/password, lalu penyerang mencoba masuk via Google OAuth dengan email yang sama | Pengambilalihan akses ke draf CV sensitif jika sistem menggabungkan akun secara otomatis tanpa verifikasi | `MITIGATE` — Kebijakan ketat dilarang auto-merge secara diam-diam; linking akun wajib dilakukan melalui otorisasi sadar di pengaturan akun dengan re-authentication kredensial lama | `MITIGATE` — diimplementasikan dan diuji di Phase 11 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 11 |
-| `RISK-SEC-007` | Akumulasi data PII CV pengguna melebihi masa aktif atau terpapar pada cadangan | MEDIUM (provisional) | Pengguna menyimpan draf CV di server VPS; kebocoran atau penumpukan data tak terkelola melanggar prinsip privasi | Eksposur PII riwayat hidup dan identitas pelamar; pelanggaran regulasi perlindungan data pribadi (UU PDP) | `MITIGATE` — Kuota maks 5 CV per akun, retensi 90 hari sejak pembaruan terakhir, penghapusan harian otomatis, cadangan ke Cloudflare R2 dienkripsi AES-256-GCM di VPS dengan lifecycle deletion 7 hari, fitur hapus akun mandiri instan | `MITIGATE` — diimplementasikan di Phase 11 & 13 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 11 & 13 |
+| `RISK-SEC-007` | Akumulasi data PII CV pengguna melebihi masa aktif atau terpapar pada cadangan | MEDIUM (provisional) | Pengguna menyimpan draf CV di server VPS; kebocoran atau penumpukan data tak terkelola melanggar prinsip privasi | Eksposur PII riwayat hidup dan identitas pelamar; pelanggaran regulasi perlindungan data pribadi (UU PDP) | `MITIGATE` — Kuota maks 5 CV per akun, retensi 30 hari sejak pembaruan terakhir, penghapusan harian otomatis, cadangan ke Cloudflare R2 dienkripsi AES-256-GCM di VPS dengan lifecycle deletion 7 hari, fitur hapus akun mandiri instan | `MITIGATE` — diimplementasikan di Phase 11 & 13 | User (Owner) | 2026-11-15 | OPEN — scheduled for Phase 11 & 13 |
+| `RISK-SEC-008` | DoS & Memory Exhaustion akibat pemrosesan file berat di VPS 2.2 GiB | HIGH | Unggahan berkas format Office/PDF kompleks berpotensi memicu lonjakan RAM dan CPU | Host VPS kehabisan memori (OOM), service web utama terganggu | `MITIGATE` — Isolasi parser di child process `bubblewrap --unshare-net` dengan `RLIMIT_AS=512 MiB` dan hard timeout 30s; worker terpisah `satukit-file-worker` | `MITIGATE` — Diuji pada FS-01 & diimplementasikan FS-05 | User (Owner) | 2027-02-11 | OPEN — FS-01 & FS-05 |
+| `RISK-SEC-009` | Malware lolos akibat daemon ClamAV tidak aktif atau signature usang | HIGH | ClamAV crash atau koneksi socket Unix terputus atau freshclam gagal update >24 jam | Berkas malware tersimpan di storage dan berpotensi terunduh kembali | `MITIGATE` — Mandatory scan via Unix socket `/run/clamav/clamd.ctl`; fail-closed jika daemon mati atau signature >24 jam; fallback wajib upgrade RAM VPS jika host 2.2 GiB tidak aman | `MITIGATE` — Diuji pada FS-01 & diimplementasikan FS-05 | User (Owner) | 2027-02-11 | OPEN — FS-01 & FS-05 |
+| `RISK-SEC-010` | Broken Object-Level Authorization (BOLA) pada unduh dan hapus file | HIGH | Pengguna memanipulasi parameter `item_id` untuk mengakses atau menghapus berkas pengguna lain | Pelanggaran kerahasiaan data privat dan perusakan berkas antar akun | `MITIGATE` — Query filter server-side wajib menyertakan `user_id` dari sesi aktif; return HTTP 404 (bukan 403) untuk mencegah enumerasi ID | `MITIGATE` — Diimplementasikan pada FS-06 | User (Owner) | 2027-02-11 | OPEN — FS-06 |
+| `RISK-SEC-011` | Cross-tenant cipher swap / replay attack pada penyimpanan R2 privat | HIGH | Ciphertext dari akun A dipindahkan atau disuntikkan ke metadata akun B | Pengguna dapat membaca berkas tanpa otorisasi atau merusak integritas | `MITIGATE` — Enkripsi AES-256-GCM dengan AAD kanonikal mengikat `user_id`, `item_id`, dan `content_type`; dekripsi gagal jika identitas tidak cocok | `MITIGATE` — Diimplementasikan pada FS-04 | User (Owner) | 2027-02-11 | OPEN — FS-04 |
+| `RISK-SEC-012` | Kunci enkripsi keyring bocor di environment host VPS | HIGH | Proses tidak berwenang membaca environment variable atau file konfigurasi | Penyerang dengan akses parsial host dapat mendekripsi berkas di R2 | `MITIGATE` — Keyring disimpan di `/etc/satukit/keyring.json` (root `0400`); disalurkan ke service via systemd `LoadCredential=`; dilarang ditulis ke env var biasa | `MITIGATE` — Diimplementasikan pada FS-02 | User (Owner) | 2027-02-11 | OPEN — FS-02 |
+| `RISK-SEC-013` | Lonjakan biaya atau DoS kuota operasi Cloudflare R2 | MEDIUM | Pemanggilan API R2 tanpa batas atau kuota storage membengkak | Biaya tak terduga atau akun Cloudflare terkena penalti kuota | `MITIGATE` — Polling GraphQL usage tiap 15m; fail-closed jika data >30m; hard ceiling 7 GB; alert Class A 700k/B 7M; blok upload pada Class A 800k dan blok download pada Class B 8M di bulan kalender UTC | `MITIGATE` — Diimplementasikan pada FS-07 | User (Owner) | 2027-02-11 | OPEN — FS-07 |
+| `RISK-SEC-014` | Retensi metadata sensitif (EXIF/GPS) pada gambar statis | MEDIUM | Unggahan foto kamera menyimpan koordinat lokasi rumah/tempat privat pengguna | Risiko privasi jika pengguna mengunduh atau berbagi berkas asli | `ACCEPT` — Diterima secara formal oleh Owner sampai 2027-02-11 dengan compensating control kewajiban checkbox persetujuan pengguna di UI sebelum upload | User (Owner) | 2027-02-11 | ACCEPTED (Formal Owner Approval) |
+| `RISK-SEC-015` | Saturasi bandwidth dan starvation koneksi pada unduhan besar simultan | MEDIUM | Beberapa pengguna mengunduh berkas 25 MB secara bersamaan | Latensi server meningkat drastis, starvation koneksi API | `MITIGATE` — Batas 1 download aktif per akun, batas 2 lease download global di seluruh sistem, rate limit rolling 30 download/jam | `MITIGATE` — Diimplementasikan pada FS-03 & FS-06 | User (Owner) | 2027-02-11 | OPEN — FS-03 & FS-06 |
+| `RISK-SEC-016` | Berkas mentah tertinggal di folder karantina jika worker crash | MEDIUM | Worker mengalami panic/OOM sebelum membersihkan berkas di folder karantina | Akumulasi berkas tidak terenkripsi di disk lokal | `MITIGATE` — Karantina mode `0600`; cleanup saat startup worker dan daemon periodic orphan sweeper tiap 15 menit untuk berkas >1 jam | `MITIGATE` — Diimplementasikan pada FS-05 & FS-07 | User (Owner) | 2027-02-11 | OPEN — FS-05 & FS-07 |
 
-**Aturan:** `RISK-SEC-001` s/d `RISK-SEC-007` wajib ditangani secara bertahap sesuai fase implementasinya. Tidak ada deployment rilis online yang diizinkan sebelum seluruh mitigasi diverifikasi.
+**Aturan:** `RISK-SEC-001` s/d `RISK-SEC-016` wajib ditangani secara bertahap sesuai fase implementasinya. Tidak ada deployment rilis online yang diizinkan sebelum seluruh mitigasi diverifikasi.
 
 ## 13. Catatan Konsistensi Dokumentasi
 - Revisi 2026-11-08: Penambahan model ancaman komprehensif, evaluasi cross-cutting, dan mitigasi risiko `RISK-SEC-004` s/d `RISK-SEC-007` untuk arsitektur hybrid VPS online dan serverless Cloudflare Workers + D1.
@@ -174,7 +201,7 @@ Status bukti yang dipakai:
 
 ### Asset, Data, dan Exposure
 - [x] Aset kritis, data PII CV, trust boundary, dan attack surface dipetakan
-- [x] Data classification, retensi 90 hari, kuota max 5 CV, kuota global 5 GB, pembersihan file anonim max 1 jam, dan backup terenkripsi R2 7 hari ditentukan
+- [x] Data classification, retensi 30 hari, kuota max 5 CV, kuota global 5 GB, pembersihan file anonim max 1 jam, dan backup terenkripsi R2 7 hari ditentukan
 - [x] Eksposur publik dibatasi: reverse proxy Caddy (port 80/443), backend terikat ke 127.0.0.1, portal shortener dilindungi Cloudflare Access
 
 ### Identity dan Access
@@ -204,4 +231,27 @@ Status bukti yang dipakai:
 ### Verification
 - [x] Secret scanning, dependency audit, linter/typecheck, dan negative testing dirancang untuk setiap fase
 - [x] Uji isolasi ML worker, benchmark latensi/RAM U2NetP, dan SSRF validation suite dirancang
+```
+
+### 14.1 Checklist Security Planning Gate — Fitur Rak Berkas (Gerbang 2 Disetujui 2026-11-11)
+```markdown
+### Governance & Ownership
+- [x] Security risk tier HIGH dan alasan disetujui (eksposur file biner eksternal, parsing multi-format di VPS, enkripsi cloud storage)
+- [x] Security owner & data owner: User (Owner)
+- [x] Approval Gerbang 2 diberikan oleh User (Owner) pada 2026-11-11
+- [x] Residual risk RISK-SEC-014 (EXIF/GPS metadata) diterima secara formal oleh Owner sampai 2027-02-11 dengan syarat checkbox persetujuan wajib di UI
+
+### Asset, Data, dan Exposure
+- [x] Aset kritis: Berkas privat pengguna, kunci enkripsi AES-256-GCM, kredensial Cloudflare R2
+- [x] Retensi 30 hari otomatis, batas 5 slot per akun, batas 25 MB per file
+- [x] Jalur unggah menggunakan raw stream octet-stream (bukan multipart form), metadata di header base64url
+
+### Threat Coverage & Isolation
+- [x] Antivirus ClamAV via daemon Unix socket /run/clamav/clamd.ctl (INSTREAM); port TCP dilarang; fail-closed jika signature >24h
+- [x] Isolasi parser: child process bubblewrap --unshare-net, RLIMIT_AS=512 MiB, timeout 30s
+- [x] Tolak makro VBA, JavaScript, OLE/ActiveX, launch actions, external references, polyglot, arsip, file terenkripsi
+- [x] Enkripsi AES-256-GCM envelope 49-byte dengan AAD terikat identitas (user_id + item_id + content_type)
+- [x] Keyring root-owned 0400 disalurkan via systemd LoadCredential=
+- [x] Batasan unduh: max 1 aktif per user, max 2 lease download global; rate limit rolling hour
+- [x] Pemantauan Cloudflare R2 via GraphQL tiap 15m; fail-closed jika data >30m; hard ceiling 7 GB
 ```

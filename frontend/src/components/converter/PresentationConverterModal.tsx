@@ -282,9 +282,9 @@ export const PresentationConverterModal: React.FC<PresentationConverterModalProp
             <div className="flex items-start gap-2.5">
               <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-1 text-xs text-amber-900">
-                <h4 className="font-bold text-sm">LibreOffice Belum Terpasang</h4>
+                <h4 className="font-bold text-sm">Layanan Konversi Memerlukan LibreOffice</h4>
                 <p className="leading-relaxed">
-                  Fitur konversi presentasi ke PDF membutuhkan aplikasi LibreOffice di komputer lokal Anda.
+                  Fitur konversi presentasi ke PDF membutuhkan aplikasi LibreOffice di lingkungan server.
                 </p>
                 <p className="text-2xs text-amber-700">
                   Setelah memasang LibreOffice, jalankan ulang server backend atau coba lagi.

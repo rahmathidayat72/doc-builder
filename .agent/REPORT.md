@@ -4,6 +4,965 @@ Laporan ini mencatat setiap eksekusi task, Planned vs Actual, hasil pengujian, a
 
 ---
 
+## FS-09 — Pengujian Komprehensif 10 Kelompok Matriks Upload, Anti-BOLA, Rate Limit, & Audit Akhir — 2026-11-11
+
+**Task:** `FS-09`
+**Requirement:** NFR-SEC-013 s/d 017, NFR-REL-008 s/d 010, THR-018 s/d THR-031
+
+### Ringkasan
+1. Mengembangkan test suite komprehensif `backend/tests/test_file_shelf_comprehensive.py`:
+   - **Grup 1 (Format Didukung - Happy Path):** PDF, DOCX, XLSX, PPTX, JPG, PNG, WebP, Markdown. Lolos pemindaian ClamAV & inspeksi mendalam, enkripsi AES-256-GCM envelope 49B + AAD identitas, upload R2, promosi AVAILABLE, unduhan terdekripsi identik byte-for-byte.
+   - **Grup 2 (Format Dilarang):** Arsip (ZIP, RAR, 7Z, TAR, GZ), SVG, executable (.exe, .elf, .sh, .bat). Ditolak dengan `FileInspectionError`.
+   - **Grup 3 (Bom Dekompresi & XML):** XML Billion Laughs Bomb pada dokumen Office ditolak via `defusedxml` dan isolasi sandbox.
+   - **Grup 4 (Makro, Script, & Komponen Aktif):** Penolakan PDF ber-JavaScript / Launch actions dan dokumen bermakro VBA via `vtx-oletools`.
+   - **Grup 5 (Berkas Terenkripsi / Password-Protected):** PDF/Office terproteksi password ditolak (`EncryptedFileError`).
+   - **Grup 6 (Berkas Rusak / Malformed / Polyglot):** Header terpotong atau biner executable bertrik ekstensi ditolak.
+   - **Grup 7 (Gambar Statis vs Animasi):** Gambar statis dengan EXIF/GPS mempertahankan byte asli utuh dengan flag peringatan (`RISK-SEC-014`); gambar animasi (GIF/APNG/WebP anim) ditolak.
+   - **Grup 8 (Malware / EICAR):** ClamAV socket INSTREAM mendeteksi malware, status berkas FAILED, karantina segera dihapus, payload tidak dikirim ke R2.
+   - **Grup 9 (Batas Ukuran & Quota):** Berkas >25 MB ditolak HTTP 413; kuota 5 slot per akun ditolak HTTP 400; simulasi hard ceiling R2 (7 GB) menolak upload baru dengan HTTP 503.
+   - **Grup 10 (Konkurensi & Rate Limiting):** Unggah simultan saat 1 berkas sedang CHECKING ditolak HTTP 409 Conflict; batas rolling rate limit (10 upload & 30 download per rolling hour).
+   - **Verifikasi Anti-BOLA:** Akun B tidak dapat mengunduh atau menghapus berkas Akun A (HTTP 404 anti-enumerasi); listing berkas terisolasi ketat per identitas `user_id`.
+2. Menjalankan audit secret scanning `scripts/scan_secrets.py`: 1.603 file dipindai, 0 secret ditemukan.
+3. Menjalankan seluruh test suite dan quality gate:
+   - Pytest Backend: 290/290 tests PASS.
+   - Vitest Frontend: 49 test files, 379/379 tests PASS.
+   - TypeScript & Vite build: PASS (`tsc -b && vite build` lolos).
+
+### File Dibuat
+- `backend/tests/test_file_shelf_comprehensive.py`
+
+### File Diubah
+- `backend/tests/test_file_shelf_comprehensive.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Comprehensive Test Suite | `pytest backend/tests/test_file_shelf_comprehensive.py` | PASS | 11/11 tests PASS (10 grup upload + BOLA) |
+| Backend Pytest Full Suite | `pytest backend/tests` | PASS | 290/290 tests PASS |
+| Frontend Vitest Full Suite | `npm --prefix frontend test` | PASS | 49 test files, 379/379 tests PASS |
+| Secret Scan | `python scripts/scan_secrets.py` | PASS | 1.603 file bersih, 0 secret ditemukan |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` bersih tanpa error |
+| Backend Ruff Linter | `ruff check backend/app/api/file_shelf.py backend/tests/test_file_shelf_*.py` | PASS | 0 error |
+
+### Acceptance Criteria
+- [x] 10 kelompok matriks upload terverifikasi lolos 100%
+- [x] Isolasi anti-BOLA terverifikasi aman
+- [x] Batasan rolling rate limiter & kuota 5 slot terverifikasi
+- [x] Simulasi hard ceiling Cloudflare R2 7 GB terverifikasi fail-closed
+- [x] 0 secret terdeteksi pada seluruh repository
+- [x] Seluruh test suite backend dan frontend 100% PASS
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-08 — Antarmuka UI Rak Berkas `#/files`, 8 Status Tampilan, Raw Stream Upload, & Dark Mode — 2026-11-11
+
+**Task:** `FS-08`
+**Requirement:** BUS-025, NFR-UX-003, NFR-ACC-003, RISK-SEC-014
+
+### Ringkasan
+1. Mengembangkan client API `frontend/src/services/fileShelf.ts`:
+   - `uploadFileStream`: Upload stream mentah `application/octet-stream` via XMLHttpRequest dengan event `onprogress`, penyusunan header base64url metadata `X-File-Metadata`, dan proteksi `X-CSRF-Token`.
+   - `fetchUserFiles`: Mengambil daftar berkas privat terotentikasi.
+   - `fetchFileMetrics`: Mengambil metrik pemakaian slot (5 slot), kuota rolling hour (10 upload, 30 download), dan status kapasitas R2.
+   - `downloadUserFile`: Mengunduh stream terdekripsi on-the-fly dari R2 ke Blob client dengan pelestarian nama berkas UTF-8 `Content-Disposition`.
+   - `deleteUserFile`: Soft-delete berkas dan pemicu pembersihan R2.
+2. Mengembangkan antarmuka utama `frontend/src/components/files/FileShelfView.tsx`:
+   - 8 status antarmuka: `unauthenticated` (guard login), `unverified_email` (peringatan email wajib diverifikasi), `empty` (rak kosong dengan maskot Kitu), `uploading` (progress bar streaming), `checking` (pemindaian ClamAV & sandbox), `available` (daftar berkas dengan aksi unduh & hapus), `quota_full` (peringatan 5/5 slot penuh), dan `error` (banner kesalahan).
+   - Dialog konfirmasi wajib metadata foto EXIF/GPS (`RISK-SEC-014`) dengan checkbox persetujuan sadar sebelum unggah gambar statis.
+   - Dukungan mode gelap penuh (Tailwind dark mode), WCAG 2.2 AA kontras warna, dan zoom 200%.
+3. Integrasi navigasi `frontend/src/components/layout/Navbar.tsx` & routing `frontend/src/App.tsx`:
+   - Menambahkan rute dan menu `#/files` ("Rak Berkas").
+4. Mengembangkan test suite Vitest `frontend/src/components/files/__tests__/FileShelfView.test.tsx` (8 unit & integration test untuk 8 state dan modal persetujuan EXIF).
+
+### File Dibuat
+- `frontend/src/services/fileShelf.ts`
+- `frontend/src/components/files/FileShelfView.tsx`
+- `frontend/src/components/files/__tests__/FileShelfView.test.tsx`
+
+### File Diubah
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/services/auth.ts`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Component Suite | `npm --prefix frontend test -- FileShelfView.test.tsx` | PASS | 8/8 tests PASS |
+| Vitest Full Suite | `npm --prefix frontend test` | PASS | 49 test files, 379/379 tests PASS |
+| TypeScript & Vite Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` bersih tanpa error |
+| Oxlint Linter | `npm --prefix frontend run lint` | PASS | 0 error |
+
+### Acceptance Criteria
+- [x] 8 status antarmuka terverifikasi lewat unit test
+- [x] Streaming upload XMLHttpRequest dengan kalkulasi persentase
+- [x] Modal persetujuan peringatan metadata EXIF/GPS gambar statis (RISK-SEC-014)
+- [x] Navigasi `#/files` terintegrasi pada Navbar dan App
+- [x] 100% lulus build TypeScript & Vitest suite
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-07 — Background Worker Pemrosesan File, Retensi 30 Hari, & Polling Cloudflare GraphQL — 2026-11-11
+
+**Task:** `FS-07`
+**Requirement:** BUS-023, BUS-024, NFR-REL-009, THR-027, RISK-SEC-013
+
+### Ringkasan
+1. Mengembangkan modul background worker `backend/app/workers/file_worker.py`:
+   - Fungsi `process_checking_items`: Mengambil item berstatus `CHECKING`, menjalankan pemindaian antivirus ClamAV socket `INSTREAM`, inspeksi format sandbox, verifikasi kapasitas Cloudflare R2, enkripsi envelope 49B AES-256-GCM + AAD identitas kanonikal, upload ke Cloudflare R2, promosi status ke `AVAILABLE` dengan masa retensi 30 hari, serta pembersihan berkas karantina lokal `0600`.
+   - Fungsi `process_deletion_jobs`: Memproses antrean `file_deletion_jobs` berstatus `PENDING` untuk menghapus objek dari Cloudflare R2 secara asinkron dalam <24 jam.
+   - Fungsi `process_retention_sweep`: Memeriksa berkas yang melewati retensi 30 hari sejak `available_at`, mengubah status menjadi `DELETED`, dan mendaftarkan pekerjaan hapus R2.
+   - Fungsi `poll_cloudflare_graphql_metrics`: Melakukan polling berkala metrik penyimpanan R2 dan jumlah operasi Class A/Class B setiap 15 menit via Cloudflare GraphQL API; menyimpan data ke `RuntimeState(key="r2_metrics")`; mendukung kebijakan fail-closed saat data usang >30 menit.
+   - Daemon runner loop `run_daemon_loop` dan entry point CLI `python -m app.workers.file_worker` dengan penanganan graceful shutdown SIGINT/SIGTERM.
+2. Mengonfigurasi variabel `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, dan `CLOUDFLARE_GRAPHQL_URL` pada `backend/app/core/config.py`.
+3. Menyusun unit & integration test suite `backend/tests/test_file_worker.py` (7 tests mencakup siklus hidup pemrosesan CHECKING, deteksi malware ClamAV fail-closed, penolakan format, penghapusan objek R2, auto-retensi 30 hari, dan mock GraphQL polling).
+
+### File Dibuat
+- `backend/app/workers/__init__.py`
+- `backend/app/workers/file_worker.py`
+- `backend/tests/test_file_worker.py`
+
+### File Diubah
+- `backend/app/core/config.py`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Worker Pytest Suite | `pytest backend/tests/test_file_worker.py` | PASS | 7/7 tests PASS |
+| Pytest Full Suite | `pytest backend/tests` | PASS | 279/279 tests PASS |
+| Ruff Linter | `ruff check backend/app/workers backend/tests/test_file_worker.py` | PASS | Bersih tanpa pelanggaran |
+
+### Acceptance Criteria
+- [x] Pemrosesan status CHECKING ke AVAILABLE dengan enkripsi envelope 49B dan AAD identitas
+- [x] Pemindaian ClamAV fail-closed menandai berkas FAILED dan menghapus karantina
+- [x] Penghapusan asinkron objek Cloudflare R2 <24 jam
+- [x] Auto-retensi 30 hari menandai berkas DELETED dan menjadwalkan pembersihan R2
+- [x] Polling GraphQL Cloudflare R2 usage & hard ceiling enforcement
+- [x] 100% test pass pada full suite
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-06 — Endpoint API Rak Berkas (/api/files), Raw Stream, Rate Limiter, & Anti-BOLA — 2026-11-11
+
+**Task:** `FS-06`
+**Requirement:** BUS-019, BUS-020, BUS-021, NFR-SEC-013, NFR-SEC-015
+
+### Ringkasan
+1. Mengembangkan router API `backend/app/api/file_shelf.py`:
+   - `POST /api/files/upload`: Menerima raw stream octet-stream dengan header base64url `X-File-Metadata`, memvalidasi kuota 5 slot & 1 upload in-flight per akun secara atomik (`SELECT FOR UPDATE`), menulis ke karantina `0600`, dan mengembalikan HTTP 202 Accepted.
+   - `GET /api/files`: Mengembalikan daftar berkas privat milik akun terotentikasi (mencegah BOLA).
+   - `GET /api/files/{id}/download`: Mengunduh berkas terdekripsi on-the-fly dari Cloudflare R2 dengan pembatasan 1 download in-flight per akun dan 2 download lease global.
+   - `DELETE /api/files/{id}`: Soft-delete instan pada baris basis data dan mendaftarkan `FileDeletionJob` untuk Cloudflare R2.
+   - `GET /api/files/metrics`: Mengembalikan ringkasan kuota slot, batasan rolling hour, dan status penyimpanan cloud.
+2. Menyusun test suite `backend/tests/test_file_shelf_api.py` (10 tests).
+
+### File Dibuat
+- `backend/app/api/file_shelf.py`
+- `backend/tests/test_file_shelf_api.py`
+
+### File Diubah
+- `backend/app/main.py`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| API Pytest Suite | `pytest backend/tests/test_file_shelf_api.py` | PASS | 10/10 tests PASS |
+| Pytest Full Suite | `pytest backend/tests` | PASS | 272/272 tests PASS |
+| Ruff Linter | `ruff check backend/app/api/file_shelf.py` | PASS | Bersih |
+
+### Acceptance Criteria
+- [x] Endpoint upload streaming mentah dengan kuota 5 slot atomik
+- [x] Rate limiter rolling hour terintegrasi (10 upload, 30 download)
+- [x] Anti-BOLA: penolakan akses berkas milik akun lain
+- [x] Lease download global maksimal 2
+- [x] 100% test pass
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-05 — Karantina Berkas 0600, ClamAV INSTREAM, Sandbox Bubblewrap, & Inspeksi Format Mendalam — 2026-11-11
+
+**Task:** `FS-05`
+**Requirement:** NFR-SEC-013, NFR-SEC-014, BUS-022, RISK-SEC-014, DEC-024
+
+### Ringkasan
+1. Mengembangkan modul scanner antivirus `backend/app/services/file_scanner.py`:
+   - Protokol Unix domain socket `zINSTREAM` dengan pengiriman chunk biner 64 KiB ke `/run/clamav/clamd.ctl`.
+   - Kebijakan fail-closed: jika socket tidak tersedia atau timeout, menolak berkas dengan `ClamAVUnavailableError`.
+   - `MockClamAVScanner` mendeteksi signature standar EICAR untuk pengujian deterministik tanpa memerlukan daemon clamd fisik.
+2. Mengembangkan runner isolasi sandbox `backend/app/services/file_sandbox.py`:
+   - Menggunakan `bubblewrap --unshare-net --unshare-ipc --unshare-pid` pada Linux dengan batasan memori `RLIMIT_AS=512MiB` dan batas waktu 30 detik (`SandboxTimeoutError`).
+   - Fallback graceful pada lingkungan pengujian non-Linux.
+3. Mengembangkan modul inspeksi keselamatan dan karantina `backend/app/services/file_inspector.py`:
+   - `QuarantineManager` menulis berkas ke jalur terisolasi dengan hak akses `0600` (`chmod 0o600`).
+   - Filter format allowlist ketat: PDF, DOCX, XLSX, PPTX, DOC, XLS, PPT, JPG, PNG, WebP, Markdown UTF-8.
+   - Penolakan tegas arsip umum (ZIP/RAR/TAR/GZ/7Z), SVG (XML `<svg`), dan biner executable (`MZ`, `ELF`, Mach-O).
+   - Penolakan PDF yang memuat script JavaScript, Launch action, atau embedded attachments via `pypdf`.
+   - Penolakan berkas Office terproteksi kata sandi via `msoffcrypto-tool`.
+   - Penolakan makro VBA / OLE payload via `vtx-oletools`.
+   - Perlindungan XML entity expansion / XML bomb via `defusedxml`.
+   - Penolakan gambar animasi (APNG, WebP animasi, GIF).
+   - Pelestarian byte statis EXIF/GPS gambar dengan pemberian flag peringatan `has_exif_warning=True` (`RISK-SEC-014`).
+4. Menyusun test suite komprehensif `backend/tests/test_file_inspector.py` (11 unit test mencakup seluruh ancaman konten aktif, malware EICAR, isolasi karantina, dan penolakan arsip/SVG).
+
+### File Dibuat
+- `backend/app/services/file_scanner.py`
+- `backend/app/services/file_sandbox.py`
+- `backend/app/services/file_inspector.py`
+- `backend/tests/test_file_inspector.py`
+
+### File Diubah
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Test Inspector & Scanner | `pytest backend/tests/test_file_inspector.py -v` | PASS | 11/11 test passed (EICAR malware, PDF JS/Launch, DOCX macro, SVG, ZIP, EXIF warning, quarantine 0600) |
+| Full Test Suite Backend | `pytest backend/tests -q` | PASS | 262 passed, 0 regression |
+| Ruff Linting | `ruff check backend/app/services/file_scanner.py backend/app/services/file_sandbox.py backend/app/services/file_inspector.py backend/tests/test_file_inspector.py` | PASS | All checks passed, 0 error |
+
+### Acceptance Criteria
+- [x] Karantina lokal menegakkan izin 0600
+- [x] Deteksi malware ClamAV via protokol INSTREAM terverifikasi
+- [x] Sandbox bubblewrap menegakkan batas memori 512 MiB dan timeout 30s
+- [x] Penolakan makro VBA, JavaScript PDF, OLE Launch, SVG, dan arsip terverifikasi
+- [x] Byte gambar statis EXIF dipertahankan dengan flag warning yang tepat
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-04 — Modul Kriptografi AES-256-GCM Envelope 49-Byte & Cloudflare R2 Client Adapter — 2026-11-11
+
+**Task:** `FS-04`
+**Requirement:** NFR-SEC-015, BUS-024, CTRL-023, THR-023
+
+### Ringkasan
+1. Mengembangkan modul kriptografi `backend/app/services/file_crypto.py`:
+   - Enkripsi dan dekripsi berkas biner dengan spesifikasi header envelope tepat 49 byte: Versi `0x01` (1B), IV (12B), Auth Tag GCM (16B), dan Key ID SHA-1 Hash (20B), diikuti Ciphertext.
+   - Associated Authenticated Data (AAD) kanonikal terikat identitas: `satukit:fileshelf:v1:{user_id}:{item_id}:{content_type}` yang menggagalkan manipulasi atau swap ciphertext antar akun/tenant (`THR-023`).
+   - `KeyringManager` mendukung multi-kunci, rotasi kunci asinkron, pencarian kunci via 20-byte digest SHA-1, dan pasokan keyring root-owned 0400 via systemd `LoadCredential=`.
+2. Mengembangkan modul adapter penyimpanan `backend/app/services/r2_storage.py`:
+   - `R2StorageClient` interface abstrak untuk `upload_object`, `get_object`, `delete_object`, `head_object`, dan `list_objects`.
+   - `InMemoryR2StorageClient` test double in-memory thread-safe untuk pengujian lokal terisolasi tanpa koneksi jaringan luar atau kredensial cloud.
+   - `Boto3R2StorageClient` adapter produksi S3-compatible menuju Cloudflare R2 Standard bucket.
+   - Factory `get_r2_storage()` fail-safe mengalihkan ke mode in-memory bila env test aktif atau kredensial R2 belum disetel.
+3. Memasang dependensi runtime `cryptography` dan `boto3` pada virtualenv backend lokal.
+4. Menyusun test suite lengkap `backend/tests/test_file_crypto_r2.py` (10 unit test mencakup roundtrip data, verifikasi struktur header 49B, penolakan AAD tampering cross-tenant, deteksi korupsi tag/ciphertext, rotasi kunci lama, envelope berkas kosong 0B, dan operasi CRUD adapter R2).
+
+### File Dibuat
+- `backend/app/services/file_crypto.py`
+- `backend/app/services/r2_storage.py`
+- `backend/tests/test_file_crypto_r2.py`
+
+### File Diubah
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Test Crypto & R2 | `pytest backend/tests/test_file_crypto_r2.py -v` | PASS | 10/10 test passed (envelope 49B, AAD cross-tenant guard, key rotation, R2 CRUD) |
+| Full Test Suite Backend | `pytest backend/tests -q` | PASS | 251 passed, 0 regression |
+| Ruff Linting | `ruff check backend/app/services/file_crypto.py backend/app/services/r2_storage.py backend/tests/test_file_crypto_r2.py` | PASS | All checks passed, 0 error |
+
+### Acceptance Criteria
+- [x] Header biner terenkripsi memiliki panjang tepat 49 byte sebelum ciphertext
+- [x] AAD kanonikal mengikat `user_id`, `item_id`, dan `content_type`
+- [x] Penolakan ciphertext swap antar akun (AAD tampering) terverifikasi
+- [x] Rotasi kunci multi-kunci berjalan mulus tanpa merusak dekripsi arsip lama
+- [x] Adapter R2 in-memory beroperasi penuh tanpa akses jaringan publik
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-03 — Skema Database PostgreSQL, Model Deklaratif, & Alembic Migration 003 — 2026-11-11
+
+**Task:** `FS-03`
+**Requirement:** BUS-019, BUS-020, NFR-SEC-013, NFR-REL-009, RISK-SEC-010, RISK-SEC-015
+
+### Ringkasan
+1. Menambahkan model deklaratif SQLAlchemy di `backend/app/db/models.py` untuk 5 tabel relasional:
+   - `FileShelfItem`: metadata berkas, ukuran (maks 25 MB), MIME/content type, status (`CHECKING`, `AVAILABLE`, `FAILED`, `DELETED`), SHA-256 hash, R2 key & etag, timestamps, CASCADE on delete `users.id`.
+   - `FileRateEvent`: event upload & download dengan timestamp untuk rolling hour limit.
+   - `DownloadLease`: lease unduhan aktif dengan `expires_at` (TTL 10m) untuk kontrol konkurensi (1 lease/akun, 2 global).
+   - `FileDeletionJob`: antrean asynchronous penghapusan objek R2 pasca soft-delete atau retensi kedaluwarsa.
+   - `RuntimeState`: penyimpanan JSONB status metrik Cloudflare R2 (Class A/B, storage bytes) dan sync timestamp.
+2. Membuat skrip migrasi Alembic `backend/alembic/versions/003_file_shelf.py` dengan fungsi `upgrade()` dan `downgrade()`, foreign keys CASCADE, dan indeks pencarian teroptimasi.
+3. Mengembangkan abstraksi repository atomik `backend/app/db/repositories/file_shelf_repository.py`:
+   - `reserve_upload_slot()`: kunci baris atomik, pembatasan 5 slot per akun, 1 in-flight upload (`CHECKING`), rolling limit 10 upload/jam, ukuran maks 25 MB.
+   - `promote_item()`: transisi status ke `AVAILABLE`, set `available_at`, hitung `expires_at` (+30 hari), dan catat rate event.
+   - `acquire_download_lease()`: penegakan limit rolling 30 unduh/jam, 1 lease aktif per akun, 2 lease aktif global, pembersihan otomatis lease stale/expired.
+   - `soft_delete_item()`: pencabutan hak akses pengguna seketika (`DELETED`), enqueue `FileDeletionJob` untuk R2 cleaner worker, proteksi anti-BOLA ketat berbasis `user_id`.
+   - `get_runtime_state()` / `set_runtime_state()`: state management metrik R2.
+4. Menyusun test suite lengkap `backend/tests/test_file_shelf_db.py` (7 unit test mencakup seluruh aturan bisnis, batasan kuota, konkurensi lease, rate limit, dan anti-BOLA).
+
+### File Dibuat
+- `backend/alembic/versions/003_file_shelf.py`
+- `backend/app/db/repositories/file_shelf_repository.py`
+- `backend/tests/test_file_shelf_db.py`
+
+### File Diubah
+- `backend/app/db/models.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Test DB Rak Berkas | `pytest backend/tests/test_file_shelf_db.py -v` | PASS | 7/7 test passed (slot quota, in-flight, size limit, rolling rate, lease concurrency, anti-BOLA, runtime state) |
+| Full Test Suite Backend | `pytest backend/tests -q` | PASS | 241 passed, 0 regression |
+| Ruff Linting | `ruff check backend/alembic/versions/003_file_shelf.py backend/app/db/models.py backend/app/db/repositories/file_shelf_repository.py backend/tests/test_file_shelf_db.py` | PASS | All checks passed, 0 error |
+
+### Acceptance Criteria
+- [x] Model ORM 5 tabel terdefinisi di `models.py`
+- [x] Skrip migrasi Alembic 003 lengkap dengan upgrade & downgrade
+- [x] Repository atomik menegakkan batas 5 slot, 1 in-flight, rolling rate limit, dan download leases
+- [x] Soft-delete langsung mencabut akses dan membuat deletion job
+- [x] Seluruh unit test lolos tanpa regresi
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-02 — Setup Dependensi Python, Unit Systemd Worker, & Keyring LoadCredential — 2026-11-11
+
+**Task:** `FS-02`
+**Requirement:** NFR-SEC-014, NFR-REL-008, RISK-SEC-012
+
+### Ringkasan
+1. Menambahkan dependensi `boto3`, `cryptography`, `defusedxml`, `vtx-oletools`, dan `msoffcrypto-tool` pada `backend/pyproject.toml` (total 23 dependensi tervalidasi).
+2. Menyusun unit service systemd background worker terpisah `deploy/satukit-file-worker.service` dengan pembatasan sumber daya VPS (`CPUQuota=80%`, `MemoryMax=512M`, `TasksMax=60`), isolasi namespace Linux (`ProtectSystem=strict`, `PrivateTmp=true`, `NoNewPrivileges=true`), serta direktori karantina terisolasi `/var/lib/satukit/quarantine`.
+3. Memperbarui `deploy/satukit.service` untuk menerima keyring root-owned (`/etc/satukit/keyring.json`) via mekanisme systemd `LoadCredential=`.
+4. Membuat skrip generator keyring mandiri `backend/scripts/generate_keyring.py` yang menghasilkan pasangan Key ID dan 32-byte (256-bit) kunci simetris AES-256-GCM terenkode base64url beserta digest SHA-1 untuk envelope 49-byte.
+5. Memperbarui runbook deployment `deploy/RUNBOOK.md` (§2, §5, §7) dengan langkah instalasi paket sistem `bubblewrap`, `clamav`, `clamav-daemon`, setup socket Unix `/run/clamav/clamd.ctl`, dan aktivasi service worker.
+
+### File Dibuat
+- `deploy/satukit-file-worker.service`
+- `backend/scripts/generate_keyring.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `deploy/satukit.service`
+- `deploy/RUNBOOK.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Keyring Generator | `python backend/scripts/generate_keyring.py --dry-run` | PASS | JSON valid, Key ID aktif, 32-byte secret ter-encode base64url |
+| TOML Parser | `python -c "import tomllib; tomllib.load(...)"` | PASS | 23 dependensi berhasil di-parse tanpa kesalahan sintaks |
+
+### Acceptance Criteria
+- [x] Dependensi baru terdaftar di `pyproject.toml`
+- [x] Unit worker terpisah `satukit-file-worker.service` tersedia
+- [x] Direktif `LoadCredential=` terintegrasi pada service
+- [x] Skrip generator keyring terverifikasi
+- [x] Panduan deployment RUNBOOK.md tersinkronisasi
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-01 — Feasibility Spike ClamAV Unix Socket & Isolasi Parser Bubblewrap — 2026-11-11
+
+**Task:** `FS-01`
+**Requirement:** NFR-SEC-013, NFR-PERF-007, NFR-REL-008, RISK-SEC-008, RISK-SEC-009
+
+### Ringkasan
+1. Membuat dan mengeksekusi skrip feasibility spike `backend/scripts/spike_file_shelf.py`.
+2. Menguji protokol streaming `zINSTREAM\0` ClamAV daemon Unix socket:
+   - Sampel PDF bersih: respon `stream: OK` diterima dalam latensi < 1 ms.
+   - Sampel EICAR test signature: respon `FOUND` terdeteksi seketika dan berkas ditolak.
+   - Kebijakan fail-closed: ketiadaan daemon atau socket mati memicu penolakan seketika.
+3. Menguji batas isolasi parser sandbox:
+   - Eksekusi normal berhasil dengan overhead alokasi memori RSS < 30 MiB.
+   - Eksekusi hang/looping dibunuh paksa secara deterministik saat melebihi batas waktu (SIGKILL enforced).
+   - Eksekusi alokasi memori berlebih tertahan aman tanpa mengganggu proses induk.
+4. Mencatat keputusan `DEC-024`: ClamAV adalah mandatory control yang tidak boleh dilewati; jika beban RAM di VPS 2.2 GiB tidak aman, wajib dilakukan upgrade RAM VPS ≥4 GiB.
+
+### File Dibuat
+- `backend/scripts/spike_file_shelf.py`
+
+### File Diubah
+- `.agent/DECISIONS.md` (menambahkan `DEC-024`)
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Probe ClamAV & Bubblewrap | `python backend/scripts/spike_file_shelf.py` | PASS (6/6 skenario) | Latensi < 1ms, auto-kill timeout 1011ms, fail-closed terverifikasi |
+
+### Acceptance Criteria
+- [x] Skrip spike `spike_file_shelf.py` selesai dibuat
+- [x] 6/6 skenario probe lulus pengujian
+- [x] Protokol chunked `INSTREAM` dan fail-closed ClamAV terverifikasi
+- [x] Isolasi subproses dan auto-kill timeout terverifikasi
+- [x] Keputusan teknis dicatat di `DEC-024`
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## FS-00 — Sinkronisasi Dokumen Induk & State Tracking Rak Berkas — 2026-11-11
+
+**Task:** `FS-00`
+**Requirement:** CR-018, CR-019, BUS-019 s/d BUS-025, NFR-SEC-013 s/d 017
+
+### Ringkasan
+1. Merekam Change Request CR-018 (Fitur Rak Berkas Privat Per Akun) dan CR-019 (Arsitektur Worker Terpisah, Isolasi Sandbox Bubblewrap, ClamAV Unix Socket, dan Enkripsi R2 Envelope AAD) di `.agent/CHANGE-REQUESTS.md`.
+2. Mendaftarkan seluruh task fase Rak Berkas (`FS-00` s/d `FS-09`) di `.agent/TASKS.md` dengan prioritas, dependensi, dan status verifikasi yang jelas.
+3. Menambahkan arsitektur Rak Berkas ke `docs/project/ARCHITECTURE.md` (§8), mencakup topologi worker terpisah `satukit-file-worker`, isolasi bwrap `RLIMIT_AS=512MiB`, ClamAV Unix socket `INSTREAM`, enkripsi AES-256-GCM envelope 49B AAD terikat identitas, keyring root `0400` via `LoadCredential=`, kuota R2 GraphQL 15m, dan skema PostgreSQL atomik.
+4. Menambahkan model ancaman `THR-018` s/d `THR-031`, kontrol `CTRL-018` s/d `CTRL-031`, dan Risk Register `RISK-SEC-008` s/d `RISK-SEC-016` di `docs/project/SECURITY.md` (§3.2, §12, §14.1). Mencatat formal approval owner atas `RISK-SEC-014` (retensi EXIF/GPS) hingga 2027-02-11 dengan kewajiban checkbox persetujuan UI.
+5. Mendokumentasikan 10 Kelompok Matriks Pengujian Upload Rak Berkas dan menyelaraskan status ketersediaan Playwright E2E di `docs/project/TEST-STRATEGY.md` (§2.7, §3).
+6. Menghubungkan seluruh requirement, threat, control, task, dan test Rak Berkas di `docs/project/TRACEABILITY.md`.
+7. Memperbarui `.agent/PROJECT-STATE.md` ke status aktif `phase-file-shelf` dengan task berikutnya `FS-01`.
+
+### File Diubah
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Acceptance Criteria
+- [x] CR-018 dan CR-019 tercatat di CHANGE-REQUESTS.md
+- [x] Task FS-00 s/d FS-09 terdaftar lengkap di TASKS.md
+- [x] Arsitektur Rak Berkas terdefinisi di ARCHITECTURE.md (§8)
+- [x] Threat THR-018 s/d 031 & Risk RISK-SEC-008 s/d 016 tercatat di SECURITY.md
+- [x] 10 Kelompok Matriks Pengujian Upload terdokumentasi di TEST-STRATEGY.md
+- [x] Traceability matrix mutakhir di TRACEABILITY.md
+- [x] PROJECT-STATE.md tersinkronisasi
+
+### Status
+✅ Selesai dan terverifikasi (dokumentasi)
+
+---
+
+## DEPLOY-PROD-001 s/d DEPLOY-PROD-006 — Deployment Produksi VPS Hardening & Runtime Security — 2026-11-11
+
+**Task:** `DEPLOY-PROD-001`, `DEPLOY-PROD-002`, `DEPLOY-PROD-003`, `DEPLOY-PROD-004`, `DEPLOY-PROD-005`, `DEPLOY-PROD-006`
+**Requirement:** NFR-SEC-001, NFR-SEC-006, NFR-SEC-008, NFR-SEC-010, NFR-PERF-006, NFR-REL-001, BUS-018, NFR-UX-002
+
+### Ringkasan
+1. **Runtime & Fail-Fast Hardening:**
+   - Menambahkan validator fail-fast `Settings.validate_production()` pada startup FastAPI. Memastikan rahasia bot challenge, HMAC pemendek tautan, kata sandi PostgreSQL, dan URL publik HTTPS tidak menggunakan default development.
+   - Mengonfigurasi backend loopback internal `127.0.0.1:8000` dengan proxy headers tepercaya `127.0.0.1` dan same-origin relative path `/api` pada frontend.
+2. **Autentikasi Produksi & Email Transaksional Brevo:**
+   - Menambahkan adapter REST API Brevo via standard library `urllib.request` tanpa dependensi eksternal, lengkap dengan fallback mode simulasi ketika `BREVO_API_KEY` tidak diatur.
+   - Mengimplementasikan alur pendaftaran, verifikasi email (TTL 15 menit), reset kata sandi single-use berbasis hash SHA-256 dan invalidasi sesi aktif seketika.
+   - Proteksi brute force dengan in-memory sliding window rate limiter pada endpoint autentikasi publik.
+3. **Pemisahan Izin Fitur Browser-Only vs Server-Side:**
+   - Menandai alat murni browser (`WebP ke JPG` dan `Generate QR Code`) dengan atribut `isBrowserOnly: true` di `frontend/src/App.tsx`. Pengguna anonim diizinkan mengakses direktori tools dan langsung membuka utilitas browser murni.
+   - Seluruh endpoint komputasi server VPS diproteksi fail-closed: pengguna anonim dialihkan ke `#/login` dengan notice guard, dan pada mode produksi akun dengan email belum diverifikasi diblokir dengan HTTP 403 oleh `SecurityMiddleware`.
+4. **Pembersihan Klaim Offline/Lokal UI:**
+   - Menghilangkan seluruh klaim teks "offline" dan "lokal" pada antarmuka publik pengguna (modal konversi, PDF tools, image tools, dashboard, preview) dan menggantinya dengan "aman & privat".
+   - Identifier teknis `localStorage`, `sessionStorage`, `localhost`, `getLocalShortenedLinks`, dan frasa identitas "budaya lokal" dipertahankan secara utuh.
+5. **Artefak Deployment Produksi Lengkap:**
+   - Menghasilkan `deploy/Caddyfile.example` dengan reverse proxy ke backend `127.0.0.1:8000`, automatic TLS, OWASP security headers (HSTS, CSP, X-Frame-Options DENY), kompresi zstd/gzip, dan caching statis aset SPA.
+   - Menghasilkan unit service systemd `deploy/satukit.service` dengan containment resource untuk VPS 1 vCPU / 2.2 GiB RAM (`MemoryMax=1800M`, `CPUQuota=95%`, `TasksMax=120`) dan isolasi namespace Linux (`ProtectSystem=full`, `PrivateTmp=true`, `NoNewPrivileges=true`).
+   - Menghasilkan template environment `deploy/satukit.env.example`.
+   - Menghasilkan skrip backup terenkripsi `deploy/backup_r2.sh` (OpenSSL AES-256-GCM, rotasi 7 hari Cloudflare R2) dan skrip pemulihan bencana `deploy/restore_r2.sh`.
+   - Menyusun runbook deployment komprehensif `deploy/RUNBOOK.md` untuk OS Ubuntu 24.04 LTS.
+6. **Audit Akhir & Verifikasi Penuh:**
+   - 234/234 Pytest suite backend 100% PASS.
+   - 371/371 Vitest suite frontend 100% PASS.
+   - Build produksi frontend Vite & Typecheck `tsc -b && vite build` bersih 0 error.
+   - Oxlint frontend 0 error.
+
+### File Dibuat
+- `backend/app/services/brevo.py`
+- `backend/app/core/rate_limiter.py`
+- `backend/tests/test_auth_production_hardening.py`
+- `backend/tests/test_production_config.py`
+- `frontend/src/services/auth.ts`
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/components/auth/__tests__/LoginPage.test.tsx`
+- `frontend/e2e/login_guard.spec.ts`
+- `deploy/Caddyfile.example`
+- `deploy/satukit.service`
+- `deploy/satukit.env.example`
+- `deploy/backup_r2.sh`
+- `deploy/restore_r2.sh`
+- `deploy/RUNBOOK.md`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `backend/app/api/auth.py`
+- `backend/app/api/health.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/preview/ResumePreview.tsx`
+- `frontend/src/components/builder/ImportResumeModal.tsx`
+- `frontend/src/components/converter/DocxToPdfModal.tsx`
+- `frontend/src/components/converter/PdfToDocxModal.tsx`
+- `frontend/src/components/converter/PresentationConverterModal.tsx`
+- `frontend/src/components/converter/SpreadsheetConverterModal.tsx`
+- `frontend/src/components/image-tools/PhotoProfileMakerModal.tsx`
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/image-tools/WebpToJpgModal.tsx`
+- `frontend/src/components/image-tools/__tests__/webp_to_jpg.test.tsx`
+- `frontend/src/components/pdf-tools/PdfOcrModal.tsx`
+- `frontend/src/components/pdf-tools/PdfPageNumbersModal.tsx`
+- `frontend/src/components/pdf-tools/PdfRepairModal.tsx`
+- `frontend/src/components/pdf-tools/PdfSecurityModal.tsx`
+- `frontend/src/components/pdf-tools/PdfSignModal.tsx`
+- `frontend/src/components/pdf-tools/PdfToMarkdownModal.tsx`
+- `frontend/src/components/pdf-tools/PdfToolsModal.tsx`
+- `frontend/src/components/pdf-tools/PdfWatermarkModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/pdf_tools.test.tsx`
+- `frontend/src/components/tools/QrCodeGeneratorModal.tsx`
+- `frontend/src/components/tools/__tests__/qr_code_generator.test.tsx`
+- `frontend/src/services/apiClient.ts`
+- `frontend/src/services/converter.ts`
+- `frontend/src/services/imageTools.ts`
+- `frontend/src/services/pdfTools.ts`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest Backend Full Suite | `pytest` | PASS | 234/234 tests passed |
+| Vitest Frontend Full Suite | `npm test` | PASS | 48 test files, 371/371 tests passed |
+| Frontend Typecheck & Build | `npm run build` | PASS | `tsc -b && vite build` bersih 0 error |
+| Frontend Linter | `npm run lint` | PASS | Oxlint 0 error |
+
+### Acceptance Criteria
+- [x] Backend FastAPI siap beroperasi aman di loopback 127.0.0.1:8000 dengan fail-fast production config validator.
+- [x] Pengguna anonim diizinkan mengakses direktori tools dan membuka fitur murni browser (WebP ke JPG, QR Code).
+- [x] Fitur komputasi server VPS diproteksi: diarahkan ke login, dan akun wajib verifikasi email di mode produksi (HTTP 403).
+- [x] Email transaksional terintegrasi via REST API Brevo stdlib (verifikasi akun, reset kata sandi, draf reminders).
+- [x] Seluruh klaim palsu "offline/lokal" pada antarmuka publik dibersihkan menjadi "aman & privat".
+- [x] Artefak deployment produksi lengkap tersedia di `deploy/` (Caddyfile, systemd unit, env template, backup/restore R2, runbook).
+
+### Status
+Selesai dan terverifikasi
+
+---
+
+## UI-HERO-CONTRAST-001 — Perbaikan Kontras Latar & Teks Trust Badges Hero Dashboard — 2026-11-11
+
+**Task:** `UI-HERO-CONTRAST-001`
+**Requirement:** NFR-UX-001, NFR-ACC-001, NFR-SEC-001
+
+### Ringkasan
+1. Memperbaiki masalah benturan warna/kontras pada Beranda/Dashboard di mana ornamen lanskap hijau pekat (`SceneryLeft`) menabrak teks gelap trust badges ("Cepat & Mudah", "Aman & Privat", "Selalu Bertambah").
+2. Menyetel opasitas pembungkus `SceneryLeft` pada `HeroScenery.tsx` menjadi `opacity-30 sm:opacity-40 dark:opacity-20`, sehingga ornamen budaya bukit Nusantara tetap tampil sebagai aksen latar belakang yang halus tanpa mendominasi kolom teks.
+3. Membungkus masing-masing trust badge pada `Dashboard.tsx` dengan kapsul pill semi-transparan ber-backdrop-blur (`bg-white/80 dark:bg-[#0c2427]/85 backdrop-blur-xs border border-teal-900/10 dark:border-teal-700/30 shadow-2xs`), serta warna teks berbobot kontras tinggi (`text-[#17383c] dark:text-stone-200`) yang menjamin keterbacaan penuh pada mode terang dan mode gelap.
+4. Menambahkan unit test di `dashboard.test.tsx` untuk memastikan ketiga trust badge terender dalam kontainer pill yang sesuai standar aksesibilitas WCAG AA.
+
+### File Diubah
+- `frontend/src/components/brand/HeroScenery.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Targeted Dashboard | `npm test -- --run src/components/dashboard` | PASS | 12/12 tests passed |
+| Frontend Typecheck & Build | `npm run build` | PASS | tsc + vite build 0 error |
+| Vitest Full Suite | `npm test` | PASS | 48 test files, 368/368 tests passed |
+
+### Acceptance Criteria
+- [x] Kontras teks dan ikon trust badges ("Cepat & Mudah", "Aman & Privat", "Selalu Bertambah") terbaca jelas di atas lanskap hero.
+- [x] Ornamen `SceneryLeft` beropasitas lembut (`opacity-30 sm:opacity-40 dark:opacity-20`) dan tidak menutupi keterbacaan teks.
+- [x] Seluruh trust badge memiliki pembungkus pill kontras tinggi dengan backdrop-blur pada mode terang & mode gelap.
+- [x] Unit test Dashboard & full test suite Vitest 100% lulus tanpa regresi.
+
+### Status
+Selesai dan terverifikasi
+
+---
+
+## TASK-11.2 — Draf Akun PostgreSQL, Retensi 30 Hari, Cleaner Daemon, & Hybrid Storage — 2026-11-11
+
+**Task:** `TASK-11.2`
+**Requirement:** BUS-017, FR-043, FR-044, NFR-REL-006, NFR-SEC-012
+
+### Ringkasan
+1. Menerapkan persistensi draf per akun di PostgreSQL `satukit` dengan skema `resume_drafts` dan relasi cascade ke `users.id`.
+2. Menegakkan autorisasi server-side berbasis kepemilikan ganda `id + user_id` untuk mencegah Broken Object Level Authorization (BOLA).
+3. Mengatur siklus hidup draf:
+   - Retensi 30 hari otomatis dihitung dari `updated_at`; baca/unduh draf tidak memperpanjang masa aktif.
+   - Cleaner background worker (`DraftCleanerWorker`) dengan interval 300s di lifespan FastAPI dan pembersihan oportunistik pada request API, menghapus draf kedaluwarsa maksimal 5 menit pasca jatuh tempo.
+   - Kuota ketat: maksimal 5 draf aktif per akun, 10 MB per dokumen, 50 MB total akun.
+   - Penghapusan manual mendukung jendela pembatalan (undo window) 10 detik.
+4. Menerapkan hybrid storage di frontend:
+   - Pengguna login: tersimpan di PostgreSQL via endpoint `/api/drafts`.
+   - Pengguna anonim: terisolasi di IndexedDB dengan namespace `'anonymous'`. Draf legacy tanpa `ownerId` tetap anonim dan tidak diklaim otomatis saat login.
+   - Mode Privat: tersimpan hanya di memori sesi aktif tanpa jejak ke server maupun IndexedDB.
+   - Autosave tertunda dibatalkan dan draf aktif di-reset saat pergantian pengguna / login / logout.
+5. Menampilkan badge sisa hari ("Tersisa N hari") dengan peringatan visual khusus saat sisa hari ≤ 7 hari di Dashboard dan Navbar.
+6. Merevisi seluruh dokumen kebijakan proyek (`BRD.md`, `PRD.md`, `ARCHITECTURE.md`, `SOP.md`, `SECURITY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`) dari 90 hari menjadi 30 hari retensi draf akun.
+
+### Kesesuaian dengan Code Plan
+- Seluruh scope draf PostgreSQL, retensi 30 hari, isolasi anonim di IndexedDB, Mode Privat sesi, dan pembersihan 5 menit terealisasi sesuai spesifikasi.
+- Semua target verifikasi terpenuhi.
+
+### File Dibuat
+- `backend/alembic/versions/002_resume_drafts.py`
+- `backend/app/db/repositories/resume_draft_repository.py`
+- `backend/app/api/drafts.py`
+- `backend/app/services/draft_cleaner.py`
+- `backend/tests/test_resume_drafts.py`
+- `frontend/src/services/draftApi.ts`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/db/models.py`
+- `backend/app/main.py`
+- `frontend/src/types/resume.ts`
+- `frontend/src/services/storage.ts`
+- `frontend/src/hooks/useResumeDraft.ts`
+- `frontend/src/hooks/__tests__/useResumeDraft.test.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SOP.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+- `docs/project/IMPLEMENTATION-PLAN.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest Draf | `pytest tests/test_resume_drafts.py` | PASS | 9/9 unit & integration tests passed |
+| Backend Pytest Full Suite | `pytest` | PASS | 223/223 tests passed |
+| Backend Linter | `ruff check .` | PASS | 0 error |
+| Frontend Vitest Hook | `npx vitest run src/hooks/__tests__/useResumeDraft.test.tsx` | PASS | 3/3 tests passed |
+| Frontend Vitest Dashboard | `npx vitest run src/components/dashboard/__tests__/dashboard.test.tsx` | PASS | 11/11 tests passed |
+| Frontend Vitest App Integration | `npx vitest run src/__tests__/app.integration.test.tsx` | PASS | 9/9 tests passed |
+| Frontend Vitest Full Suite | `npm test` | PASS | 48 test files, 367/367 tests passed |
+| Frontend Typecheck & Build | `npm run build` | PASS | tsc + vite build 0 error |
+| Playwright E2E Suite | `npx playwright test` | PASS | 5/5 E2E tests passed |
+
+### Acceptance Criteria
+- [x] Draf pengguna terautentikasi tersimpan di PostgreSQL `satukit` pada tabel `resume_drafts` terikat `user_id`.
+- [x] Draf anonim tersimpan di IndexedDB dengan namespace `'anonymous'`.
+- [x] Draf legacy tanpa `ownerId` tetap anonim dan tidak diklaim otomatis saat login.
+- [x] Retensi 30 hari dihitung dari `updated_at`; baca/unduh draf tidak memperpanjang masa kedaluwarsa.
+- [x] Cleaner menghapus draf kedaluwarsa maksimal 5 menit setelah jatuh tempo (worker interval 300s plus purge oportunistik API).
+- [x] Kuota akun: maksimal 5 draf aktif, 10 MB per draf, dan 50 MB total per akun.
+- [x] Mode Privat berjalan hanya di memori sesi tanpa simpan ke PostgreSQL atau IndexedDB.
+- [x] UI menampilkan badge sisa hari ("Tersisa N hari") dengan peringatan khusus jika sisa hari ≤7 hari.
+- [x] Manual delete mendukung window undo 10 detik; kedaluwarsa 30 hari tidak dapat di-undo.
+- [x] Revisi seluruh kebijakan dan dokumen proyek dari 90 hari menjadi 30 hari retensi draf akun.
+- [x] Autorisasi draf server-side wajib memverifikasi kepemilikan `id + user_id` untuk mencegah BOLA.
+
+### Status
+Selesai dan terverifikasi
+
+---
+
+## AUTH-MASCOT-001 — Maskot Kitu Ekspresif & Animatif pada Halaman Login/Sign Up — 2026-11-11
+
+**Task:** `AUTH-MASCOT-001`
+**Requirement:** BUS-017, BUS-018, NFR-UX-001, NFR-UX-002
+
+### Ringkasan
+1. Menambahkan maskot Kitu pada header kartu `LoginPage.tsx` dengan ukuran responsif (`size="md"`).
+2. Mengikat ekspresi dan animasi ke state autentikasi:
+   - Mode masuk awal: `siapmembantu` + `animate-kitu-hop`.
+   - Mode pendaftaran (sign up): `semangat` + `animate-kitu-wiggle`.
+   - Tahap 2 tantangan matematika anti-bot: `berpikir` + `animate-kitu-bob`.
+   - Status memuat (loading): `fokus` + `animate-kitu-bob`.
+   - Terjadi kesalahan (error alert): `kecewa` + `animate-kitu-shake`.
+3. Mematuhi standar aksesibilitas WCAG 2.2 AA dan `prefers-reduced-motion`.
+
+### File Diubah
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/components/auth/__tests__/LoginPage.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Targeted Auth | `npx vitest run src/components/auth/__tests__/LoginPage.test.tsx` | PASS | 10/10 tests passed |
+| Vitest Full Suite | `npm test` | PASS | 48 test files, 364/364 tests passed |
+| Oxlint Linter | `npm run lint` | PASS | 0 errors |
+| Vite Production Build | `npm run build` | PASS | tsc + vite build 0 error |
+| Playwright E2E | `npm run test:e2e` | PASS | 5/5 E2E tests passed |
+
+### Status
+Selesai dan terverifikasi
+
+---
+
+## AUTH-VERIFY-001 — Integrasi PostgreSQL Lokal, Registrasi Akun, & 2-Step Login — 2026-11-11
+
+**Task:** `AUTH-VERIFY-001`
+**Requirement:** NFR-SEC-006, NFR-SEC-010
+
+### Ringkasan
+1. Menghubungkan Satukit ke PostgreSQL 18 lokal port 5432, membuat database `satukit` dan user `satukit_user` dengan hak akses penuh schema `public`.
+2. Menjalankan migrasi Alembic (`001_initial_schema`) dan membentuk 7 tabel relasional (`users`, `oauth_accounts`, `user_sessions`, `auth_tokens`, `short_urls`, `media_download_jobs`, `media_download_usage`).
+3. Memperbaiki dependency order/flush di `AuthRepository` (`create_user_with_token` dan `create_google_user`) agar parent `User` di-flush sebelum child `AuthToken`/`OAuthAccount` untuk mencegah pelanggaran foreign key PostgreSQL.
+4. Menguji alur otentikasi lengkap (live end-to-end):
+   - Registrasi user (`POST /api/auth/register`) -> 200 OK + data user di PostgreSQL.
+   - Login tahap 1 (`POST /api/auth/login-init`) -> 200 OK + verifikasi kredensial + generate soal matematika anti-bot.
+   - Login tahap 2 jawaban salah (`POST /api/auth/login-verify`) -> 400 Bad Request.
+   - Login tahap 2 jawaban benar (`POST /api/auth/login-verify`) -> 200 OK + sesi tersimpan di PostgreSQL + cookie `satukit_session`.
+   - Akses data pengguna (`GET /api/auth/me`) -> 200 OK + data akun valid.
+5. Verifikasi suite lengkap: 214/214 backend Pytest PASS, 362/362 frontend Vitest PASS, Vite production build PASS (0 error).
+
+### Kesesuaian dengan Code Plan
+- Menghubungkan ke PostgreSQL lokal port 5432.
+- Mengamankan script setup agar tidak membocorkan password admin superuser di source code.
+- Memastikan alur login 2 tahap terintegrasi dengan database lokal.
+
+### File Dibuat
+- `backend/scripts/setup_postgres.py`
+
+### File Diubah
+- `backend/app/db/repositories/auth_repository.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Provisioning PostgreSQL | `python backend/scripts/setup_postgres.py` | PASS | Database `satukit` dan user `satukit_user` terkonfigurasi |
+| Alembic Migration | `python -m alembic -c backend/alembic.ini upgrade head` | PASS | 7 tabel relasional terbentuk di database `satukit` |
+| Live Auth End-to-End | Test client live auth against PostgreSQL | PASS | Register, login-init, math challenge reject/accept, session cookie valid |
+| Backend Pytest Suite | `python -m pytest backend/tests -q` | PASS | 214/214 tests passed |
+| Frontend Vitest Suite | `npm test` | PASS | 48 test files, 362/362 tests passed |
+| Frontend Production Build | `npm run build` | PASS | tsc + vite build 0 error |
+
+### Status
+Selesai dan terverifikasi
+
+---
+
+## AUTH-UI-001 — Halaman Login Khusus `#/login` & Alur Verifikasi Anti-Bot Dua Tahap — 2026-11-11
+
+**Task:** `AUTH-UI-001`
+**Requirement:** BUS-017, FR-042, NFR-UX-001, CR-018
+
+### Ringkasan
+1. Menghilangkan popup modal untuk alur login; menggantikannya dengan halaman penuh mandiri `frontend/src/components/auth/LoginPage.tsx` pada hash workspace `#/login`.
+2. Menerapkan alur autentikasi dua tahap:
+   - Tahap 1 (`POST /api/auth/login-init`): pengguna menginput email & kata sandi. Server memverifikasi kredensial. Jika salah, muncul pesan error dan soal matematika TIDAK MUNCUL.
+   - Tahap 2 (`POST /api/auth/login-verify`): jika dan hanya jika kredensial benar, server menerbitkan token tantangan HMAC terikat `user_id` dan menampilkan kartu soal matematika SD kelas 1 (hasil 0..20). Pengguna mengetikkan jawaban angka dan melakukan verifikasi untuk menerbitkan sesi login (`satukit_session`).
+   - Tombol "Ganti Soal" (`POST /api/auth/login-challenge-refresh`) untuk memperbarui soal secara acak.
+3. Memberlakukan login guard: pengguna anonim yang mengakses workspace `#/tools` dialihkan secara otomatis ke `#/login` dengan pesan panduan, dan otomatis diteruskan kembali ke `#/tools` setelah masuk.
+4. CV Builder, evaluasi skor ATS, dan import/export lokal tetap 100% anonim dan bebas diakses tanpa akun.
+
+### Kesesuaian dengan Code Plan
+- Menghapus popup modal auth sepenuhnya, menggantikannya dengan route halaman `#/login`.
+- Soal matematika SD hanya muncul setelah email dan kata sandi valid.
+- Semua pengujian unit, integrasi, dan E2E Playwright lulus 100%.
+
+### File Dibuat
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/components/auth/__tests__/LoginPage.test.tsx`
+- `frontend/e2e/login_guard.spec.ts`
+
+### File Diubah
+- `backend/app/services/bot_challenge.py`
+- `backend/app/api/auth.py`
+- `backend/app/core/middleware.py`
+- `backend/tests/test_bot_challenge.py`
+- `backend/tests/test_auth_api.py`
+- `frontend/src/services/auth.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Targeted LoginPage | `npx vitest run src/components/auth/__tests__/LoginPage.test.tsx` | PASS | 8/8 tests passed |
+| Vitest App Integration | `npx vitest run src/__tests__/app.integration.test.tsx` | PASS | 9/9 tests passed |
+| Vitest Full Suite | `npm run test` | PASS | 48 test files, 362 tests passed |
+| Frontend Production Build | `npm run build` | PASS | `tsc -b && vite build` 0 error, bundle 959 KB gzip 229 KB |
+| Playwright E2E Suite | `npx playwright test` | PASS | 5/5 tests passed across 3 workers |
+| Targeted Backend Pytest | `pytest tests/test_auth_api.py tests/test_bot_challenge.py` | PASS | 16/16 tests passed |
+| Full Backend Pytest | `pytest` | PASS | 214/214 tests passed |
+| Backend Ruff Linter | `ruff check app/api/auth.py app/services/bot_challenge.py` | PASS | All checks passed |
+
+### Acceptance Criteria
+- [x] Popup modal autentikasi dihapus; login dialihkan ke halaman penuh `#/login`
+- [x] Soal matematika SD hanya muncul setelah email & password diverifikasi dan dinyatakan benar oleh server
+- [x] Kredensial salah tidak memunculkan soal matematika anti-bot
+- [x] Pengguna anonim yang mengakses menu atau workspace `#/tools` otomatis dialihkan ke `#/login`
+- [x] Setelah berhasil masuk di `#/login`, pengguna diteruskan ke workspace `#/tools`
+- [x] CV Builder, evaluasi ATS, dan import/export lokal tetap 100% anonim dan bebas diakses tanpa akun
+- [x] Seluruh endpoint Google Auth publik dan Shortener Management tetap nonaktif
+- [x] Tidak ada tindakan Git destruktif
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## AUTH-BOT-001 — Generator & Verifier Soal Anti-Bot Matematika SD Kelas 1 Server-Side — 2026-11-11
+
+**Task:** `AUTH-BOT-001`
+**Requirement:** NFR-SEC-006, NFR-SEC-007
+
+### Ringkasan
+Membangun sistem tantangan anti-bot matematika SD Kelas 1 di server tanpa dependensi pihak ketiga, dengan HMAC-SHA256 challenge token dan alur verifikasi login dua langkah:
+1. Layanan `BotChallengeService` (`backend/app/services/bot_challenge.py`) menghasilkan soal matematika acak kelas 1 SD (penjumlahan dan pengurangan 0..20) dengan teks pertanyaan ramah anak.
+2. Token state bertanda tangan HMAC-SHA256 (`expires_at.nonce.signature`) dengan TTL 5 menit (anti-replay dan tamper-proof).
+3. Endpoint publik `POST /api/auth/challenge` menerbitkan token dan soal pertanyaan tanpa membocorkan jawaban.
+4. Endpoint `POST /api/auth/login` mewajibkan `challenge_token` dan `challenge_answer`, memverifikasi jawaban sebelum menerbitkan cookie sesi.
+5. Menulis unit tests komprehensif di `test_bot_challenge.py` (struktur, rentang angka, tamper resistance, expiry, sanitasi) dan sinkronisasi `test_auth_api.py`.
+
+### Kesesuaian dengan Code Plan
+- Implementasi sesuai rencana: 0 dependensi luar, pustaka standar Python (`hmac`, `hashlib`, `secrets`, `time`).
+- Seluruh 14 test targeted dan 212 full suite test lulus 100%.
+
+### File Dibuat
+- `backend/app/services/bot_challenge.py`
+- `backend/tests/test_bot_challenge.py`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `backend/app/api/auth.py`
+- `backend/tests/test_auth_api.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest Challenge & Auth | `pytest tests/test_bot_challenge.py tests/test_auth_api.py -v` | PASS | 14/14 tests passing |
+| Python Linting (Changed Files) | `ruff check app/core/config.py app/services/bot_challenge.py app/api/auth.py app/core/middleware.py tests/test_bot_challenge.py tests/test_auth_api.py` | PASS | All checks passed |
+| Backend Pytest Full Suite | `pytest` | PASS | 212/212 tests passing |
+
+### Acceptance Criteria
+- [x] Generator matematika SD kelas 1 menghasilkan angka penjumlahan/pengurangan dalam rentang 0-20
+- [x] Token state ditandatangani HMAC-SHA256 dengan expiry 5 menit
+- [x] Endpoint publik `POST /api/auth/challenge` mengembalikan pertanyaan dan token tanpa jawaban
+- [x] `POST /api/auth/login` memvalidasi tantangan anti-bot sebelum menerbitkan sesi
+- [x] Jawaban salah, token kedaluwarsa, atau token termanipulasi ditolak dengan HTTP 400
+- [x] Semua pengujian backend lolos 100%
+
+### Status
+✅ Selesai dan terverifikasi
+
+---
+
+## AUTH-ACCESS-001 — Penutupan Entry Point Tidak Aman Google Auth & Shortener Management — 2026-11-11
+
+**Task:** `AUTH-ACCESS-001`
+**Requirement:** NFR-SEC-006, NFR-SEC-008, NFR-SEC-009
+
+### Ringkasan
+Menutup seluruh entry point tidak aman pada surface publik Satukit sebelum peluncuran fitur login dan anti-bot:
+1. Menghapus endpoint Google Auth publik (`POST /api/auth/google`, `POST /api/auth/link-google`, `POST /api/auth/unlink-google`) dan menghapus rute dari `PUBLIC_PATHS` di `SecurityMiddleware`. Percobaan akses diblokir (401 oleh middleware atau 404/405).
+2. Menonaktifkan pendaftaran `shortener_router` di `main.py`, memblokir pembuatan short link publik (`POST /api/shortener/create`) dan konfigurasi edge (`GET /api/shortener/config`) dengan respon 404/405.
+3. Mempertahankan rute redirect publik `GET /s/{slug}` dan `GET /api/s/{slug}` dengan counter atomik untuk melayani tautan yang sudah ada.
+4. Menyelaraskan katalog alat dokumen publik di frontend dari 25 menjadi 24 utilitas: menghapus modal shortener dan pendaftaran alat di `App.tsx`, menghapus Kartu 4 Pendekkan URL dan quick category di `Dashboard.tsx` (merapikan grid menjadi 3 kolom), dan menyelaraskan panduan di `Navbar.tsx`.
+5. Memperbarui suite pengujian frontend dan backend: 11/11 targeted Pytest PASS, 204/204 full suite Pytest PASS, 8/8 targeted Vitest PASS, 353/353 full suite Vitest PASS, Ruff clean pada berkas terubah, Oxlint 0 error, Vite build lolos, Playwright E2E dashboard (stat-tools-count = 24) lolos pada 5 viewport.
+
+### Kesesuaian dengan Code Plan
+- Seluruh 5 method-path yang direncanakan dinonaktifkan dari surface publik.
+- Redirect `/s/{slug}` dan model database dipertahankan sebagai dormant code tanpa migrasi schema destruktif.
+- Seluruh langkah verifikasi dijalankan sesuai rencana.
+
+### File Diubah
+- `backend/app/api/auth.py`
+- `backend/app/core/middleware.py`
+- `backend/app/main.py`
+- `backend/tests/test_auth_api.py`
+- `backend/tests/test_shortener_api.py`
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+- `.agent/DECISIONS.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `docs/project/SECURITY.md`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest API Auth & Shortener | `pytest tests/test_auth_api.py tests/test_shortener_api.py -v` | PASS | 11/11 tests passing |
+| Targeted Vitest App Integration | `npm test -- src/__tests__/app.integration.test.tsx` | PASS | 8/8 tests passing, ketiadaan Pemendek URL terverifikasi |
+| Python Linting (Changed Files) | `ruff check app/api/auth.py app/main.py app/core/middleware.py tests/test_auth_api.py tests/test_shortener_api.py` | PASS | All checks passed |
+| Frontend Linting | `npm run lint` | PASS | Oxlint 0 error |
+| Backend Pytest Full Suite | `pytest` | PASS | 204/204 tests passing |
+| Frontend Vitest Full Suite | `npm test` | PASS | 47 files, 353/353 tests passing |
+| Frontend Production Build | `npm run build` | PASS | `tsc -b && vite build` selesai 513ms |
+| Playwright E2E Dashboard | `npx playwright test e2e/dashboard.spec.ts` | PASS | 1/1 test suite passing (5 viewports, 24 utilitas) |
+| Git Working Tree & Secret Check | `git status` | PASS | 10 source files modified, 0 untracked files, 0 secret leak |
+
+### Acceptance Criteria
+- [x] Endpoint `POST /api/auth/google`, `POST /api/auth/link-google`, dan `POST /api/auth/unlink-google` tertutup
+- [x] Endpoint `POST /api/shortener/create` dan `GET /api/shortener/config` tertutup
+- [x] Endpoint `GET /s/{slug}` dan `GET /api/s/{slug}` tetap aktif melayani 302/404/410
+- [x] Katalog alat dokumen publik frontend menjadi 24 utilitas
+- [x] Kartu 4 & quick category shortener di Beranda dihapus, grid 3 kolom rapi
+- [x] Semua test unit, integrasi, build, dan E2E lulus
+
+### Keputusan dan Technical Debt
+- Kode model/service Google Auth dan Shortener dipertahankan di codebase internal sebagai dormant code untuk fase implementasi owner-only & OAuth authorization-code aman berikutnya.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Lanjutkan ke Task `AUTH-BOT-001`: Implementasi Generator & Verifier Soal Anti-Bot Matematika SD Kelas 1 Server-Side dengan HMAC State Token dan Challenge Expiry 5 menit.
+
+---
+
 ## HOTFIX-DARK-MODE-CONTRAST-001 — Perbaikan Kontras Dark Mode Kartu Draf & Direktori Ruang Kerja — 2026-11-09
 
 **Task:** `HOTFIX-DARK-MODE-CONTRAST-001`

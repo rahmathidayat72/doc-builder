@@ -59,7 +59,7 @@ describe('WebpToJpgModal Component Suite', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('merender dialog modal, dropzone, dan informasi lokal saat dibuka', () => {
+  it('merender dialog modal, dropzone, dan informasi privasi saat dibuka', () => {
     render(<WebpToJpgModal isOpen={true} onClose={vi.fn()} />)
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('WebpToJpgModal Component Suite', () => {
     expect(screen.getByText(/Pilih atau Tarik Berkas WebP ke Sini/i)).toBeInTheDocument()
     expect(screen.getByTestId('file-input-webp')).toBeInTheDocument()
     expect(screen.getByTestId('btn-close-webp-modal')).toBeInTheDocument()
-    expect(screen.getByText(/Diproses 100% lokal di browser/i)).toBeInTheDocument()
+    expect(screen.getByText(/Diproses langsung di browser/i)).toBeInTheDocument()
   })
 
   it('memanggil onClose saat tombol tutup atau tombol Escape ditekan', () => {

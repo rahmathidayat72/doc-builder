@@ -15,7 +15,6 @@ import {
   Zap,
   Image as ImageIcon,
   Files,
-  Link2,
   LayoutGrid
 } from 'lucide-react'
 import { type ResumeDraft, type ResumeDraftSummary } from '../../types/resume'
@@ -72,7 +71,6 @@ const QUICK_CATEGORIES = [
   { id: 'background', label: 'Hapus Latar', icon: LayoutGrid, workspace: 'tools' as Workspace },
   { id: 'convert', label: 'Konversi File', icon: Files, workspace: 'tools' as Workspace },
   { id: 'files', label: 'Kelola File', icon: Wrench, workspace: 'tools' as Workspace },
-  { id: 'url', label: 'Pendekkan URL', icon: Link2, workspace: 'tools' as Workspace },
   { id: 'more', label: 'Lainnya', icon: LayoutGrid, workspace: 'tools' as Workspace },
 ] as const
 
@@ -222,7 +220,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </h1>
 
               <p style={delay(270)} className="hero-in text-base sm:text-lg leading-relaxed text-[#40565b] dark:text-stone-300 max-w-xl">
-                Buat CV profesional, edit foto, olah file, pendekkan URL, dan berbagai alat digital lainnya dalam satu platform yang mudah, cepat, dan gratis untuk dicoba.
+                Buat CV profesional, edit foto, olah file, dan berbagai alat digital lainnya dalam satu platform yang mudah, cepat, dan gratis untuk dicoba.
               </p>
 
               {/* Tombol Aksi Utama */}
@@ -284,20 +282,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* 3 Trust Badges */}
-              <div style={delay(450)} className="hero-in pt-2 flex flex-wrap items-center gap-x-7 gap-y-2.5 text-[13px] font-bold text-[#29484c] dark:text-stone-300">
-                <span className="inline-flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-[#079875] dark:text-teal-400 fill-[#079875]/20" />
-                  Cepat &amp; Mudah
+              <div style={delay(450)} className="hero-in pt-2 flex flex-wrap items-center gap-2.5 sm:gap-3 text-[13px] font-bold text-[#17383c] dark:text-stone-200">
+                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-[#0c2427]/85 backdrop-blur-xs border border-teal-900/10 dark:border-teal-700/30 shadow-2xs">
+                  <Zap className="w-4 h-4 text-[#079875] dark:text-teal-400 fill-[#079875]/20" aria-hidden="true" />
+                  <span>Cepat &amp; Mudah</span>
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#079875] dark:text-teal-400" />
-                  Aman &amp; Privat
+                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-[#0c2427]/85 backdrop-blur-xs border border-teal-900/10 dark:border-teal-700/30 shadow-2xs">
+                  <ShieldCheck className="w-4 h-4 text-[#079875] dark:text-teal-400" aria-hidden="true" />
+                  <span>Aman &amp; Privat</span>
                 </span>
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 dark:bg-[#0c2427]/85 backdrop-blur-xs border border-teal-900/10 dark:border-teal-700/30 shadow-2xs">
                   <svg className="w-4 h-4 text-[#079875] dark:text-teal-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M18.178 8c5.096 0 5.096 8 0 8-5.095 0-7.133-8-12.739-8-4.585 0-4.585 8 0 8 5.606 0 7.644-8 12.74-8z"/>
                   </svg>
-                  Selalu Bertambah
+                  <span>Selalu Bertambah</span>
                 </span>
               </div>
             </div>
@@ -389,7 +387,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Kartu 1: CV Builder */}
               <div
                 className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
@@ -491,41 +489,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </button>
                 </div>
               </div>
-
-              {/* Kartu 4: Pendekkan URL */}
-              <div
-                className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <img
-                    src={KITU_EXPRESSIONS.pendekkanurl}
-                    alt="Kitu URL Shortener"
-                    className="w-18 h-18 sm:w-20 sm:h-20 object-contain shrink-0 select-none group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 drop-shadow-[0_4px_10px_rgba(7,152,117,0.18)]"
-                  />
-                  <div className="min-w-0 flex-1 pr-6">
-                    <div className="flex items-center gap-1.5">
-                      <Link2 className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
-                      <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                        Pendekkan URL
-                      </h3>
-                    </div>
-                    <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                      Buat tautan lebih ringkas, rapi, dan mudah dibagikan.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="absolute right-3.5 bottom-3.5">
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('tools')}
-                    className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
-                  >
-                    <span className="sr-only">Buat Tautan Pendek</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
             </div>
           </section>
         </Reveal>
@@ -620,7 +583,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   >
                     {isLoadingDrafts ? '…' : draftsList.length}
                   </span>
-                  <span className="text-[13px] text-stone-600 dark:text-stone-400">dokumen lokal</span>
+                  <span className="text-[13px] text-stone-600 dark:text-stone-400">draf dokumen</span>
                 </div>
               </div>
 
@@ -742,7 +705,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div className="max-w-lg">
                       <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Belum ada CV yang dibuat</h3>
                       <p className="text-[13px] sm:text-sm text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                        Setiap draf CV yang Anda susun disimpan secara lokal di browser perangkat ini. Mulai dari lembar baru atau impor berkas resume yang sudah Anda miliki.
+                        Setiap draf CV yang Anda susun tersimpan aman dan terintegrasi di akun Anda. Mulai dari lembar baru atau impor berkas resume yang sudah Anda miliki.
                       </p>
                     </div>
                     <div className="pt-1 flex flex-wrap items-center gap-2.5">
@@ -825,6 +788,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 <Clock className="w-3.5 h-3.5 text-stone-400 shrink-0" aria-hidden="true" />
                                 <span>{formatRelativeTime(item.updatedAt)}</span>
                               </span>
+                              {item.expiresAt && (() => {
+                                const days = Math.max(0, Math.ceil((item.expiresAt - Date.now()) / (86400 * 1000)))
+                                const isUrgent = days <= 7
+                                return (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-2xs font-bold shrink-0 ${
+                                        isUrgent
+                                          ? 'bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                          : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700'
+                                      }`}
+                                      title="Masa simpan draf akun (retensi 30 hari dari edit terakhir)"
+                                      data-testid={`draft-expiry-${item.id}`}
+                                    >
+                                      <span>{days === 0 ? 'Kedaluwarsa hari ini' : `Tersisa ${days} hari`}</span>
+                                    </span>
+                                  </>
+                                )
+                              })()}
                             </div>
                           </div>
 
@@ -951,7 +934,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </span>
                       </div>
                       <p className="text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">
-                        Konversi DOCX, Excel, PDF, OCR lokal, gabung/pisah berkas, hapus background foto, hingga pemendek tautan.
+                        Konversi DOCX, Excel, PDF, OCR teks, gabung/pisah berkas, hapus background foto, hingga buat kode QR.
                       </p>
                     </div>
                   </button>

@@ -27,16 +27,19 @@ import {
   ChevronDown,
   HelpCircle,
   Info,
+  LogIn,
+  LogOut,
 } from 'lucide-react'
 import { type ResumeDraft, type ResumeDraftSummary, type ResumeLanguage } from '../../types/resume'
 import { type PendingDelete } from '../../hooks/useResumeDraft'
+import { type AuthUser } from '../../services/auth'
 import { TEMPLATES } from '../../templates/registry'
 import { useDismiss } from '../../hooks/useDismiss'
 import { BrandLogo } from '../brand/BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
 import { KituNotice } from '../brand/KituNotice'
 
-export type Workspace = 'home' | 'builder' | 'ats' | 'tools'
+export type Workspace = 'home' | 'builder' | 'ats' | 'tools' | 'files' | 'login'
 
 interface NavbarProps {
   activeWorkspace?: Workspace
@@ -66,6 +69,9 @@ interface NavbarProps {
   onToggleFavorite: (id: string) => void
   onUndoDelete: () => void
   onTogglePrivateMode: (enabled: boolean) => void
+  currentUser?: AuthUser | null
+  onOpenLogin?: () => void
+  onLogout?: () => void
 }
 
 const THEME_COLORS = [
@@ -105,6 +111,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleFavorite,
   onUndoDelete,
   onTogglePrivateMode,
+  currentUser,
+  onOpenLogin,
+  onLogout,
 }) => {
   const [showDraftsModal, setShowDraftsModal] = useState(false)
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -249,6 +258,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Wrench className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
               <span>Tools</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                closeMenus()
+                onNavigate?.('files')
+              }}
+              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
+                activeWorkspace === 'files'
+                  ? 'bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50'
+              }`}
+              aria-current={activeWorkspace === 'files' ? 'page' : undefined}
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
+              <span>Rak Berkas</span>
             </button>
 
             <button
@@ -519,6 +545,42 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Theme Toggle Button */}
             <ThemeToggle className="ml-1" />
 
+            {/* Auth Profile / Login Button */}
+            {currentUser ? (
+              <div
+                className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full bg-teal-50 dark:bg-stone-800 border border-teal-200 dark:border-stone-700 text-xs shrink-0"
+                data-testid="nav-user-profile"
+              >
+                <span className="w-5 h-5 rounded-full bg-[#079875] text-white flex items-center justify-center text-3xs font-black uppercase">
+                  {currentUser.name ? currentUser.name.charAt(0) : 'U'}
+                </span>
+                <span className="font-bold text-stone-800 dark:text-stone-200 max-w-[80px] sm:max-w-[120px] truncate" title={currentUser.name}>
+                  {currentUser.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="ml-1 text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer p-0.5 rounded"
+                  title="Keluar dari akun"
+                  aria-label="Keluar dari akun"
+                  data-testid="btn-nav-logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : onOpenLogin ? (
+              <button
+                type="button"
+                onClick={onOpenLogin}
+                className="h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] transition shadow-2xs cursor-pointer shrink-0"
+                data-testid="btn-nav-login"
+                title="Masuk ke akun Satukit"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Masuk</span>
+              </button>
+            ) : null}
+
             {(activeWorkspace === 'builder' || activeWorkspace === 'home') && (
               <button
                 type="button"
@@ -551,7 +613,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <h3 className="text-sm font-extrabold text-[#17383c] dark:text-stone-100 flex items-center gap-2">
                       Fitur CV Builder ATS
                       <span className="px-2 py-0.5 text-3xs font-bold rounded-full bg-[#079875] text-white">
-                        100% Gratis &amp; Offline
+                        100% Gratis &amp; Privat
                       </span>
                     </h3>
                     <p className="text-xs text-[#53676b] dark:text-stone-400">
@@ -616,7 +678,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           Draf Resume ({draftsList.length})
                         </div>
                         <div className="text-[11px] text-[#53676b] dark:text-stone-400 leading-tight">
-                          Kelola, duplikasi, dan lanjutkan draf lokal tersimpan
+                          Kelola, duplikasi, dan lanjutkan draf tersimpan
                         </div>
                       </div>
                     </button>
@@ -767,7 +829,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </li>
                       <li className="flex items-start gap-1.5">
                         <Check className="w-3 h-3 text-[#079875] shrink-0 mt-0.5" />
-                        <span>Data 100% lokal tanpa kirim ke server asing</span>
+                        <span>Data diproses aman dan privat di server Satukit</span>
                       </li>
                     </ul>
                   </div>
@@ -929,6 +991,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                               Target: {item.targetJobTitle}
                             </span>
                           )}
+                          {item.expiresAt && (() => {
+                            const days = Math.max(0, Math.ceil((item.expiresAt - Date.now()) / (86400 * 1000)))
+                            const isUrgent = days <= 7
+                            return (
+                              <span
+                                className={`rounded-full px-1.5 py-0.5 font-semibold ${
+                                  isUrgent
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+                                }`}
+                                title="Masa simpan draf sebelum otomatis terhapus"
+                              >
+                                {days === 0 ? 'Kedaluwarsa hari ini' : `Tersisa ${days} hr`}
+                              </span>
+                            )
+                          })()}
                         </span>
                       </button>
                     )}
@@ -1009,9 +1087,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed space-y-3">
               {infoModal === 'panduan' && (
                 <ol className="list-decimal pl-4 space-y-2">
-                  <li><strong>Pilih Alat:</strong> Gunakan menu Beranda atau tab Tools untuk memilih CV Builder, Konversi PDF, Edit Foto, atau URL Shortener.</li>
+                  <li><strong>Pilih Alat:</strong> Gunakan menu Beranda atau tab Tools untuk memilih CV Builder, Konversi PDF, Edit Foto, atau Kode QR.</li>
                   <li><strong>Isi &amp; Olah Data:</strong> Ketik riwayat pekerjaan atau unggah berkas. Data Anda aman tersimpan di browser tanpa dikirim ke server.</li>
-                  <li><strong>Ekspor Dokumen:</strong> Unduh hasil dalam format PDF ATS murni, DOCX, atau salin tautan ringkas Anda seketika.</li>
+                  <li><strong>Ekspor Dokumen:</strong> Unduh hasil dalam format PDF ATS murni, DOCX, atau berkas gambar olahan seketika.</li>
                 </ol>
               )}
               {infoModal === 'tentang' && (

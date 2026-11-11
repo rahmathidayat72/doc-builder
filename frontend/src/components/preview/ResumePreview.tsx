@@ -163,7 +163,7 @@ export const ResumePreview: React.FC<ResumePreviewProps> = ({ draft, onPageCount
           </div>
 
           <footer className="pt-8 text-center text-3xs text-stone-300">
-            Dihasilkan secara aman dengan Satukit (Offline &amp; Privat)
+            Dihasilkan secara aman dengan Satukit (Aman &amp; Privat)
           </footer>
         </div>
       </div>

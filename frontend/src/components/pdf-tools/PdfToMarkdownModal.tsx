@@ -170,7 +170,7 @@ export const PdfToMarkdownModal: React.FC<PdfToMarkdownModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-stone-600">
-                Ekstrak dokumen PDF menjadi berkas Markdown (.md) lokal dengan mempertahankan heading, tabel, list & tautan.
+                Ekstrak dokumen PDF menjadi berkas Markdown (.md) dengan mempertahankan heading, tabel, list &amp; tautan.
               </p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export const PdfToMarkdownModal: React.FC<PdfToMarkdownModalProps> = ({
                     Pilih atau tarik berkas PDF ke sini
                   </span>
                   <span className="text-3xs text-stone-600 block mt-0.5">
-                    Maksimum ukuran 25 MB • Ekstraksi teks & struktur 100% lokal offline
+                    Maksimum ukuran 25 MB • Ekstraksi teks &amp; struktur aman &amp; privat
                   </span>
                 </div>
                 <input

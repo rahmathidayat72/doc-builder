@@ -204,7 +204,7 @@ const SceneryLeft: React.FC = () => (
 
 export const HeroScenery: React.FC = () => (
   <div className="pointer-events-none absolute inset-0 select-none overflow-hidden" aria-hidden="true" data-testid="hero-scenery">
-    <div className="scenery-in absolute inset-y-0 left-0 w-[34%] min-w-[96px] max-w-[300px] sm:w-[22%]" style={{ '--d': '60ms' } as React.CSSProperties}>
+    <div className="scenery-in absolute inset-y-0 left-0 w-[34%] min-w-[96px] max-w-[300px] sm:w-[22%] opacity-30 sm:opacity-40 dark:opacity-20" style={{ '--d': '60ms' } as React.CSSProperties}>
       <SceneryLeft />
     </div>
     <div className="scenery-in absolute inset-y-0 right-0 w-[78%] max-w-[760px] sm:w-[52%]" style={{ '--d': '180ms' } as React.CSSProperties}>

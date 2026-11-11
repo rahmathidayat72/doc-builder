@@ -203,7 +203,18 @@
 - Risiko: Disk penuh atau permission gagal tidak menggagalkan request, tetapi event audit hilang; kegagalan hanya dilaporkan sebagai tipe error di stderr. `RISK-SEC-001` tetap OPEN sampai owner menyetujui penutupan berdasarkan bukti 10 test `test_audit.py` dan full suite 136/136 Pytest PASS.
 - Requirement terkait: NFR-SEC-001, THR-010, CTRL-010, `RISK-SEC-001`.
 
-## DEC-018 — Adopsi U2NetP ONNX CPU-Only dan Isolasi Subprocess Memory Reclamation
+## DEC-019 — Halaman Login Penuh Mandiri dan Alur Autentikasi 2-Tahap dengan Tantangan Matematika SD Kelas 1
+
+- Tanggal: 2026-11-11
+- Status: Accepted
+- Konteks: Popup modal autentikasi kurang nyaman pada perangkat mobile/desktop, dan tantangan anti-bot tidak boleh langsung diekspos sebelum kredensial akun terbukti benar agar tidak mengganggu alur atau membocorkan state.
+- Opsi: (1) Modal popup satu langkah (email + password + soal sekaligus), (2) Modal popup dua langkah, (3) Halaman penuh mandiri `#/login` dengan alur verifikasi dua tahap: cek email & kata sandi dahulu (`POST /api/auth/login-init`), baru tampilkan soal matematika SD kelas 1 terikat `user_id` (`POST /api/auth/login-verify`).
+- Keputusan: Opsi 3. Seluruh pop-up modal auth dihapus. Dibuat komponen halaman penuh `LoginPage.tsx` yang terdaftar pada workspace `#/login`. Pengguna anonim yang mengakses `#/tools` dialihkan secara otomatis ke `#/login`. Soal matematika SD hanya muncul setelah email dan kata sandi valid.
+- Alasan: Pengalaman pengguna lebih fokus, bersih, bebas gangguan modal backdrop, serta mencegah pemborosan komputasi verifikasi bot pada kredensial yang salah.
+- Konsekuensi: Frontend mengelola state dua tahap (Step 1 -> Step 2) dan routing hash mengidentifikasi `login` sebagai workspace resmi.
+- Risiko: Pengguna perlu melakukan 2 kali submit; diimbangi dengan kejelasan tahapan (Step 1: Kredensial, Step 2: Anti-bot).
+- Requirement terkait: BUS-017, FR-042, NFR-UX-001, CR-018.
+
 
 - Tanggal: 2026-11-08
 - Status: Accepted
@@ -262,3 +273,33 @@
 - Konsekuensi: Antarmuka UI dapat menyebutnya "Berkas Proyek Satukit (.docbuilder)" agar tetap selaras dengan identitas merek.
 - Risiko: Tidak ada risiko breaking change pada data berkas pengguna lama.
 - Requirement terkait: BUS-018, FR-017, NFR-COMP-002.
+
+## DEC-023 — Penutupan Entry Point Tidak Aman Google Auth & Shortener Management
+
+- Tanggal: 2026-11-11
+- Status: Accepted
+- Konteks: Audit keamanan pra-otentikasi mengidentifikasi bahwa endpoint `POST /api/auth/google` mengizinkan pengalihan sesi hanya berdasar payload JSON buatan klien tanpa verifikasi ID token/server OAuth, serta endpoint shortener create/config membuka peluang abuse publik tanpa otorisasi owner.
+- Opsi: (1) Membiarkan endpoint aktif hingga backend OAuth selesai, (2) Memblokir endpoint publik seketika dan menurunkan kartu UI publik, namun mempertahankan redirect publik `/s/{slug}` dan dormant service code, (3) Menghapus seluruh tabel dan service shortener/OAuth secara permanen.
+- Keputusan: Opsi 2 — Menutup 5 endpoint publik (`POST /api/auth/google`, `POST /api/auth/link-google`, `POST /api/auth/unlink-google`, `POST /api/shortener/create`, `GET /api/shortener/config`), menyelaraskan katalog alat frontend menjadi 24 utilitas, serta mempertahankan rute redirect publik `GET /s/{slug}` dengan counter atomik.
+- Alasan: Mencegah spoofing autentikasi dan abuse shortener publik tanpa merusak tautan pendek yang sudah beredar atau memicu migrasi skema destruktif.
+- Konsekuensi: Pengguna Google-only sementara waktu tidak dapat masuk via OAuth hingga alur authorization code resmi dibangun.
+- Risiko: Tidak ada risiko terhadap fitur anonim.
+- Requirement terkait: NFR-SEC-006, NFR-SEC-008, NFR-SEC-009, TASK `AUTH-ACCESS-001`.
+
+## DEC-024 — Hasil Feasibility Spike Bubblewrap Sandbox & ClamAV Daemon Unix Socket (FS-01)
+
+- Tanggal: 2026-11-11
+- Status: Accepted
+- Konteks: Rak Berkas memproses berkas tidak tepercaya multi-format di VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM). Diperlukan pembuktian protokol streaming antivirus ClamAV `INSTREAM`, penegakan fail-closed saat daemon mati/usang, dan isolasi proses anak parser via bubblewrap dengan batas memori `RLIMIT_AS=512 MiB` dan batas waktu 30 detik.
+- Opsi:
+  1. Menjalankan parser dan ClamAV langsung di dalam lifespan FastAPI Uvicorn tanpa batasan cgroup/rlimit.
+  2. Menggunakan bubblewrap `--unshare-net` dengan `RLIMIT_AS=512 MiB`, ClamAV via daemon Unix socket `INSTREAM` di background worker mandiri, dengan fail-closed jika daemon mati/signature >24 jam.
+  3. Mengabaikan ClamAV demi menghemat RAM VPS 2.2 GiB.
+- Keputusan: Opsi 2 — Menerapkan isolasi bubblewrap child process (`RLIMIT_AS=512 MiB`, timeout 30s) dan streaming ClamAV Unix socket `INSTREAM` (`/run/clamav/clamd.ctl`). ClamAV adalah mandatory control; jika pengoperasian penuh di VPS 2.2 GiB membuktikan OOM/thrashing, tindakan wajib adalah upgrade RAM VPS ≥4 GiB (bukan menonaktifkan antivirus).
+- Alasan:
+  - Protokol chunked `INSTREAM` terbukti efisien (latensi streaming < 1 ms untuk sampel PDF).
+  - Subproses parser terisolasi membatasi ledakan alokasi memori ke proses anak tanpa merusak proses worker utama.
+  - Fail-closed menjamin berkas malware atau saat daemon mati tidak akan lolos ke status `AVAILABLE`.
+- Konsekuensi: Background worker `satukit-file-worker` memerlukan instalasi `bubblewrap` dan `clamav-daemon` di host Ubuntu 24.04.
+- Risiko: Konsumsi RAM ClamAV daemon (~700 MiB - 1.2 GiB pada VPS). Mitigasi: Swap file 2 GiB terkonfigurasi, tuning worker concurrency = 1, dan mandatory upgrade RAM VPS ≥4 GiB jika host tertekan.
+- Requirement terkait: NFR-SEC-013, NFR-PERF-007, NFR-REL-008, TASK `FS-01`, `RISK-SEC-008`, `RISK-SEC-009`.

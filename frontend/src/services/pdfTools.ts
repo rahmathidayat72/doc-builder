@@ -63,7 +63,7 @@ export async function mergePdfAndImages(files: File[]): Promise<PdfToolResult> {
       message: err.message || err.detail || `Gagal menggabungkan berkas (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -99,7 +99,7 @@ export async function splitPdf(file: File, pages: string): Promise<PdfToolResult
       message: err.message || err.detail || `Gagal memisahkan halaman PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -135,7 +135,7 @@ export async function imagesToPdf(
     const err = await res.json().catch(() => ({}))
     return { success: false, message: err.detail || `Gagal mengonversi gambar ke PDF (${res.status}).` }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -168,7 +168,7 @@ export async function pdfToImages(
     const err = await res.json().catch(() => ({}))
     return { success: false, message: err.detail || `Gagal mengonversi PDF ke gambar (${res.status}).` }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -213,7 +213,7 @@ export async function compressPdf(
       message: err.message || err.detail || `Gagal mengompres berkas PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -305,7 +305,7 @@ export async function getPdfEditorPages(file: File): Promise<PdfEditorPagesResul
       message: err.message || err.detail || `Gagal memuat halaman PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -342,7 +342,7 @@ export async function applyPdfEditor(
       message: err.message || err.detail || `Gagal menyimpan perubahan PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -373,7 +373,7 @@ export async function protectPdf(file: File, password: string): Promise<PdfToolR
       message: err.message || err.detail || `Gagal memproteksi PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -404,7 +404,7 @@ export async function unlockPdf(file: File, password: string): Promise<PdfToolRe
       message: err.message || err.detail || `Gagal membuka proteksi PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -438,7 +438,7 @@ export async function repairPdf(file: File): Promise<PdfToolResult> {
       message: err.message || err.detail || `Gagal memperbaiki PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -450,7 +450,7 @@ export async function getOcrStatus(): Promise<{ available: boolean; languages: s
     }
     return { available: false, languages: [], message: 'Gagal memeriksa status OCR.' }
   } catch {
-    return { available: false, languages: [], message: 'Tidak dapat terhubung ke backend lokal.' }
+    return { available: false, languages: [], message: 'Tidak dapat terhubung ke backend Satukit.' }
   }
 }
 
@@ -485,7 +485,7 @@ export async function ocrPdf(file: File, language: string = 'eng'): Promise<PdfT
       message: err.message || err.detail || `Gagal melakukan OCR PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -543,7 +543,7 @@ export async function watermarkPdf(options: WatermarkOptions): Promise<PdfToolRe
       message: err.message || err.detail || `Gagal membubuhkan watermark PDF (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -597,7 +597,7 @@ export async function addPageNumbersPdf(options: PageNumbersOptions): Promise<Pd
       message: err.message || err.detail || `Gagal membubuhkan nomor halaman (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -649,7 +649,7 @@ export async function pdfToMarkdown(options: PdfToMarkdownOptions): Promise<PdfT
       message: err.message || err.detail || `Gagal mengonversi PDF ke Markdown (${res.status}).`,
     }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 

@@ -100,7 +100,7 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
             <div>
               <h3 className="text-base font-bold text-stone-900">Konversi DOCX ke PDF</h3>
               <p className="text-xs text-stone-600">
-                Ubah dokumen Microsoft Word ke format PDF di sandbox lokal.
+                Ubah dokumen Microsoft Word ke format PDF di sandbox aman.
               </p>
             </div>
           </div>
@@ -192,9 +192,9 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
             <div className="flex items-start gap-2.5">
               <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="space-y-1 text-xs text-amber-900">
-                <h4 className="font-bold text-sm">LibreOffice Belum Terpasang</h4>
+                <h4 className="font-bold text-sm">Layanan Konversi Memerlukan LibreOffice</h4>
                 <p className="leading-relaxed">
-                  Fitur konversi dokumen offline berfidelitas tinggi membutuhkan aplikasi gratis LibreOffice di komputer lokal Anda.
+                  Fitur konversi dokumen berfidelitas tinggi membutuhkan aplikasi LibreOffice di lingkungan server.
                 </p>
                 <p className="text-2xs text-amber-700">
                   Setelah memasang LibreOffice, jalankan ulang server backend atau refresh halaman ini.

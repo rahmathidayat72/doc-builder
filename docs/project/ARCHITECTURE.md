@@ -4,7 +4,7 @@
 - **Proyek:** Doc-builder
 - **Versi Arsitektur:** 2.0.0
 - **Tanggal Persetujuan Awal:** 2026-10-20
-- **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi Sistem Hybrid Online Multi-Tier: Hosting VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM) dengan Reverse Proxy (Caddy/Nginx), Autentikasi Pengguna & Kuota Cloud CV (max 5 CV, retensi 90 hari, backup terenkripsi Cloudflare R2 7 hari, email Brevo), Penghapus Latar Belakang Gambar Lokal (U2NetP CPU-only, antrean max 2, timeout 30s), serta Layanan URL Shortener Mandiri Serverless (Cloudflare Workers + D1).
+- **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi Sistem Hybrid Online Multi-Tier: Hosting VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM) dengan Reverse Proxy (Caddy/Nginx), Autentikasi Pengguna & Kuota Cloud CV (max 5 CV, retensi 30 hari, backup terenkripsi Cloudflare R2 7 hari, email Brevo), Penghapus Latar Belakang Gambar Lokal (U2NetP CPU-only, antrean max 2, timeout 30s), serta Layanan URL Shortener Mandiri Serverless (Cloudflare Workers + D1).
 - **Status:** Pending Approval (Revisi Gerbang 2)
 
 ## 2. Gambaran Umum Sistem & Topologi
@@ -77,7 +77,7 @@ Doc-builder v2.0 menggunakan arsitektur **Hybrid Multi-Tier** yang memisahkan pe
 - **State Management & Form:** State React lokal, Zod schema validation, modular tool dialogs.
 - **Dua Jalur Penyimpanan CV:**
   1. *Mode Anonim / Tamu:* Penyimpanan draf lokal di IndexedDB (offline-capable).
-  2. *Mode Akun Terdaftar:* Sinkronisasi draf proyek CV terstruktur ke backend VPS (maksimal 5 CV per akun, retensi 90 hari).
+  2. *Mode Akun Terdaftar:* Sinkronisasi draf proyek CV terstruktur ke backend PostgreSQL VPS (maksimal 5 CV per akun, retensi 30 hari).
 - **Halaman & Dialog Tambahan Online:**
   - Modal Autentikasi (Masuk, Daftar, Lupa Kata Sandi, Verifikasi Email, Masuk via Google).
   - Manajemen Akun & Pengaturan Profil (daftar CV tersimpan, indikator kuota 5 dokumen, sisa hari retensi, tombol hapus akun mandiri, tombol sambung/lepas Google OAuth dengan re-authentication).
@@ -99,14 +99,15 @@ Doc-builder v2.0 menggunakan arsitektur **Hybrid Multi-Tier** yang memisahkan pe
 - **Teknologi:** Python 3.11+, FastAPI, Uvicorn (internal loopback binding `127.0.0.1:8000`).
 - **Autentikasi & Otorisasi:**
   - Password hashing menggunakan **Argon2id** (atau bcrypt work factor 12).
-  - Google OAuth 2.0 flow: penukaran kode authorization di backend, memverifikasi `email_verified=true`, mencocokkan `sub` ID unik Google.
+  - Soal Anti-Bot: Tantangan matematika dasar SD kelas 1 bertahap server-side (HMAC-SHA256 signed challenge token dengan expiry 5 menit) sebelum penerbitan sesi.
+  - Catatan Google Auth (AUTH-ACCESS-001, DEC-023): Seluruh endpoint publik Google Auth (`POST /api/auth/google`, `link-google`, `unlink-google`) dinonaktifkan sementara dari API publik sampai modul OAuth authorization code resmi diimplementasikan.
   - **Account Linking Guard:** Menolak auto-merge jika email sama ditemukan. Pengguna wajib login dengan kredensial lama terlebih dahulu, lalu menghubungkan Google via re-authentication.
   - Session management menggunakan Cookie `HttpOnly`, `Secure`, `SameSite=Lax`, dengan token sesi berumur terbatas dan invalidasi instan saat logout/hapus akun.
 - **Penyimpanan Dokumen CV & Kuota:**
   - Database relasional SQLite (dengan WAL mode) di VPS untuk data akun, sesi, dan draf terstruktur CV.
   - Satu proyek CV disimpan sebagai entitas data terstruktur JSON + template ID (ukuran rata-rata < 100 KB); berkas upload pendukung (seperti foto formal) divalidasi dan dioptimasi.
   - Enforce kuota: max 5 CV per akun, max 10 MB per dokumen, max 50 MB total per akun, dan kuota global penyimpanan 5 GB.
-  - Dokumen mencatat timestamp `updated_at` dan `expires_at` (`updated_at` + 90 hari). Aksi baca atau render unduhan tidak memicu pembaruan `updated_at`.
+  - Dokumen mencatat timestamp `updated_at` dan `expires_at` (`updated_at` + 30 hari). Aksi baca atau render unduhan tidak memicu pembaruan `updated_at`.
 - **Integrasi Email Transaksional (Brevo Free):**
   - Adapter modular Python untuk Brevo REST API v3.
   - Template email transaksional berbahasa Indonesia untuk verifikasi email pendaftaran, token reset password, dan pemberitahuan kedaluwarsa dokumen pada H-14, H-7, dan H-1.
@@ -141,6 +142,8 @@ Doc-builder v2.0 menggunakan arsitektur **Hybrid Multi-Tier** yang memisahkan pe
   - Resolusi host menolak alamat loopback (`127.0.0.0/8`, `::1`), private range (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`169.254.0.0/16`, `fe80::/10`), dan reserved IPs.
 - **Admin Portal Access:**
   - Halaman antarmuka manajemen link dilindungi oleh Cloudflare Access (kebijakan Zero Trust: verifikasi email OTP/Google login pemilik akun).
+- **Catatan Pemendek URL Publik (AUTH-ACCESS-001, DEC-023):**
+  - Endpoint publik pembuatan dan konfigurasi link (`POST /api/shortener/create`, `GET /api/shortener/config`) dinonaktifkan dari API umum Satukit untuk mencegah abuse; redirect publik `GET /s/{slug}` dan `GET /api/s/{slug}` tetap aktif melayani 302/404/410 dengan counter atomik.
 
 ### 3.6 Background Worker & Disaster Recovery — ARCH-06
 - **Periodic Retention Cleaner:**
@@ -178,7 +181,7 @@ Pengguna -> Daftar / Masuk (Email+Password / Google OAuth)
          -> Terbitkan Cookie Sesi HttpOnly Secure
          -> Pengguna Menyunting CV -> Simpan ke Cloud
          -> Backend Periksa Kuota (Akun < 5 CV, Ukuran < 10 MB, Total Akun < 50 MB, Global < 5 GB, Disk < 80%)
-         -> Simpan Draf Terstruktur ke DB + Set expires_at = NOW() + 90 hari
+         -> Simpan Draf Terstruktur ke DB + Set expires_at = NOW() + 30 hari
          -> Respons Sukses
 ```
 
@@ -271,3 +274,75 @@ Daftar Draft -> Cari / Favorit / Rename / Duplikasi / Hapus + Undo
 - `Q-005`: cross-browser E2E Playwright belum tersedia; klaim “4 Browser matrix PASS” tidak didukung bukti.
 - `Q-006`: `docs/conversations.json` berisi transkrip percakapan dan memerlukan keputusan kebijakan repository.
 - Detail risk treatment ada di `docs/project/SECURITY.md` dan `.agent/OPEN-QUESTIONS.md`.
+
+## 8. Arsitektur Rak Berkas Privat Per Akun (File Shelf)
+
+### 8.1 Ringkasan & Prinsip Desain
+Rak Berkas (`/api/files` dan UI `#/files`) adalah fasilitas penyimpanan berkas privat per akun pengguna terdaftar dengan batas kuota ketat (5 slot per akun, maksimal 25 MB per berkas, retensi 30 hari otomatis).
+Prinsip utama:
+1. **Pemisahan Proses Penuh:** Upload API Uvicorn (`satukit.service`) hanya memvalidasi kuota dan streaming ke folder karantina lokal (`0600`). Seluruh inspeksi berat (ClamAV, bubblewrap parsing, enkripsi, dan upload R2) didelegasikan ke background worker mandiri (`satukit-file-worker.service`).
+2. **Karantina Ketat & Sandbox Isolasi:** Berkas mentah disimpan di direktori terisolasi dengan mode `0600`. Parser dijalankan via child process `bubblewrap --unshare-net` dengan `RLIMIT_AS=512 MiB` dan hard timeout 30 detik.
+3. **ClamAV Antivirus Terdedikasi:** Pemindaian malware wajib melalui daemon Unix socket (`/run/clamav/clamd.ctl`) menggunakan protokol streaming `INSTREAM`. Koneksi TCP dilarang. Signature ClamAV diperbarui via freshclam tiap 4 jam; jika signature berusia >24 jam, upload/promosi file diblokir secara fail-closed.
+4. **Enkripsi Sisi Server Terikat Identitas:** Berkas dienkripsi dengan AES-256-GCM envelope 49-byte sebelum dikirim ke Cloudflare R2 Standard privat terpisah. Associated Authenticated Data (AAD) wajib mengikat `user_id`, `item_id`, dan `content_type` untuk mencegah cross-tenant cipher reuse.
+5. **Kunci Enkripsi Root-Owned:** Keyring disimpan di host `/etc/satukit` (permission root `0400`) dan disalurkan ke service melalui systemd `LoadCredential=`. Recovery key offline diuji secara berkala tiap kuartal.
+6. **Pemantauan Kapasitas Cloudflare R2:** Polling metrik account-wide dilakukan tiap 15 menit via Cloudflare GraphQL API. Data metrik yang usang (>30 menit) memicu fail-closed (blokir upload & download). Hard ceiling rak 7 GB; alert Class A pada 700k dan Class B pada 7M; blok upload pada Class A 800k dan blok download pada Class B 8M di bulan kalender UTC.
+
+### 8.2 Topologi Proses & Komponen
+```text
+Client Browser (UI #/files)
+    |
+    | (1) POST /api/files/upload [application/octet-stream + headers base64url]
+    v
+Caddy Reverse Proxy (HTTPS 443 -> 127.0.0.1:8000)
+    v
+FastAPI Uvicorn (satukit.service)
+    |
+    |-- (2) Validasi autentikasi, status email, rate limit rolling hour,
+    |       dan reservasi slot atomik (SELECT ... FOR UPDATE di PostgreSQL)
+    |-- (3) Stream payload ke karantina lokal /var/lib/satukit/quarantine/<item_id>.raw (mode 0600)
+    |-- (4) Buat record file_shelf_items (status: 'CHECKING')
+    `-- (5) Return HTTP 202 Accepted { id, status: 'CHECKING' }
+
+                [ PostgreSQL Database ]
+                         ^
+                         | (Polling queue CHECKING & DELETION)
+                         v
+Background Worker (satukit-file-worker.service)
+    |
+    |-- (6) Scan Antivirus via Unix Socket /run/clamav/clamd.ctl (INSTREAM)
+    |-- (7) Inspeksi Format mendalam di sandbox child process:
+    |       bwrap --unshare-net --ro-bind / / ... (RLIMIT_AS=512MB, timeout 30s)
+    |       vtx-oletools, msoffcrypto-tool, defusedxml
+    |-- (8) Enkripsi AES-256-GCM envelope 49-byte (Keyring via LoadCredential=)
+    |       AAD: "user_id|item_id|content_type"
+    |-- (9) Upload stream terenkripsi ke Cloudflare R2 Standard (Bucket Privat)
+    |-- (10) Hapus file mentah di karantina lokal
+    `-- (11) Update record PostgreSQL (status: 'AVAILABLE', available_at: now())
+```
+
+### 8.3 Format Berkas yang Didukung & Ditolak
+- **Didukung:** PDF, DOCX, PPT/PPTX, XLS/XLSX, JPG/JPEG, PNG, WebP, Markdown UTF-8.
+- **Ditolak:** Arsip (ZIP, RAR, 7Z, TAR, GZ), SVG, executable/biner, audio, video.
+- **Aturan Keamanan Konten:**
+  - Tolak dokumen yang memuat makro VBA, JavaScript, OLE/ActiveX, launch actions, external references, polyglot header, file terenkripsi/terproteksi password, atau bom arsip/XML/dekompresi gambar.
+  - Gambar statis: byte asli dipertahankan penuh (termasuk metadata EXIF/GPS) dengan kewajiban konfirmasi checkbox peringatan di UI sebelum upload (`RISK-SEC-014`). Gambar animasi ditolak.
+
+### 8.4 Envelope Enkripsi 49-Byte
+Header biner terenkripsi memiliki panjang tepat 49 byte sebelum ciphertext:
+```text
++---------------+---------------+-------------------+-----------------------+---------------------+
+| Versi (1 Byte)| IV (12 Byte)  | Auth Tag (16 Byte)| Key ID Hash (20 Byte) | Ciphertext (N Byte) |
++---------------+---------------+-------------------+-----------------------+---------------------+
+```
+- Versi: `0x01` (1 byte).
+- IV: 12-byte random non-repeating cryptographic nonce.
+- Auth Tag: 16-byte GCM authentication tag.
+- Key ID Hash: 20-byte SHA-1 dari Key ID aktif untuk mendukung rotasi kunci mulus.
+- AAD: String UTF-8 kanonikal `satukit:fileshelf:v1:{user_id}:{item_id}:{content_type}`.
+
+### 8.5 Batas Unduh & Kuota Bersama
+- Kuota akun: maksimal 5 slot total (item AVAILABLE + in-flight CHECKING).
+- Maksimal 1 upload in-flight per akun.
+- Rate limit rolling 60 menit per akun: maksimal 10 upload sukses, maksimal 30 download.
+- Konkurensi download: maksimal 1 download aktif per akun dan maksimal 2 download lease global di seluruh sistem untuk mencegah saturasi bandwidth VPS.
+- Unduh langsung didekripsi on-the-fly dari stream R2 ke client tanpa menyimpan file terdekripsi di disk lokal.

@@ -325,7 +325,7 @@ export const WebpToJpgModal: React.FC<WebpToJpgModalProps> = ({ isOpen, onClose 
               </p>
               <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 rounded-full text-xs text-stone-600 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-                Diproses 100% lokal di browser — berkas tidak diunggah ke server
+                Diproses langsung di browser — berkas tidak diunggah ke server
               </div>
             </div>
           )}

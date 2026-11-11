@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from '../App'
 import { exportResumePdf } from '../services/export'
 import { ResumeStorage } from '../services/storage'
+import { getCurrentUser } from '../services/auth'
 import {
   createEmptyResumeData,
   type ResumeDraft
@@ -13,6 +14,55 @@ vi.mock('../services/apiClient', async importOriginal => {
   return {
     ...actual,
     initAuthSession: vi.fn().mockResolvedValue('test-csrf-token')
+  }
+})
+
+vi.mock('../services/draftApi', () => ({
+  listDraftsApi: vi.fn(async () => ResumeStorage.listDrafts()),
+  getDraftApi: vi.fn(async (id: string) => (await ResumeStorage.getDraft(id)) || null),
+  saveDraftApi: vi.fn(async (draft: any) => {
+    await ResumeStorage.saveDraft(draft)
+    return draft
+  }),
+  createDraftApi: vi.fn(async (draft: any) => {
+    await ResumeStorage.saveDraft(draft)
+    return draft
+  }),
+  updateDraftApi: vi.fn(async (_id: string, draft: any) => {
+    await ResumeStorage.saveDraft(draft)
+    return draft
+  }),
+  softDeleteDraftApi: vi.fn(async (id: string) => {
+    await ResumeStorage.deleteDraft(id, true)
+  }),
+  restoreDraftApi: vi.fn(async (id: string) => {
+    return (await ResumeStorage.restoreDraft(id)) || null
+  }),
+  hardDeleteDraftApi: vi.fn(async (id: string) => {
+    await ResumeStorage.deleteDraft(id, false)
+  })
+}))
+
+vi.mock('../services/auth', async importOriginal => {
+  const actual = await importOriginal<typeof import('../services/auth')>()
+  return {
+    ...actual,
+    getCurrentUser: vi.fn().mockResolvedValue({
+      id: 'test-user-id',
+      email: 'user@example.com',
+      name: 'User Terdaftar'
+    }),
+    getBotChallenge: vi.fn().mockResolvedValue({
+      challenge_token: 'test.nonce.sig',
+      question: 'Berapa 5 + 5?',
+      expires_in: 300
+    }),
+    loginWithChallenge: vi.fn().mockResolvedValue({
+      id: 'test-user-id',
+      email: 'user@example.com',
+      name: 'User Terdaftar'
+    }),
+    logoutUser: vi.fn().mockResolvedValue(undefined)
   }
 })
 
@@ -179,6 +229,11 @@ const waitForDraft = async () => {
 describe('App integration', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.mocked(getCurrentUser).mockResolvedValue({
+      id: 'test-user-id',
+      email: 'user@example.com',
+      name: 'User Terdaftar'
+    })
     await ResumeStorage.clearAllData()
     await ResumeStorage.saveDraft(makeDraft())
     window.location.hash = '#/builder'
@@ -319,6 +374,9 @@ describe('App integration', () => {
     expect(screen.getByTestId('btn-close-qr-modal')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('btn-close-qr-modal'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Pemendek URL tidak terdaftar di katalog alat dokumen publik (AUTH-ACCESS-001)
+    expect(screen.queryByRole('heading', { name: 'Pemendek URL' })).not.toBeInTheDocument()
   })
 
   it('mengakses aplikasi tanpa hash membuka Beranda utama (Dashboard)', async () => {
@@ -340,6 +398,7 @@ describe('App integration', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
+      expect(screen.getByTestId('nav-user-profile')).toBeInTheDocument()
     })
 
     fireEvent.click(screen.getByTestId('card-workspace-tools'))
@@ -369,6 +428,48 @@ describe('App integration', () => {
     fireEvent.click(screen.getByTestId('btn-builder-create-new'))
     await waitFor(() => {
       expect(screen.getByTestId('input-draft-title')).toBeInTheDocument()
+    })
+  })
+
+  it('mengizinkan pengguna anonim masuk ke workspace tools, membuka alat browser murni, dan mengalihkan ke login jika klik alat server', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null)
+    window.location.hash = '#/home'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
+    })
+
+    // 1. Klik tombol navigasi Tools di navbar -> pengguna anonim bisa melihat direktori tools
+    fireEvent.click(screen.getByRole('button', { name: /Tools/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('input-search-tools')).toBeInTheDocument()
+    })
+
+    // 2. Klik alat browser murni (WebP ke JPG) -> modal langsung terbuka tanpa dialihkan ke login
+    const webpToolBtn = screen.getByTestId('tool-card-webp-ke-jpg')
+    expect(webpToolBtn).toBeInTheDocument()
+    fireEvent.click(webpToolBtn)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('btn-close-webp-modal')).toBeInTheDocument()
+    })
+
+    // Tutup modal WebP ke JPG
+    fireEvent.click(screen.getByTestId('btn-close-webp-modal'))
+
+    // 3. Klik alat komputasi server (DOCX ke PDF) -> dialihkan ke login dengan pesan guard
+    const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
+    expect(docxToolBtn).toBeInTheDocument()
+    fireEvent.click(docxToolBtn)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/login')
+      expect(screen.getByTestId('login-page-container')).toBeInTheDocument()
+      expect(
+        screen.getByText('Alat komputasi server memerlukan akun terdaftar. Silakan masuk atau daftar terlebih dahulu.')
+      ).toBeInTheDocument()
     })
   })
 })

@@ -97,7 +97,7 @@ export const PdfToDocxModal: React.FC<PdfToDocxModalProps> = ({ isOpen, onClose 
             </div>
             <div>
               <h3 className="text-base font-bold text-stone-900">Konversi PDF ke Word DOCX</h3>
-              <p className="text-xs text-stone-600">Rekonstruksi dokumen secara lokal dan terisolasi.</p>
+              <p className="text-xs text-stone-600">Rekonstruksi dokumen secara aman dan terisolasi.</p>
             </div>
           </div>
           <button

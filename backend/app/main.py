@@ -10,20 +10,22 @@ from fastapi.responses import JSONResponse
 from app.api.ats import router as ats_router
 from app.api.auth import router as auth_router
 from app.api.converter import router as converter_router
+from app.api.drafts import router as drafts_router
 from app.api.export import router as export_router
+from app.api.file_shelf import router as file_shelf_router
 from app.api.health import router as health_router
 from app.api.image_tools import router as image_tools_router
 from app.api.import_cv import router as import_router
 from app.api.media_downloader import router as media_downloader_router
 from app.api.pdf_tools import router as pdf_tools_router
 from app.api.shortener import redirect_router
-from app.api.shortener import router as shortener_router
 from app.core.config import settings
 from app.core.disk_guard import DiskSpaceExhaustedError
 from app.core.jobs import background_sweeper
 from app.core.middleware import SecurityMiddleware
 from app.core.security import session_manager
 from app.db.postgres import init_postgres_db
+from app.services.draft_cleaner import draft_cleaner
 from app.services.media_downloader import media_downloader
 
 
@@ -34,30 +36,45 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup: jalankan background periodic sweeper & worker unduhan media
     background_sweeper.start()
     media_downloader.start()
+    draft_cleaner.start()
     try:
         yield
     finally:
         # Shutdown: hentikan background sweeper & worker secara bersih
+        draft_cleaner.stop()
         media_downloader.stop()
         background_sweeper.stop()
 
 
 def create_app() -> FastAPI:
-    # Inisialisasi basis data PostgreSQL (DB-POSTGRES-007)
-    init_postgres_db()
-    # Inisialisasi token lokal saat startup
-    session_manager.initialize_token_file(settings.BASE_DIR)
+    # Validasi konfigurasi jika mode produksi aktif
+    if settings.IS_PRODUCTION:
+        settings.validate_production()
+
+    # Inisialisasi token lokal saat startup (hanya mode development/lokal)
+    if not settings.IS_PRODUCTION:
+        session_manager.initialize_token_file(settings.BASE_DIR)
+
+    docs_url = "/docs" if settings.DOCS_ENABLED else None
+    openapi_url = "/openapi.json" if settings.DOCS_ENABLED else None
 
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
-        docs_url="/docs",
+        docs_url=docs_url,
+        openapi_url=openapi_url,
         redoc_url=None,
         lifespan=lifespan,
     )
 
     # Middleware Keamanan (Security Hardening & CSRF)
     app.add_middleware(SecurityMiddleware)
+
+    # Batasi host header yang diizinkan jika dikonfigurasi
+    if settings.TRUSTED_HOSTS:
+        from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.TRUSTED_HOSTS)
 
     # Exception handler fail-closed kapasitas disk penuh (BRULE-014 / NFR-SEC-012)
     @app.exception_handler(DiskSpaceExhaustedError)
@@ -102,7 +119,8 @@ def create_app() -> FastAPI:
     app.include_router(converter_router, prefix="/api")
     app.include_router(pdf_tools_router, prefix="/api")
     app.include_router(image_tools_router, prefix="/api")
-    app.include_router(shortener_router, prefix="/api")
+    app.include_router(drafts_router, prefix="/api")
+    app.include_router(file_shelf_router, prefix="/api")
     app.include_router(redirect_router)
     app.include_router(redirect_router, prefix="/api")
     app.include_router(media_downloader_router, prefix="/api")

@@ -6,6 +6,17 @@ import {
   createEmptyResumeData
 } from '../types/resume'
 import { ResumeStorage } from '../services/storage'
+import {
+  listDraftsApi,
+  getDraftApi,
+  createDraftApi,
+  updateDraftApi,
+  saveDraftApi,
+  softDeleteDraftApi,
+  restoreDraftApi,
+  hardDeleteDraftApi
+} from '../services/draftApi'
+import { type AuthUser } from '../services/auth'
 
 export interface PendingDelete {
   id: string
@@ -20,7 +31,11 @@ export interface TargetDraftInput {
   matchedSkills: string[]
 }
 
-export function useResumeDraft(initialDraftId?: string) {
+export function useResumeDraft(
+  initialDraftId?: string,
+  currentUser?: AuthUser | null,
+  authReady = true
+) {
   const [draft, setDraft] = useState<ResumeDraft | null>(null)
   const [draftsList, setDraftsList] = useState<ResumeDraftSummary[]>([])
   const [isSaving, setIsSaving] = useState(false)
@@ -32,26 +47,53 @@ export function useResumeDraft(initialDraftId?: string) {
 
   const autosaveTimerRef = useRef<any>(null)
   const pendingDraftRef = useRef<ResumeDraft | null>(null)
+  const currentUserIdRef = useRef<string | undefined>(currentUser?.id)
 
   // 1. Inisialisasi daftar draft dan status mode privat
   const refreshList = useCallback(async () => {
     try {
-      const list = await ResumeStorage.listDrafts()
-      setDraftsList(list)
       const pMode = await ResumeStorage.isPrivateMode()
       setPrivateModeState(pMode)
+
+      if (pMode) {
+        const list = await ResumeStorage.listDrafts()
+        setDraftsList(list)
+      } else if (currentUser && authReady) {
+        const list = await listDraftsApi()
+        setDraftsList(list)
+      } else {
+        const list = await ResumeStorage.listDrafts('anonymous')
+        setDraftsList(list)
+      }
       setStorageError(null)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Gagal memuat daftar draft:', err)
-      setStorageError('Gagal mengakses penyimpanan lokal browser. Silakan coba lagi.')
+      setStorageError(err.message || 'Gagal memuat daftar draf. Silakan coba lagi.')
     } finally {
       setIsLoadingDrafts(false)
     }
-  }, [])
+  }, [currentUser, authReady])
 
   useEffect(() => {
     refreshList()
   }, [refreshList])
+
+  // Saat akun berganti / login / logout: batalkan autosave tertunda, kosongkan draf aktif
+  useEffect(() => {
+    const prevId = currentUserIdRef.current
+    const nextId = currentUser?.id
+
+    if (prevId !== nextId) {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+      pendingDraftRef.current = null
+      setDraft(null)
+      currentUserIdRef.current = nextId
+      refreshList()
+    }
+  }, [currentUser?.id, refreshList])
 
   useEffect(() => {
     return () => {
@@ -65,15 +107,28 @@ export function useResumeDraft(initialDraftId?: string) {
   // 2. Muat draft awal jika initialDraftId diberikan
   useEffect(() => {
     if (initialDraftId) {
-      ResumeStorage.getDraft(initialDraftId).then(loaded => {
-        if (loaded) {
-          setDraft(loaded)
-          pendingDraftRef.current = loaded
-          setLastSaved(new Date(loaded.updatedAt))
+      const fetchInitial = async () => {
+        try {
+          let loaded: ResumeDraft | null | undefined
+          if (privateMode) {
+            loaded = await ResumeStorage.getDraft(initialDraftId)
+          } else if (currentUser && authReady) {
+            loaded = await getDraftApi(initialDraftId)
+          } else {
+            loaded = await ResumeStorage.getDraft(initialDraftId, 'anonymous')
+          }
+          if (loaded) {
+            setDraft(loaded)
+            pendingDraftRef.current = loaded
+            setLastSaved(new Date(loaded.updatedAt))
+          }
+        } catch {
+          // ignore error on initial load
         }
-      })
+      }
+      fetchInitial()
     }
-  }, [initialDraftId])
+  }, [initialDraftId, privateMode, currentUser, authReady])
 
   // 3. Simpan segera
   const saveNow = useCallback(async (draftToSave?: ResumeDraft) => {
@@ -84,12 +139,19 @@ export function useResumeDraft(initialDraftId?: string) {
     try {
       const updated: ResumeDraft = {
         ...target,
+        ownerId: currentUser?.id || 'anonymous',
         updatedAt: Date.now()
       }
-      await ResumeStorage.saveDraft(updated)
 
-      // Jangan menimpa draft aktif jika pengguna sudah berpindah draft
-      // ketika proses penyimpanan masih berjalan.
+      if (privateMode) {
+        await ResumeStorage.saveDraft(updated)
+      } else if (currentUser && authReady) {
+        const saved = await saveDraftApi(updated)
+        updated.expiresAt = saved.expiresAt
+      } else {
+        await ResumeStorage.saveDraft(updated, 'anonymous')
+      }
+
       if (pendingDraftRef.current?.id === updated.id) {
         pendingDraftRef.current = updated
         setDraft(current =>
@@ -97,13 +159,15 @@ export function useResumeDraft(initialDraftId?: string) {
         )
         setLastSaved(new Date(updated.updatedAt))
       }
+      setStorageError(null)
       await refreshList()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Gagal menyimpan draft:', err)
+      setStorageError(err.message || 'Gagal menyimpan draft ke basis data.')
     } finally {
       setIsSaving(false)
     }
-  }, [refreshList])
+  }, [privateMode, currentUser, authReady, refreshList])
 
   const cancelScheduledAutosave = useCallback(() => {
     if (autosaveTimerRef.current) {
@@ -121,11 +185,22 @@ export function useResumeDraft(initialDraftId?: string) {
     const pending = pendingDraftRef.current
     if (!pending) return
     try {
-      await ResumeStorage.saveDraft({ ...pending, updatedAt: Date.now() })
-    } catch (err) {
+      const updated: ResumeDraft = {
+        ...pending,
+        ownerId: currentUser?.id || 'anonymous',
+        updatedAt: Date.now()
+      }
+      if (privateMode) {
+        await ResumeStorage.saveDraft(updated)
+      } else if (currentUser && authReady) {
+        await saveDraftApi(updated)
+      } else {
+        await ResumeStorage.saveDraft(updated, 'anonymous')
+      }
+    } catch (err: any) {
       console.error('Gagal menyimpan perubahan sebelum berpindah draft:', err)
     }
-  }, [cancelScheduledAutosave])
+  }, [cancelScheduledAutosave, privateMode, currentUser, authReady])
 
   // 4. Jadwalkan Autosave (Debounce 500ms)
   const scheduleAutosave = useCallback((updated: ResumeDraft) => {
@@ -160,14 +235,25 @@ export function useResumeDraft(initialDraftId?: string) {
       data: createEmptyResumeData(),
       createdAt: now,
       updatedAt: now,
+      ownerId: currentUser?.id || 'anonymous',
       version: 1,
       favorite: false
     }
 
     try {
-      await ResumeStorage.saveDraft(newDraft)
-    } catch (err) {
+      if (privateMode) {
+        await ResumeStorage.saveDraft(newDraft)
+      } else if (currentUser && authReady) {
+        const created = await createDraftApi(newDraft)
+        newDraft.expiresAt = created.expiresAt
+      } else {
+        await ResumeStorage.saveDraft(newDraft, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
       console.error('Gagal menyimpan draft baru:', err)
+      setStorageError(err.message || 'Gagal menyimpan draft baru.')
+      throw err
     }
 
     setDraft(newDraft)
@@ -175,23 +261,80 @@ export function useResumeDraft(initialDraftId?: string) {
     setLastSaved(new Date(now))
     await refreshList()
     return newDraft
-  }, [flushPendingSave, refreshList])
+  }, [flushPendingSave, privateMode, currentUser, authReady, refreshList])
 
   // 6a. Duplikasi draft dan langsung buka salinannya
   const duplicateDraft = useCallback(async (id: string) => {
     await flushPendingSave()
-    const duplicated = await ResumeStorage.duplicateDraft(id)
+    let duplicated: ResumeDraft
+    try {
+      if (privateMode) {
+        duplicated = await ResumeStorage.duplicateDraft(id)
+      } else if (currentUser && authReady) {
+        const original = await getDraftApi(id)
+        if (!original) {
+          throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
+        }
+        const now = Date.now()
+        const copy: ResumeDraft = {
+          ...original,
+          id: crypto.randomUUID(),
+          title: `${original.title} (Salinan)`,
+          favorite: false,
+          ownerId: currentUser.id,
+          createdAt: now,
+          updatedAt: now,
+        }
+        const saved = await createDraftApi(copy)
+        copy.expiresAt = saved.expiresAt
+        duplicated = copy
+      } else {
+        duplicated = await ResumeStorage.duplicateDraft(id, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal menduplikasi draft:', err)
+      setStorageError(err.message || 'Gagal menduplikasi draft.')
+      throw err
+    }
+
     setDraft(duplicated)
     pendingDraftRef.current = duplicated
     setLastSaved(new Date(duplicated.updatedAt))
     await refreshList()
     return duplicated
-  }, [flushPendingSave, refreshList])
+  }, [flushPendingSave, privateMode, currentUser, authReady, refreshList])
 
   // 6b. Ganti nama draft tanpa mengubah data CV
   const renameDraft = useCallback(async (id: string, title: string) => {
-    await ResumeStorage.renameDraft(id, title)
     const cleanTitle = title.trim()
+    if (!cleanTitle) {
+      throw new Error('Judul draft tidak boleh kosong.')
+    }
+
+    try {
+      if (privateMode) {
+        await ResumeStorage.renameDraft(id, cleanTitle)
+      } else if (currentUser && authReady) {
+        const curr = (draft?.id === id ? draft : await getDraftApi(id))
+        if (!curr) throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
+        const updated: ResumeDraft = {
+          ...curr,
+          title: cleanTitle,
+          updatedAt: Date.now()
+        }
+        const saved = await updateDraftApi(id, updated)
+        updated.expiresAt = saved.expiresAt
+      } else {
+        await ResumeStorage.renameDraft(id, cleanTitle, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal mengganti nama draft:', err)
+      setStorageError(err.message || 'Gagal mengganti nama draft.')
+      throw err
+    }
+
     if (draft?.id === id) {
       const updated = { ...draft, title: cleanTitle, updatedAt: Date.now() }
       setDraft(updated)
@@ -199,18 +342,37 @@ export function useResumeDraft(initialDraftId?: string) {
       setLastSaved(new Date(updated.updatedAt))
     }
     await refreshList()
-  }, [draft, refreshList])
+  }, [draft, privateMode, currentUser, authReady, refreshList])
 
   // 6c. Tandai favorit agar draft penting tetap di atas daftar
   const toggleDraftFavorite = useCallback(async (id: string) => {
-    const favorite = await ResumeStorage.toggleFavorite(id)
+    let favorite = false
+    try {
+      if (privateMode) {
+        favorite = await ResumeStorage.toggleFavorite(id)
+      } else if (currentUser && authReady) {
+        const curr = (draft?.id === id ? draft : await getDraftApi(id))
+        if (!curr) throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
+        favorite = !curr.favorite
+        const updated = { ...curr, favorite }
+        await updateDraftApi(id, updated)
+      } else {
+        favorite = await ResumeStorage.toggleFavorite(id, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal mengubah status favorit:', err)
+      setStorageError(err.message || 'Gagal mengubah status favorit.')
+      throw err
+    }
+
     if (draft?.id === id) {
       const updated = { ...draft, favorite }
       setDraft(updated)
       pendingDraftRef.current = updated
     }
     await refreshList()
-  }, [draft, refreshList])
+  }, [draft, privateMode, currentUser, authReady, refreshList])
 
   // 6d. Buat draft target dari hasil job matching tanpa mengubah draft sumber
   const createTargetedDraft = useCallback(async (target: TargetDraftInput) => {
@@ -236,6 +398,7 @@ export function useResumeDraft(initialDraftId?: string) {
       title,
       data: clonedData,
       favorite: false,
+      ownerId: currentUser?.id || 'anonymous',
       targetJob: {
         title: role,
         company: company || '',
@@ -248,13 +411,28 @@ export function useResumeDraft(initialDraftId?: string) {
       version: 1
     }
 
-    await ResumeStorage.saveDraft(targeted)
+    try {
+      if (privateMode) {
+        await ResumeStorage.saveDraft(targeted)
+      } else if (currentUser && authReady) {
+        const saved = await createDraftApi(targeted)
+        targeted.expiresAt = saved.expiresAt
+      } else {
+        await ResumeStorage.saveDraft(targeted, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal menyimpan draft target:', err)
+      setStorageError(err.message || 'Gagal menyimpan draft target.')
+      throw err
+    }
+
     setDraft(targeted)
     pendingDraftRef.current = targeted
     setLastSaved(new Date(now))
     await refreshList()
     return targeted
-  }, [draft, flushPendingSave, refreshList])
+  }, [draft, flushPendingSave, privateMode, currentUser, authReady, refreshList])
 
   // 7. Mutasi data CV (memicu autosave ter-debounce)
   const updateData = useCallback((updater: (prev: ResumeData) => ResumeData) => {
@@ -289,8 +467,20 @@ export function useResumeDraft(initialDraftId?: string) {
       pendingDraftRef.current = null
     }
 
-    // Pindahkan ke trash di storage
-    await ResumeStorage.deleteDraft(id, true)
+    try {
+      if (privateMode) {
+        await ResumeStorage.deleteDraft(id, true)
+      } else if (currentUser && authReady) {
+        await softDeleteDraftApi(id)
+      } else {
+        await ResumeStorage.deleteDraft(id, true, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal menghapus draft:', err)
+      setStorageError(err.message || 'Gagal menghapus draft.')
+    }
+
     await refreshList()
 
     if (draft?.id === id) {
@@ -300,19 +490,41 @@ export function useResumeDraft(initialDraftId?: string) {
 
     // Set timer pembatalan 10 detik
     const timerId = setTimeout(async () => {
-      await ResumeStorage.purgeExpiredTrash(0)
+      try {
+        if (currentUser && !privateMode) {
+          await hardDeleteDraftApi(id).catch(() => {})
+        } else {
+          await ResumeStorage.purgeExpiredTrash(0)
+        }
+      } catch {
+        // cleanup error
+      }
       setPendingDelete(null)
     }, 10_000)
 
     setPendingDelete({ id, title, timerId })
-  }, [draft, draftsList, cancelScheduledAutosave, refreshList])
+  }, [draft, draftsList, cancelScheduledAutosave, privateMode, currentUser, authReady, refreshList])
 
   // 9. Batalkan penghapusan (Undo Delete)
   const undoDelete = useCallback(async () => {
     if (!pendingDelete) return
 
     clearTimeout(pendingDelete.timerId)
-    const restored = await ResumeStorage.restoreDraft(pendingDelete.id)
+    let restored: ResumeDraft | null | undefined
+    try {
+      if (privateMode) {
+        restored = await ResumeStorage.restoreDraft(pendingDelete.id)
+      } else if (currentUser && authReady) {
+        restored = await restoreDraftApi(pendingDelete.id)
+      } else {
+        restored = await ResumeStorage.restoreDraft(pendingDelete.id, 'anonymous')
+      }
+      setStorageError(null)
+    } catch (err: any) {
+      console.error('Gagal memulihkan draft:', err)
+      setStorageError(err.message || 'Gagal memulihkan draft.')
+    }
+
     setPendingDelete(null)
     await refreshList()
 
@@ -320,7 +532,7 @@ export function useResumeDraft(initialDraftId?: string) {
       setDraft(restored)
       pendingDraftRef.current = restored
     }
-  }, [pendingDelete, refreshList])
+  }, [pendingDelete, privateMode, currentUser, authReady, refreshList])
 
   // 10. Toggle Mode Privat
   const togglePrivateMode = useCallback(async (enabled: boolean) => {
@@ -342,15 +554,23 @@ export function useResumeDraft(initialDraftId?: string) {
       try {
         setStorageError(null)
         await flushPendingSave()
-        const d = await ResumeStorage.getDraft(id)
+        let d: ResumeDraft | null | undefined
+        if (privateMode) {
+          d = await ResumeStorage.getDraft(id)
+        } else if (currentUser && authReady) {
+          d = await getDraftApi(id)
+        } else {
+          d = await ResumeStorage.getDraft(id, 'anonymous')
+        }
+
         if (d) {
           setDraft(d)
           pendingDraftRef.current = d
           setLastSaved(new Date(d.updatedAt))
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Gagal memuat draft:', err)
-        setStorageError('Gagal memuat draf dari penyimpanan lokal. Silakan coba lagi.')
+        setStorageError(err.message || 'Gagal memuat draf dari basis data. Silakan coba lagi.')
       }
     },
     createNewDraft,

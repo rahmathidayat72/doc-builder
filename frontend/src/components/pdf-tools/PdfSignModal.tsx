@@ -807,7 +807,7 @@ export const PdfSignModal: React.FC<PdfSignModalProps> = ({ isOpen, onClose }) =
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Bubuhkan tanda tangan, paraf, nama, dan tanggal ke dokumen PDF secara lokal.
+                Bubuhkan tanda tangan, paraf, nama, dan tanggal ke dokumen PDF secara langsung dan aman.
               </p>
             </div>
           </div>
@@ -840,7 +840,7 @@ export const PdfSignModal: React.FC<PdfSignModalProps> = ({ isOpen, onClose }) =
         <div className="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl flex items-start gap-2 text-xs text-blue-900">
           <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
           <span className="text-2xs leading-relaxed">
-            <strong>Catatan Keabsahan:</strong> Fitur ini menyematkan tanda tangan visual pada halaman dokumen dan bukan tanda tangan digital berbasis sertifikat kriptografis (p12/pfx). Pemrosesan 100% lokal di browser Anda.
+            <strong>Catatan Keabsahan:</strong> Fitur ini menyematkan tanda tangan visual pada halaman dokumen dan bukan tanda tangan digital berbasis sertifikat kriptografis (p12/pfx). Pemrosesan langsung di browser Anda.
           </span>
         </div>
 

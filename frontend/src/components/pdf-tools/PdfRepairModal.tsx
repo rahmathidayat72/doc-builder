@@ -150,7 +150,7 @@ export const PdfRepairModal: React.FC<PdfRepairModalProps> = ({
                     Pilih atau tarik berkas PDF yang rusak
                   </span>
                   <span className="text-3xs text-slate-400 block mt-0.5">
-                    Maksimum ukuran 25 MB • Pemrosesan 100% offline & lokal
+                    Maksimum ukuran 25 MB • Pemrosesan aman &amp; privat
                   </span>
                 </div>
                 <input

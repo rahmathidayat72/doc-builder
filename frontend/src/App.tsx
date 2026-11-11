@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type ComponentType, type CSSProperties } from 'react'
 import { initAuthSession } from './services/apiClient'
+import { getCurrentUser, logoutUser, type AuthUser } from './services/auth'
 import { useResumeDraft } from './hooks/useResumeDraft'
 import { exportResumeDocx, exportResumePdf, printResume } from './services/export'
 import { analyzeAtsStructure, type AtsAnalysisResult } from './services/ats'
@@ -12,7 +13,9 @@ import { type ResumeData } from './types/resume'
 import { Navbar, type Workspace } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
 import { Dashboard } from './components/dashboard/Dashboard'
+import { FileShelfView } from './components/files/FileShelfView'
 import { KituNotice } from './components/brand/KituNotice'
+import { LoginPage } from './components/auth/LoginPage'
 import { ImportResumeModal } from './components/builder/ImportResumeModal'
 import {
   ExportResumeModal,
@@ -46,7 +49,6 @@ import { ImageResizeModal } from './components/image-tools/ImageResizeModal'
 import { RemoveBackgroundModal } from './components/image-tools/RemoveBackgroundModal'
 import { PhotoProfileMakerModal } from './components/image-tools/PhotoProfileMakerModal'
 import { WebpToJpgModal } from './components/image-tools/WebpToJpgModal'
-import { UrlShortenerModal } from './components/tools/UrlShortenerModal'
 import { QrCodeGeneratorModal } from './components/tools/QrCodeGeneratorModal'
 import { MediaDownloaderModal } from './components/tools/MediaDownloaderModal'
 import { ContactForm } from './components/builder/ContactForm'
@@ -84,7 +86,6 @@ import {
   CircleUser,
   FileImage,
   QrCode,
-  Link2,
   Image as ImageIcon,
   Layers3,
   Unlock,
@@ -96,6 +97,7 @@ import {
   ChevronRight,
   Download,
   Search,
+  Lock,
   X
 } from 'lucide-react'
 
@@ -108,6 +110,7 @@ interface ToolItem {
   icon: ComponentType<{ className?: string }>
   iconClass: string
   isNew?: boolean
+  isBrowserOnly?: boolean
   action: () => void
 }
 
@@ -120,12 +123,18 @@ const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
 
 function workspaceFromHash(): Workspace {
   const value = window.location.hash.replace('#/', '')
-  return value === 'home' || value === 'builder' || value === 'ats' || value === 'tools'
+  return value === 'home' || value === 'builder' || value === 'ats' || value === 'tools' || value === 'files' || value === 'login'
     ? value
     : 'home'
 }
 
 export function App() {
+  // Autentikasi dan login guard state
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [authNoticeMessage, setAuthNoticeMessage] = useState<string | undefined>()
+  const [pendingWorkspace, setPendingWorkspace] = useState<Workspace | null>(null)
+
   const {
     draft,
     draftsList,
@@ -147,7 +156,7 @@ export function App() {
     undoDelete,
     togglePrivateMode,
     refreshList
-  } = useResumeDraft()
+  } = useResumeDraft(undefined, currentUser, authReady)
 
   const [activeSection, setActiveSection] = useState<ResumeSectionId>('contact')
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace>(workspaceFromHash)
@@ -193,7 +202,6 @@ export function App() {
   const [showQrCodeModal, setShowQrCodeModal] = useState(false)
   const [showMediaDownloaderModal, setShowMediaDownloaderModal] = useState(false)
   const [removeBgInitialMode, setRemoveBgInitialMode] = useState<string>('transparent')
-  const [showUrlShortenerModal, setShowUrlShortenerModal] = useState(false)
   const [importUndo, setImportUndo] = useState<{
     draftId: string
     data: ResumeData
@@ -206,13 +214,35 @@ export function App() {
     return () => window.clearTimeout(timer)
   }, [importUndo])
 
-  // Inisialisasi sesi autentikasi lokal & CSRF token saat mount
+  // Inisialisasi sesi autentikasi lokal, CSRF token, dan verifikasi status pengguna saat mount
   useEffect(() => {
-    initAuthSession().catch(() => {})
+    let isMounted = true
+    initAuthSession()
+      .catch(() => {})
+      .then(() => getCurrentUser())
+      .then(user => {
+        if (!isMounted) return
+        setCurrentUser(user)
+        setAuthReady(true)
+      })
+      .catch(() => {
+        if (isMounted) setAuthReady(true)
+      })
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   useEffect(() => {
-    const handleHashChange = () => setActiveWorkspace(workspaceFromHash())
+    const handleHashChange = () => {
+      const target = workspaceFromHash()
+      if (target !== 'login') {
+        setAuthNoticeMessage(undefined)
+      }
+      setActiveWorkspace(target)
+    }
+
     window.addEventListener('hashchange', handleHashChange)
     if (!window.location.hash) window.history.replaceState(null, '', '#/home')
     return () => window.removeEventListener('hashchange', handleHashChange)
@@ -221,6 +251,28 @@ export function App() {
   const navigateTo = (workspace: Workspace) => {
     window.location.hash = `/${workspace}`
     setActiveWorkspace(workspace)
+  }
+
+  const handleLoginSuccess = (user: AuthUser) => {
+    setCurrentUser(user)
+    setAuthNoticeMessage(undefined)
+    if (pendingWorkspace === 'tools') {
+      setPendingWorkspace(null)
+      window.location.hash = '#/tools'
+      setActiveWorkspace('tools')
+    } else {
+      window.location.hash = '#/home'
+      setActiveWorkspace('home')
+    }
+  }
+
+  const handleLogout = async () => {
+    await logoutUser()
+    setCurrentUser(null)
+    if (activeWorkspace === 'tools') {
+      window.location.hash = '#/home'
+      setActiveWorkspace('home')
+    }
   }
 
   // Evaluasi skor keterbacaan ATS setiap kali data draft berubah
@@ -397,7 +449,7 @@ export function App() {
     {
       title: 'Kompres PDF',
       category: 'organize' as ToolCategory,
-      desc: 'Perkecil ukuran berkas PDF dengan 3 tingkat kompresi lokal aman.',
+      desc: 'Perkecil ukuran berkas PDF dengan 3 tingkat kompresi cerdas dan aman.',
       icon: Minimize2,
       iconClass: 'bg-teal-50 text-teal-800',
       action: () => {
@@ -419,7 +471,7 @@ export function App() {
     {
       title: 'Hapus Latar Belakang',
       category: 'image' as ToolCategory,
-      desc: 'Hapus latar belakang foto otomatis menggunakan AI lokal U2NetP dan ganti warna latar pasfoto.',
+      desc: 'Hapus latar belakang foto otomatis menggunakan AI U2NetP dan ganti warna latar pasfoto.',
       icon: Sparkles,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
@@ -456,6 +508,7 @@ export function App() {
       icon: FileImage,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
+      isBrowserOnly: true,
       action: () => setShowWebpToJpgModal(true)
     },
     {
@@ -485,7 +538,7 @@ export function App() {
     {
       title: 'Unlock PDF',
       category: 'security' as ToolCategory,
-      desc: 'Hapus proteksi password pada dokumen PDF secara lokal, aman, dan tanpa batasan.',
+      desc: 'Hapus proteksi password pada dokumen PDF secara aman dan tanpa batasan.',
       icon: Unlock,
       iconClass: 'bg-stone-100 text-stone-800',
       action: () => {
@@ -507,7 +560,7 @@ export function App() {
     {
       title: 'Repair PDF',
       category: 'organize' as ToolCategory,
-      desc: 'Pulihkan berkas PDF yang rusak dan selamatkan data di dalamnya secara lokal.',
+      desc: 'Pulihkan berkas PDF yang rusak dan selamatkan data di dalamnya secara aman.',
       icon: Wrench,
       iconClass: 'bg-stone-100 text-stone-800',
       action: () => setShowPdfRepairModal(true)
@@ -539,7 +592,7 @@ export function App() {
     {
       title: 'PDF to Markdown',
       category: 'convert' as ToolCategory,
-      desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) lokal dengan mempertahankan heading, tabel, list & tautan.',
+      desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) dengan mempertahankan heading, tabel, list & tautan.',
       icon: FileCode,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
@@ -552,16 +605,8 @@ export function App() {
       icon: QrCode,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
+      isBrowserOnly: true,
       action: () => setShowQrCodeModal(true)
-    },
-    {
-      title: 'Pemendek URL',
-      category: 'organize' as ToolCategory,
-      desc: 'Buat tautan singkat berlatensi rendah di edge serverless untuk CV online, dokumen, atau portofolio.',
-      icon: Link2,
-      iconClass: 'bg-teal-50 text-teal-800',
-      isNew: true,
-      action: () => setShowUrlShortenerModal(true)
     },
     {
       title: 'Pengunduh Media',
@@ -588,12 +633,34 @@ export function App() {
     setActiveSection(target.id)
   }
 
+  const handleExecuteTool = (tool: ToolItem) => {
+    if (tool.isBrowserOnly) {
+      tool.action()
+      return
+    }
+    if (!currentUser) {
+      setAuthNoticeMessage('Alat komputasi server memerlukan akun terdaftar. Silakan masuk atau daftar terlebih dahulu.')
+      setPendingWorkspace('tools')
+      window.location.hash = '#/login'
+      setActiveWorkspace('login')
+      return
+    }
+    tool.action()
+  }
+
   return (
     <div className="app-shell h-dvh overflow-hidden paper-canvas dark:bg-[#0b1120] flex flex-col font-sans text-stone-900 dark:text-stone-100 transition-colors">
       {/* Navbar & Kontrol Topbar */}
       <Navbar
         activeWorkspace={activeWorkspace}
         onNavigate={navigateTo}
+        currentUser={currentUser}
+        onOpenLogin={() => {
+          setAuthNoticeMessage(undefined)
+          setPendingWorkspace(null)
+          navigateTo('login')
+        }}
+        onLogout={handleLogout}
         draft={draft}
         draftsList={draftsList}
         isSaving={isSaving}
@@ -976,7 +1043,7 @@ export function App() {
                   </div>
                   <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mt-5">Cocokkan dengan Lowongan</h2>
                   <p className="text-base text-stone-600 dark:text-stone-400 mt-2">Bandingkan kata kunci CV dengan deskripsi pekerjaan dan temukan kompetensi yang belum tercantum.</p>
-                  <span className="inline-flex mt-5 px-3 py-1 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold">Analisis lokal &amp; privat</span>
+                  <span className="inline-flex mt-5 px-3 py-1 rounded-lg bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-xs font-semibold">Analisis aman &amp; privat</span>
                 </button>
               </div>
             )}
@@ -1043,22 +1110,35 @@ export function App() {
                           <button
                             key={tool.title}
                             type="button"
-                            onClick={tool.action}
+                            onClick={() => handleExecuteTool(tool)}
                             style={{ '--i': index } as CSSProperties}
                             className="stagger-item group text-left p-5 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-2xs hover:border-teal-700 dark:hover:border-teal-500 transition duration-150 min-h-44 flex flex-col relative cursor-pointer"
+                            data-testid={`tool-card-${tool.title.toLowerCase().replace(/\s+/g, '-')}`}
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className={`p-3 rounded-xl self-start border border-stone-200/70 dark:border-stone-700 transition-colors ${tool.iconClass}`}><Icon className="w-5 h-5" /></span>
-                              {tool.isNew && (
-                                <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 rounded-md border border-teal-200 dark:border-teal-800">
-                                  Baru
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5">
+                                {tool.isBrowserOnly ? (
+                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                    Browser
+                                  </span>
+                                ) : !currentUser ? (
+                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                                    <Lock className="w-2.5 h-2.5" />
+                                    Perlu Akun
+                                  </span>
+                                ) : null}
+                                {tool.isNew && (
+                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 rounded-md border border-teal-200 dark:border-teal-800">
+                                    Baru
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors">{tool.title}</h3>
                             <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 mt-1.5 flex-1">{tool.desc}</p>
                             <span className="mt-4 text-xs font-semibold text-teal-800 dark:text-teal-400">
-                              Buka utilitas
+                              {tool.isBrowserOnly ? 'Buka di browser' : !currentUser ? 'Masuk untuk membuka' : 'Buka utilitas'}
                             </span>
                           </button>
                         )
@@ -1072,8 +1152,8 @@ export function App() {
             <div className="p-4 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl flex items-start gap-3">
               <ShieldCheck className="w-5 h-5 text-teal-800 dark:text-teal-400 shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Pemrosesan lokal</h3>
-                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">Dokumen diproses melalui server lokal Satukit. Berkas sementara dibersihkan otomatis.</p>
+                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Pemrosesan aman &amp; privat</h3>
+                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">Dokumen diproses secara aman melalui server Satukit. Berkas sementara dibersihkan otomatis.</p>
               </div>
             </div>
 
@@ -1081,6 +1161,21 @@ export function App() {
             <Footer className="mt-8" />
           </div>
         </main>
+      )}
+
+      {activeWorkspace === 'files' && (
+        <FileShelfView
+          currentUser={currentUser}
+          onNavigate={navigateTo}
+        />
+      )}
+
+      {activeWorkspace === 'login' && (
+        <LoginPage
+          onLoginSuccess={handleLoginSuccess}
+          onNavigateHome={() => navigateTo('home')}
+          noticeMessage={authNoticeMessage}
+        />
       )}
 
       {importUndo && draft?.id === importUndo.draftId && (
@@ -1215,12 +1310,6 @@ export function App() {
       <WebpToJpgModal
         isOpen={showWebpToJpgModal}
         onClose={() => setShowWebpToJpgModal(false)}
-      />
-
-      {/* Modal Pemendek URL */}
-      <UrlShortenerModal
-        isOpen={showUrlShortenerModal}
-        onClose={() => setShowUrlShortenerModal(false)}
       />
 
       {/* Modal Generate QR Code */}

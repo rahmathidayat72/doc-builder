@@ -4,7 +4,7 @@
 - **Proyek:** Doc-builder
 - **Versi:** 1.1.0
 - **Tanggal Persetujuan Awal:** 2026-10-20
-- **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi layanan online publik di VPS (Ubuntu 24.04, 1 vCPU, 2.2 GiB RAM, 40 GB SSD): otentikasi akun & kuota penyimpanan CV (max 5 dokumen, 90 hari retensi, backup R2 7 hari, email Brevo), fitur penghapus latar belakang gambar lokal CPU-only (U2NetP, antrean max 2, timeout 30s), dan layanan pemendek URL publik mandiri berbasis serverless Cloudflare Workers + D1.
+- **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi layanan online publik di VPS (Ubuntu 24.04, 1 vCPU, 2.2 GiB RAM, 40 GB SSD): otentikasi akun & kuota penyimpanan CV (max 5 dokumen, 30 hari retensi, backup R2 7 hari, email Brevo), fitur penghapus latar belakang gambar lokal CPU-only (U2NetP, antrean max 2, timeout 30s), dan layanan pemendek URL publik mandiri berbasis serverless Cloudflare Workers + D1.
 - **Status:** Pending Approval (Revisi Gerbang 1A)
 - **Owner:** User (Product, Security & Data Owner)
 
@@ -57,7 +57,7 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 
 ### 7.4 Scope Tambahan Transformasi Online & Serverless (2026-11-08)
 - **Otentikasi Akun Multi-User (Fitur Lanjutan):** Pendaftaran & masuk via Email + Password (hashing Argon2/bcrypt) dan Google OAuth. Pengguna dapat menyimpan draf proyek CV di server, sedangkan basic tools tetap dapat digunakan anonim tanpa login.
-- **Kebijakan Kuota & Retensi CV:** Maksimal 5 proyek CV tersimpan per akun, retensi 90 hari sejak tanggal pembaruan terakhir, kuota global penyimpanan CV 5 GB, pembersihan file temporer anonim maks 1 jam.
+- **Kebijakan Kuota & Retensi CV:** Maksimal 5 proyek CV tersimpan per akun, retensi 30 hari sejak tanggal pembaruan terakhir, kuota global penyimpanan CV 5 GB, pembersihan file temporer anonim maks 1 jam.
 - **Disaster Recovery & Backup CV:** Backup snapshot database & CV terenkripsi ke Cloudflare R2 Standard (lifecycle deletion 7 hari).
 - **Notifikasi Lifecycle CV:** Pengiriman email transaksional peringatan 14 hari, 7 hari, dan 1 hari sebelum dokumen kedaluwarsa melalui Brevo Free.
 - **Penghapus Latar Belakang Gambar Lokal (Remove Background):** Model segmentasi U2NetP yang dijalankan di CPU VPS dalam subprocess terisolasi, 1 worker aktif, antrean maksimal 2, timeout 30 detik, output PNG RGBA transparan dengan metadata EXIF dibuang.
@@ -80,14 +80,14 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 - **BUS-014:** Sistem menyediakan utilitas konversi berkas PDF menjadi format Markdown (.md) terstruktur secara lokal dengan mempertahankan struktur heading, list, tabel, dan tautan untuk integrasi LLM dan catatan digital.
 - **BUS-015:** Sistem menyediakan layanan pemendek URL publik terpisah (URL Shortener) berbasis arsitektur serverless (Cloudflare Workers + D1) dengan subdomain khusus, pengalihan instan direct 302, manajemen khusus pemilik via HMAC authentication, link aktif jangka panjang tanpa batas waktu, record revoke 90 hari lalu tombstone permanen, serta analitik agregat bebas PII (hanya `click_count` dan `last_accessed_at`).
 - **BUS-016:** Sistem menyediakan alat penghapus latar belakang gambar (Remove Background) yang memproses gambar statis (JPG, PNG, WebP) menjadi PNG RGBA transparan secara lokal di VPS menggunakan model segmentasi ringan (U2NetP CPU-only) tanpa transmisi ke API/cloud pihak ketiga, dengan pratinjau sebelum unduh, single-worker execution, antrean terbatas, dan isolasi kegagalan.
-- **BUS-017:** Sistem menyediakan manajemen akun dan penyimpanan dokumen CV terkelola di VPS bagi pengguna terdaftar (Email/Password & Google OAuth) dengan pembatasan kuota ketat (maksimal 5 CV per akun, retensi 90 hari sejak pembaruan terakhir, batas global penyimpanan 5 GB), notifikasi kedaluwarsa transaksional via email Brevo, serta cadangan darurat terenkripsi ke Cloudflare R2 (retensi 7 hari).
+- **BUS-017:** Sistem menyediakan manajemen akun dan penyimpanan dokumen CV terkelola di VPS bagi pengguna terdaftar (Email/Password & Google OAuth) dengan pembatasan kuota ketat (maksimal 5 CV per akun, retensi 30 hari sejak pembaruan terakhir, batas global penyimpanan 5 GB), notifikasi kedaluwarsa transaksional via email Brevo, serta cadangan darurat terenkripsi ke Cloudflare R2 (retensi 7 hari).
 
 ## 9. Business Rules (BRULE)
 - **BRULE-001:** Batas ukuran file maksimum yang diizinkan untuk diproses alat dokumen adalah 25 MB per berkas (10 MB untuk gambar remove-background).
 - **BRULE-002:** Sistem hanya memproses satu pekerjaan konversi aktif pada satu waktu (concurrency limit = 1); untuk remove-background, antrean tunggu dibatasi maksimal 2 pekerjaan (pekerjaan berikutnya ditolak dengan HTTP 429/503).
 - **BRULE-003:** Seluruh berkas temporer untuk pengguna anonim di backend VPS wajib dihapus segera setelah diserahkan atau maksimal TTL 1 jam.
 - **BRULE-004:** Pengguna terdaftar berhak menyimpan maksimal 5 proyek CV aktif; data CV disimpan dalam bentuk data terstruktur dan konfigurasi template; berkas output PDF/DOCX hasil render dibuat ulang saat diminta (on-the-fly) dan hanya disimpan sementara di cache.
-- **BRULE-005:** Dokumen CV yang disimpan memiliki masa berlaku (retensi) 90 hari sejak tanggal pembaruan terakhir (`updated_at`). Jika tidak diperbarui, dokumen akan dihapus permanen oleh background worker maksimal 24 jam setelah tanggal kedaluwarsa.
+- **BRULE-005:** Dokumen CV yang disimpan memiliki masa berlaku (retensi) 30 hari sejak tanggal pembaruan terakhir (`updated_at`). Jika tidak diperbarui, dokumen akan dihapus permanen oleh background worker maksimal 5 menit setelah tanggal kedaluwarsa.
 - **BRULE-006:** Rekomendasi ATS tidak boleh mengubah data CV secara otomatis dan wajib menampilkan disclaimer bahwa skor bukan jaminan lolos seleksi.
 - **BRULE-007:** Input lowongan kerja hanya diizinkan melalui penempelan teks langsung atau pengunggahan file dokumen (PDF/DOCX).
 - **BRULE-008:** Hak cipta template dimiliki aplikasi, sedangkan isi dan hak cipta dokumen output sepenuhnya milik pengguna.
@@ -104,7 +104,7 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 - **KPI-003:** Rata-rata waktu proses penghapusan latar belakang gambar (U2NetP, 1 vCPU) ≤ 15 detik pada gambar resolusi standar (hard timeout 30 detik).
 - **KPI-004:** Waktu respons pengalihan URL pendek (edge redirect Cloudflare Workers) ≤ 100 ms.
 - **KPI-005:** Tingkat kegagalan operasional pengguna (error rate) < 2%.
-- **KPI-006:** Keberhasilan penghapusan data kedaluwarsa (retensi 90 hari CV & TTL 1 jam berkas anonim) mencapai 100% tepat waktu (toleransi sweep 24 jam).
+- **KPI-006:** Keberhasilan penghapusan data kedaluwarsa (retensi 30 hari CV & TTL 1 jam berkas anonim) mencapai 100% tepat waktu (toleransi sweep 5 menit).
 - **KPI-007:** Skor fidelitas visual konversi ≥ 95% pada corpus pengujian resmi.
 
 ## 11. Batasan & Dependensi Bisnis
@@ -115,5 +115,5 @@ Doc-builder adalah aplikasi produktivitas dokumen lokal yang dirancang untuk men
 ## 12. Analisis Risiko Bisnis
 - **RISK-BUS-01:** Lonjakan beban inferensi gambar di VPS 1 vCPU / 2.2 GiB RAM dapat menyebabkan thrashing swap atau OOM. (Mitigasi: Concurrency limit = 1, antrean max 2, reject 429/503 saat penuh, memory cap per worker, resize downscale sebelum inferensi).
 - **RISK-BUS-02:** Penyalahgunaan URL shortener untuk phishing atau malware. (Mitigasi: Pembuatan link khusus owner terotentikasi HMAC via Cloudflare Access, validasi HTTPS publik ketat, penolakan SSRF/private IP, kemampuan revoke instan, dan log audit).
-- **RISK-BUS-03:** Penumpukan dokumen CV melampaui kapasitas disk VPS. (Mitigasi: Kuota max 5 CV per akun, retensi 90 hari, kuota global 5 GB, pembersihan otomatis harian, alert disk 70% dan blokir penyimpanan baru di 80%).
+- **RISK-BUS-03:** Penumpukan dokumen CV melampaui kapasitas disk VPS. (Mitigasi: Kuota max 5 CV per akun, retensi 30 hari, kuota global 5 GB, pembersihan otomatis background worker dan oportunistik API, alert disk 70% dan blokir penyimpanan baru di 80%).
 - **RISK-BUS-04:** Ketergantungan paket gratis penyedia pihak ketiga (Cloudflare, Brevo) terhadap perubahan kebijakan kuota/SLA. (Mitigasi: Desain adapter decoupled/agnostik vendor, export database mandiri D1 dan R2, serta dokumentasi runbook migrasi darurat).

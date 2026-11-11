@@ -18,14 +18,26 @@ describe('resolveBackendUrl', () => {
     expect(resolveBackendUrl({ hostname: 'localhost', port: '8000' })).toBe('')
     expect(resolveBackendUrl({ hostname: '127.0.0.1', port: '8000' })).toBe('')
   })
+
+  it('memakai URL relatif saat production atau custom VITE_API_BASE_URL', () => {
+    expect(resolveBackendUrl({ hostname: 'satukit.id', port: '' }, { isProd: true })).toBe('')
+    expect(
+      resolveBackendUrl(
+        { hostname: 'satukit.id', port: '' },
+        { apiBaseUrl: 'https://api.satukit.id' }
+      )
+    ).toBe('https://api.satukit.id')
+  })
 })
 
 describe('apiFetch network error handling', () => {
-  it('mengubah network rejection menjadi pesan bantuan start-docbuilder', async () => {
+  it('mengubah network rejection menjadi pesan bantuan layanan tidak dapat dihubungi', async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
     try {
-      await expect(apiFetch('/api/test')).rejects.toThrow(/start-docbuilder\.bat/)
+      await expect(apiFetch('/api/test')).rejects.toThrow(
+        /Layanan Satukit sedang tidak dapat dihubungi/
+      )
     } finally {
       globalThis.fetch = originalFetch
     }

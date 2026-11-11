@@ -15,18 +15,107 @@ security_review_due: "2026-11-15"
 remediation_gate_status: "NOT_REQUIRED"
 remediation_allowed: false
 remediation_task: null
-status: "IN_PROGRESS"
+status: "RELEASE_PENDING"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
-current_phase: "phase-15"
+current_phase: "phase-file-shelf"
 current_task: null
-last_completed_task: "REBRAND-SATUKIT-022"
+last_completed_task: "FS-09"
 blocked_reason: null
 last_updated: "2026-11-11"
 ```
 
 ## Ringkasan Fokus
+Fase `phase-file-shelf` (Fitur Rak Berkas Privat Per Akun / File Shelf) **selesai dan terverifikasi penuh (FS-00 s/d FS-09)**:
+1. **Pengujian Komprehensif Matriks Upload & Keamanan (`FS-09`):**
+   - File `backend/tests/test_file_shelf_comprehensive.py`: 11/11 tests PASS mencakup 10 kelompok matriks upload (format didukung PDF/DOCX/XLSX/PPTX/JPG/PNG/WebP/MD, penolakan format dilarang arsip/SVG/biner, penolakan bom dekompresi/XML defusedxml, makro VBA & script PDF, file terenkripsi password, malformed & polyglot, pelestarian byte EXIF foto statis vs tolak animasi, pemindaian ClamAV fail-closed, batas ukuran 25MB & kuota 5 slot & hard ceiling R2 7GB, batas konkurensi in-flight & rolling rate limits).
+   - Verifikasi isolasi cross-tenant anti-BOLA: penolakan unduh/hapus lintas akun mengembalikan HTTP 404 anti-enumerasi.
+   - Pindai kredensial `scripts/scan_secrets.py`: 1.603 file dipindai, 0 secret ditemukan.
+   - 290/290 Pytest full suite PASS, 379/379 Vitest full suite PASS, Vite build PASS.
+2. **Antarmuka UI Rak Berkas `#/files` (`FS-08`):** Selesai dan terverifikasi (8/8 tests PASS).
+3. **Background Worker Pemrosesan File (`FS-07`):** Selesai dan terverifikasi (7/7 tests PASS).
+4. **Endpoint API Rak Berkas (`FS-06`):** Selesai dan terverifikasi (10/10 tests PASS).
+5. **Inspeksi Keamanan & Karantina Berkas (`FS-05`):** Selesai dan terverifikasi (11/11 tests PASS).
+6. **Kriptografi AES-256-GCM Envelope 49B & R2 Adapter (`FS-04`):** Selesai dan terverifikasi (10/10 tests PASS).
+7. **Skema Database & Alembic Migration 003 (`FS-03`):** Selesai dan terverifikasi (7/7 tests PASS).
+8. **Setup Dependensi, Worker Unit, & Keyring (`FS-02`):** Selesai dan terverifikasi.
+9. **Feasibility Spike Bubblewrap & ClamAV (`FS-01`):** Selesai dan terverifikasi (`DEC-024`).
+10. **Sinkronisasi Dokumen & State Tracking (`FS-00`):** Selesai dan terverifikasi.
+
+Fase `phase-17` (Deployment Produksi VPS Hardening & Runtime Security) **selesai dan terverifikasi**:
+1. **Fondasi Runtime & Keamanan Produksi (`DEPLOY-PROD-001`):** Konfigurasi fail-fast pada runtime `IS_PRODUCTION`, validasi kredensial non-default database PostgreSQL, penegakan same-origin relative path `/api`, dan proxy Vite dev.
+2. **Autentikasi & Email Transaksional Brevo (`DEPLOY-PROD-002`):** Implementasi Brevo REST API adapter (stdlib urllib) untuk email verifikasi (TTL 15m), reset kata sandi single-use, sliding window in-memory rate limiter untuk mitigasi brute force, dan integrasi UI `LoginPage.tsx`.
+3. **Pemisahan Izin Fitur Browser-Only vs Server-Side (`DEPLOY-PROD-003`):** Alat murni browser (WebP ke JPG, QR Code, CV preview/print) dapat diakses anonim di direktori tools; komputasi server VPS diproteksi `SecurityMiddleware` fail-closed (HTTP 401 anonim, HTTP 403 email belum terverifikasi di mode produksi) dengan guard redirect ke `#/login`.
+4. **Pembersihan Klaim Offline/Lokal UI (`DEPLOY-PROD-004`):** Seluruh klaim "offline/lokal" pada antarmuka publik diganti dengan "aman & privat", tanpa merusak identifier teknis (`localStorage`, `localhost`, `getLocalShortenedLinks`) atau frasa "budaya lokal".
+5. **Artefak Deployment Produksi Lengkap (`DEPLOY-PROD-005`):** Tersedia `deploy/Caddyfile.example` (reverse proxy loopback 127.0.0.1:8000, automatic TLS, security headers), `deploy/satukit.service` (systemd unit dengan isolasi Linux namespaces & limit 1 vCPU / 2.2 GiB RAM), `deploy/satukit.env.example`, skrip backup terenkripsi AES-256-GCM `deploy/backup_r2.sh` + rotasi 7 hari Cloudflare R2, `deploy/restore_r2.sh`, dan runbook `deploy/RUNBOOK.md`.
+6. **Audit Akhir & Verifikasi Penuh (`DEPLOY-PROD-006`):** 234/234 Pytest backend PASS, 371/371 Vitest frontend PASS, Vite build PASS, Oxlint 0 error. Repo siap serah terima.
+1. Skema database PostgreSQL & model deklaratif `resume_drafts` diimplementasikan dengan migrasi Alembic `002_resume_drafts.py` (relasi `user_id -> users.id` cascade delete, indeks komposit `(user_id, updated_at DESC)` dan `(expires_at)`).
+2. Repository `ResumeDraftRepository` dan endpoint API `/api/drafts` terlindung:
+   - Autorisasi kepemilikan server-side berbasis `id + user_id` mencegah Broken Object Level Authorization (BOLA).
+   - Kuota ketat: maksimal 5 draf aktif per akun, 10 MB per dokumen draf, dan 50 MB total akun; penolakan HTTP 400 dengan pesan solutif.
+   - Retensi 30 hari otomatis terhitung dari `updated_at`; akses baca atau unduh tidak memperpanjang masa aktif.
+   - Soft-delete dengan window undo 10 detik (`deleted_at`); draf kedaluwarsa 30 hari tidak dapat di-undo dan langsung dihapus permanen.
+3. Daemon sweeper `DraftCleanerWorker` (interval 300s) terintegrasi pada lifespan FastAPI plus purge oportunistik saat akses endpoint draf; membersihkan draf kedaluwarsa maksimal 5 menit pasca jatuh tempo.
+4. Model hybrid storage frontend:
+   - Pengguna login: tersimpan otomatis di PostgreSQL via `/api/drafts`.
+   - Pengguna anonim: terisolasi di IndexedDB dengan namespace `'anonymous'`. Draf legacy tanpa `ownerId` tetap anonim dan tidak diklaim otomatis saat login.
+   - Mode Privat: tersimpan hanya di memori sesi aktif tanpa jejak ke database server maupun IndexedDB.
+   - Manajemen akun: autosave tertunda dibatalkan, draf aktif di-reset saat pergantian pengguna / login / logout.
+5. Antarmuka UI (`Dashboard.tsx` & `Navbar.tsx`):
+   - Badge sisa hari ("Tersisa N hari") dengan peringatan visual khusus saat sisa hari ≤ 7 hari.
+   - Penyelarasan dokumentasi induk seluruh proyek dari 90 hari menjadi 30 hari retensi draf akun (`BRD.md`, `PRD.md`, `ARCHITECTURE.md`, `SOP.md`, `SECURITY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`).
+6. Verifikasi 100% lolos:
+   - Backend Pytest: 9/9 `test_resume_drafts.py` PASS, 223/223 full suite PASS; Ruff bersih.
+   - Frontend Vitest: 3/3 `useResumeDraft.test.tsx` PASS, 11/11 `dashboard.test.tsx` PASS, 367/367 full suite PASS.
+   - TypeScript build: `npm run build` PASS.
+   - Playwright E2E: 5/5 tests PASS.
+
+Task `AUTH-MASCOT-001` (Integrasi Maskot Kitu Dinamis pada Halaman Login & Sign Up) **selesai dan terverifikasi**:
+1. Menampilkan maskot resmi Satukit (Kitu) di header kartu autentikasi `LoginPage.tsx` (`#/login`).
+2. Ekspresi dan animasi maskot berganti secara otomatis mengikuti alur interaksi pengguna:
+   - Mode Masuk (Login default): ekspresi `siapmembantu` dengan animasi hop (`animate-kitu-hop`).
+   - Mode Daftar (Sign Up): ekspresi `semangat` dengan animasi wiggle (`animate-kitu-wiggle`).
+   - Tahap 2 Verifikasi Anti-Bot: ekspresi `berpikir` dengan animasi bob (`animate-kitu-bob`).
+   - Sedang Memproses / Validasi: ekspresi `fokus` dengan animasi bob (`animate-kitu-bob`).
+   - Kesalahan / Validasi Gagal: ekspresi `kecewa` dengan animasi getar shake (`animate-kitu-shake`).
+3. Aksesibilitas terjamin: maskot bersifat dekoratif pendukung visual, ramah `prefers-reduced-motion` lewat CSS global, dan tidak mengganggu screen reader.
+4. Verifikasi 100% hijau: 10/10 Vitest `LoginPage.test.tsx`, 364/364 Vitest suite PASS, 5/5 Playwright E2E PASS, Vite build PASS, Oxlint 0 error.
+
+Task `AUTH-VERIFY-001` (Integrasi Database PostgreSQL Lokal, Registrasi, dan Alur Verifikasi Anti-Bot) **selesai dan terverifikasi**:
+1. Server PostgreSQL 18 lokal di port 5432 berhasil dihubungkan; database `satukit` dan pengguna `satukit_user` (password `satukit_pass`) diinisialisasi secara otomatis dengan grant privileges lengkap via `backend/scripts/setup_postgres.py`.
+2. Migrasi skema database Alembic (`001_initial_schema`) berhasil membentuk seluruh 7 tabel relasional (`users`, `oauth_accounts`, `user_sessions`, `auth_tokens`, `short_urls`, `media_download_jobs`, `media_download_usage`).
+3. Perbaikan dependency order/flush pada `AuthRepository`: pemanggilan `session.flush()` setelah `session.add(user)` pada `create_user_with_token` dan `create_google_user` untuk mencegah pelanggaran foreign key PostgreSQL saat menyimpan token verifikasi anak.
+4. Pengujian alur otentikasi nyata (live) sukses penuh:
+   - Registrasi user baru (`POST /api/auth/register`) menghasilkan akun di PostgreSQL.
+   - Login tahap 1 (`POST /api/auth/login-init`) memverifikasi password Argon2id dan memberikan soal matematika SD.
+   - Login tahap 2 salah (`POST /api/auth/login-verify`) ditolak (HTTP 400).
+   - Login tahap 2 benar (`POST /api/auth/login-verify`) berhasil, menerbitkan sesi PostgreSQL dan cookie `satukit_session`.
+   - Pemeriksaan profil (`GET /api/auth/me`) sukses mengembalikan user terotentikasi.
+5. Verifikasi kode: 214/214 backend Pytest PASS, 362/362 frontend Vitest PASS, Vite production build PASS.
+1. Menghilangkan popup modal untuk login; menyediakan halaman mandiri penuh `frontend/src/components/auth/LoginPage.tsx` di route hash `#/login`.
+2. Alur verifikasi dua tahap aman:
+   - Tahap 1 (`POST /api/auth/login-init`): pengguna menginput email & kata sandi. Server memverifikasi kredensial. Jika salah, muncul pesan error dan soal matematika TIDAK MUNCUL.
+   - Tahap 2 (`POST /api/auth/login-verify`): jika dan hanya jika kredensial benar, server menerbitkan token HMAC terikat `user_id` dan menampilkan kartu soal matematika SD kelas 1 (hasil 0..20). Pengguna mengetikkan jawaban angka dan melakukan verifikasi untuk menerbitkan sesi login (`satukit_session`).
+3. Penegakan login guard: pengguna anonim yang mengakses workspace `#/tools` otomatis dialihkan ke halaman penuh `#/login` dengan notifikasi panduan, serta otomatis diteruskan kembali ke `#/tools` setelah berhasil masuk.
+4. CV Builder, evaluasi keterbacaan ATS, dan import/export lokal tetap 100% anonim dan bebas diakses tanpa akun.
+5. Verifikasi 100% lolos: 8/8 Vitest targeted `LoginPage.test.tsx`, 9/9 Vitest `app.integration.test.tsx`, 362/362 Vitest full suite PASS, 8/8 Pytest `test_auth_api.py`, 8/8 Pytest `test_bot_challenge.py`, 214/214 Pytest full suite PASS, Vite build PASS, 5/5 Playwright E2E PASS.
+
+Task `AUTH-BOT-001` (Generator & Verifier Soal Anti-Bot Matematika SD Kelas 1 Server-Side) **selesai dan terverifikasi**:
+1. Modul generator soal matematika SD kelas 1 di `backend/app/services/bot_challenge.py`: operasi penjumlahan dan pengurangan sederhana hasil 0..20, teks soal berbahasa Indonesia ramah anak.
+2. Token state berbasis HMAC-SHA256 (`expires_at.nonce.signature`) dengan TTL 5 menit (anti-replay & anti-tamper).
+3. Endpoint publik `POST /api/auth/challenge` untuk meminta soal dan token tantangan baru (terdaftar di `PUBLIC_PATHS` middleware).
+4. Penegakan verifikasi dua langkah pada `POST /api/auth/login`: mewajibkan `challenge_token` dan `challenge_answer`, menolak jawaban salah atau token kedaluwarsa dengan HTTP 400.
+5. Verifikasi 100% lolos: 7/7 unit test di `test_bot_challenge.py` (termasuk 100 iterasi validasi matematika), 7/7 API auth test di `test_auth_api.py`, 212/212 Pytest full backend suite PASS, Ruff clean.
+
+Task `AUTH-ACCESS-001` (Penutupan entry point tidak aman Google Auth & Shortener Management) **selesai dan terverifikasi**:
+1. Penutupan endpoint publik Google Auth: `POST /api/auth/google`, `POST /api/auth/link-google`, `POST /api/auth/unlink-google` dihapus dari router publik dan `PUBLIC_PATHS` middleware. Seluruh percobaan akses diblokir (HTTP 401/404/405).
+2. Penonaktifan endpoint shortener management: `POST /api/shortener/create` dan `GET /api/shortener/config` tidak lagi didaftarkan di FastAPI application router.
+3. Redirect publik `GET /s/{slug}` dan `GET /api/s/{slug}` tetap beroperasi penuh melayani HTTP 302, 404, dan 410 dengan penambahan counter atomik.
+4. Katalog alat dokumen publik diselaraskan dari 25 menjadi 24 utilitas; Kartu 4 Pendekkan URL dan quick category di Beranda/Dashboard dihilangkan (grid menjadi 3 kolom rapi).
+5. Seluruh verifikasi 100% lolos: 11/11 targeted Pytest, 204/204 Pytest full suite, 8/8 targeted Vitest, 353/353 Vitest full suite, Ruff PASS, Oxlint 0 error, Vite build lolos, Playwright E2E dashboard multi-viewport PASS.
+
+Fase berikutnya: `AUTH-BOT-001` (Implementasi Soal Anti-Bot Matematika SD Kelas 1 Server-Side & HMAC Challenge Token).
 Migrasi PostgreSQL Phase 16 (`DB-POSTGRES-001` hingga `DB-POSTGRES-007`) **selesai dan terverifikasi**:
 1. Setup dependensi SQLAlchemy 2, Alembic, psycopg binary, dan konfigurasi `DATABASE_URL`.
 2. Model deklaratif 7 tabel di `backend/app/db/models.py` dan script migrasi baseline Alembic `001_initial_schema.py`.

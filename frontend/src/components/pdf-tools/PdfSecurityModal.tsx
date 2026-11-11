@@ -191,7 +191,7 @@ export const PdfSecurityModal: React.FC<PdfSecurityModalProps> = ({
               </h3>
               <p className="text-xs text-stone-600">
                 {activeTab === 'unlock'
-                  ? 'Hapus proteksi password dokumen PDF secara lokal & aman.'
+                  ? 'Hapus proteksi password dokumen PDF secara privat & aman.'
                   : 'Enkripsi berkas PDF dengan password AES-256 kuat.'}
               </p>
             </div>
@@ -258,7 +258,7 @@ export const PdfSecurityModal: React.FC<PdfSecurityModalProps> = ({
                     Pilih berkas PDF ({activeTab === 'unlock' ? 'terenkripsi password' : 'yang ingin diproteksi'})
                   </span>
                   <span className="text-3xs text-stone-600 block mt-0.5">
-                    Maksimum ukuran 25 MB • Pemrosesan 100% lokal di perangkat Anda
+                    Maksimum ukuran 25 MB • Pemrosesan aman di server Satukit
                   </span>
                 </div>
                 <input

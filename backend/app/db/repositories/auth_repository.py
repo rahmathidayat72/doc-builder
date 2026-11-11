@@ -123,6 +123,7 @@ class AuthRepository:
                 updated_at=now,
             )
             session.add(user)
+            session.flush()
             token = AuthToken(
                 token_hash=token_hash,
                 user_id=user_id,
@@ -166,6 +167,7 @@ class AuthRepository:
                 updated_at=now,
             )
             session.add(user)
+            session.flush()
             oauth = OAuthAccount(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
@@ -315,6 +317,59 @@ class AuthRepository:
                 token.used_at = now
 
             session.execute(delete(UserSession).where(UserSession.user_id == user_id))
+            return user_to_record(user)
+
+    def create_email_verification_token(
+        self,
+        user_id: str,
+        token_hash: str,
+        created_at: float,
+        expires_at: float,
+    ) -> None:
+        with self._session() as session:
+            session.execute(
+                delete(AuthToken).where(
+                    AuthToken.user_id == user_id,
+                    AuthToken.token_type == "email_verification",
+                )
+            )
+            token = AuthToken(
+                token_hash=token_hash,
+                user_id=user_id,
+                token_type="email_verification",
+                created_at=created_at,
+                expires_at=expires_at,
+            )
+            session.add(token)
+
+    def get_email_verification_token(self, token_hash: str) -> tuple[str, float | None, float] | None:
+        with self._session() as session:
+            stmt = select(AuthToken).where(
+                AuthToken.token_hash == token_hash,
+                AuthToken.token_type == "email_verification",
+            )
+            token = session.scalars(stmt).first()
+            if not token:
+                return None
+            return token.user_id, token.used_at, token.expires_at
+
+    def consume_email_verification_token(
+        self,
+        user_id: str,
+        token_hash: str,
+        now: float,
+    ) -> UserRecord:
+        with self._session() as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise ValueError("User not found")
+            user.email_verified = 1
+            user.updated_at = now
+
+            token = session.get(AuthToken, token_hash)
+            if token:
+                token.used_at = now
+
             return user_to_record(user)
 
     def update_user_password(self, user_id: str, new_hash: str, now: float) -> None:

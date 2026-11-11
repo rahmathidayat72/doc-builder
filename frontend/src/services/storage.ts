@@ -129,7 +129,9 @@ const toSummary = (draft: ResumeDraft): ResumeDraftSummary => ({
   updatedAt: draft.updatedAt,
   createdAt: draft.createdAt,
   favorite: Boolean(draft.favorite),
-  targetJobTitle: draft.targetJob?.title || undefined
+  targetJobTitle: draft.targetJob?.title || undefined,
+  expiresAt: draft.expiresAt,
+  ownerId: draft.ownerId || 'anonymous'
 })
 
 const sortSummaries = (left: ResumeDraftSummary, right: ResumeDraftSummary) =>
@@ -139,8 +141,11 @@ export class ResumeStorage {
   private static inMemoryDrafts: Map<string, ResumeDraft> = new Map()
 
   /** Menyimpan atau memperbarui draft CV */
-  static async saveDraft(draft: ResumeDraft): Promise<void> {
-    const validated = ResumeDraftSchema.parse(draft)
+  static async saveDraft(draft: ResumeDraft, ownerId = 'anonymous'): Promise<void> {
+    const validated = ResumeDraftSchema.parse({
+      ...draft,
+      ownerId: draft.ownerId || ownerId,
+    })
     
     // Jika mode privat aktif, hanya simpan di memori sesi aktif
     const privateMode = await this.isPrivateMode()
@@ -154,39 +159,54 @@ export class ResumeStorage {
   }
 
   /** Mengambil satu draft berdasarkan ID */
-  static async getDraft(id: string): Promise<ResumeDraft | undefined> {
+  static async getDraft(id: string, ownerId = 'anonymous'): Promise<ResumeDraft | undefined> {
     const privateMode = await this.isPrivateMode()
     if (privateMode) {
-      return this.inMemoryDrafts.get(id)
+      const mem = this.inMemoryDrafts.get(id)
+      if (mem && (mem.ownerId || 'anonymous') !== ownerId) return undefined
+      return mem
     }
 
     const db = await getDB()
-    return db.get('drafts', id)
+    const draft = await db.get('drafts', id)
+    if (draft && (draft.ownerId || 'anonymous') !== ownerId) {
+      return undefined
+    }
+    return draft
   }
 
   /** Mengambil daftar ringkasan draft terurut dari yang terbaru */
-  static async listDrafts(): Promise<ResumeDraftSummary[]> {
+  static async listDrafts(ownerId = 'anonymous'): Promise<ResumeDraftSummary[]> {
     const privateMode = await this.isPrivateMode()
     if (privateMode) {
-      return Array.from(this.inMemoryDrafts.values()).map(toSummary).sort(sortSummaries)
+      return Array.from(this.inMemoryDrafts.values())
+        .filter(d => (d.ownerId || 'anonymous') === ownerId)
+        .map(toSummary)
+        .sort(sortSummaries)
     }
 
     const db = await getDB()
     const all = await db.getAll('drafts')
-    return all.map(toSummary).sort(sortSummaries)
+    return all
+      .filter(d => (d.ownerId || 'anonymous') === ownerId)
+      .map(toSummary)
+      .sort(sortSummaries)
   }
 
   /** Menghapus draft dengan opsi pemindahan ke tempat sampah sementara untuk undo */
-  static async deleteDraft(id: string, allowUndo = true): Promise<void> {
+  static async deleteDraft(id: string, allowUndo = true, ownerId = 'anonymous'): Promise<void> {
     const privateMode = await this.isPrivateMode()
     if (privateMode) {
-      this.inMemoryDrafts.delete(id)
+      const mem = this.inMemoryDrafts.get(id)
+      if (mem && (mem.ownerId || 'anonymous') === ownerId) {
+        this.inMemoryDrafts.delete(id)
+      }
       return
     }
 
     const db = await getDB()
     const draft = await db.get('drafts', id)
-    if (!draft) return
+    if (!draft || (draft.ownerId || 'anonymous') !== ownerId) return
 
     const tx = db.transaction(['drafts', 'trash'], 'readwrite')
     await tx.objectStore('drafts').delete(id)
@@ -202,10 +222,10 @@ export class ResumeStorage {
   }
 
   /** Memulihkan draft dari tempat sampah sementara (Undo Delete) */
-  static async restoreDraft(id: string): Promise<ResumeDraft | undefined> {
+  static async restoreDraft(id: string, ownerId = 'anonymous'): Promise<ResumeDraft | undefined> {
     const db = await getDB()
     const entry = await db.get('trash', id)
-    if (!entry) return undefined
+    if (!entry || (entry.draft.ownerId || 'anonymous') !== ownerId) return undefined
 
     const tx = db.transaction(['drafts', 'trash'], 'readwrite')
     await tx.objectStore('drafts').put(entry.draft)
@@ -231,8 +251,8 @@ export class ResumeStorage {
   }
 
   /** Menduplikasi draft yang ada */
-  static async duplicateDraft(id: string): Promise<ResumeDraft> {
-    const original = await this.getDraft(id)
+  static async duplicateDraft(id: string, ownerId = 'anonymous'): Promise<ResumeDraft> {
+    const original = await this.getDraft(id, ownerId)
     if (!original) {
       throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
     }
@@ -242,42 +262,43 @@ export class ResumeStorage {
     const duplicated: ResumeDraft = {
       ...original,
       id: newId,
+      ownerId,
       title: `${original.title} (Salinan)`,
       favorite: false,
       createdAt: now,
       updatedAt: now
     }
 
-    await this.saveDraft(duplicated)
+    await this.saveDraft(duplicated, ownerId)
     return duplicated
   }
 
   /** Mengganti nama draft */
-  static async renameDraft(id: string, newTitle: string): Promise<void> {
+  static async renameDraft(id: string, newTitle: string, ownerId = 'anonymous'): Promise<void> {
     const cleanTitle = newTitle.trim()
     if (!cleanTitle) {
       throw new Error('Judul draft tidak boleh kosong.')
     }
 
-    const draft = await this.getDraft(id)
+    const draft = await this.getDraft(id, ownerId)
     if (!draft) {
       throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
     }
 
     draft.title = cleanTitle
     draft.updatedAt = Date.now()
-    await this.saveDraft(draft)
+    await this.saveDraft(draft, ownerId)
   }
 
   /** Menandai atau melepas draft favorit. */
-  static async toggleFavorite(id: string): Promise<boolean> {
-    const draft = await this.getDraft(id)
+  static async toggleFavorite(id: string, ownerId = 'anonymous'): Promise<boolean> {
+    const draft = await this.getDraft(id, ownerId)
     if (!draft) {
       throw new Error(`Draft dengan ID ${id} tidak ditemukan.`)
     }
 
     draft.favorite = !draft.favorite
-    await this.saveDraft(draft)
+    await this.saveDraft(draft, ownerId)
     return Boolean(draft.favorite)
   }
 

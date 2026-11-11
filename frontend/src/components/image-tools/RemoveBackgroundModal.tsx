@@ -464,8 +464,8 @@ export const RemoveBackgroundModal: React.FC<RemoveBackgroundModalProps> = ({
               </h2>
               <p className="text-xs text-stone-500">
                 {initialBg === 'blur'
-                  ? 'Efek bokeh AI lokal • 100% offline & privat'
-                  : 'Segmentasi AI U2NetP lokal • 100% offline & privat'}
+                  ? 'Efek bokeh AI • Aman & privat'
+                  : 'Segmentasi AI U2NetP • Aman & privat'}
               </p>
             </div>
           </div>
@@ -534,7 +534,7 @@ export const RemoveBackgroundModal: React.FC<RemoveBackgroundModalProps> = ({
               </p>
               <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 rounded-full text-xs text-stone-600 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-                Diproses lokal di perangkat — foto Anda tidak pernah dikirim ke cloud
+                Diproses secara privat — foto Anda langsung dibersihkan setelah selesai
               </div>
             </div>
           )}
@@ -551,7 +551,7 @@ export const RemoveBackgroundModal: React.FC<RemoveBackgroundModalProps> = ({
                   Mendeteksi Subjek &amp; Menghapus Latar Belakang...
                 </p>
                 <p className="text-xs text-stone-500 mt-1">
-                  AI U2NetP memproses citra secara lokal di CPU VPS
+                  AI U2NetP memproses citra secara efisien di server Satukit
                 </p>
               </div>
               <div className="max-w-xs mx-auto bg-stone-100 rounded-full h-1.5 overflow-hidden">

@@ -158,6 +158,8 @@ export const ResumeDraftSchema = z.object({
   data: ResumeDataSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
+  expiresAt: z.number().optional(),
+  ownerId: z.string().optional(),
   version: z.number().default(1),
   favorite: z.boolean().optional(),
   targetJob: TargetJobSchema.optional()
@@ -183,6 +185,8 @@ export interface ResumeDraftSummary {
   createdAt: number
   favorite: boolean
   targetJobTitle?: string
+  expiresAt?: number
+  ownerId?: string
 }
 
 export const createEmptyResumeData = (): ResumeData => ({

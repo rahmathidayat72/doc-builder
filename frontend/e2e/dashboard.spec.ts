@@ -35,8 +35,8 @@ test.describe('Dashboard / Beranda Batched Multi-Viewport & Quality Gate Verific
     const dashboard = page.getByTestId('dashboard-view')
     await expect(dashboard).toBeVisible()
 
-    // Verifikasi jumlah alat dokumen terhubung dinamis (25 utilitas)
-    await expect(page.getByTestId('stat-tools-count')).toHaveText('25')
+    // Verifikasi jumlah alat dokumen terhubung dinamis (24 utilitas)
+    await expect(page.getByTestId('stat-tools-count')).toHaveText('24')
 
     // Verifikasi arah warna Editorial Paper & Forest Teal (bebas kelas ungu indigo/violet/purple pada Beranda & Navbar)
     const hasPurpleClasses = await page.evaluate(() => {

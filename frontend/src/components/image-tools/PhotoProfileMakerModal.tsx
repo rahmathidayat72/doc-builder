@@ -534,7 +534,7 @@ export const PhotoProfileMakerModal: React.FC<PhotoProfileMakerModalProps> = ({
                 Photo Profile Maker
               </h2>
               <p className="text-xs text-stone-500">
-                Avatar profesional media sosial • 100% offline &amp; privat
+                Avatar profesional media sosial • Aman &amp; privat
               </p>
             </div>
           </div>
@@ -609,7 +609,7 @@ export const PhotoProfileMakerModal: React.FC<PhotoProfileMakerModalProps> = ({
               </p>
               <div className="mt-4 inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 rounded-full text-xs text-stone-600 font-medium">
                 <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
-                Diproses lokal di perangkat — foto Anda tidak pernah dikirim ke cloud
+                Diproses secara aman — foto Anda langsung dibersihkan setelah selesai
               </div>
             </div>
           )}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,27 @@ def fresh_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     mgr = DatabaseManager(test_db)
     mgr.init_db()
     monkeypatch.setattr(auth_service, "db", mgr)
+
+
+def make_login_payload(email: str, password: str, wrong_challenge: bool = False) -> dict:
+    """Helper membuat payload login yang memuat token dan jawaban tantangan bot matematika SD."""
+    ch = client.post("/api/auth/challenge").json()
+    token = ch["challenge_token"]
+    question = ch["question"]
+    nums = [int(n) for n in re.findall(r"\d+", question)]
+    ans = (
+        (nums[0] - nums[1])
+        if ("-" in question or "dikurangi" in question)
+        else (nums[0] + nums[1])
+    )
+    if wrong_challenge:
+        ans = ans + 1 if ans < 20 else ans - 1
+    return {
+        "email": email,
+        "password": password,
+        "challenge_token": token,
+        "challenge_answer": ans,
+    }
 
 
 def test_register_login_and_me_flow():
@@ -75,10 +97,10 @@ def test_register_login_and_me_flow():
     )
     assert me_after.status_code == 401
 
-    # 5. Login ulang
+    # 5. Login ulang dengan bot challenge valid
     login_res = client.post(
         "/api/auth/login",
-        json={"email": email, "password": password},
+        json=make_login_payload(email, password),
     )
     assert login_res.status_code == 200
     login_data = login_res.json()
@@ -86,79 +108,38 @@ def test_register_login_and_me_flow():
     assert login_data["user"]["email"] == email
 
 
-def test_anti_auto_merge_guard_api():
-    """Memverifikasi penolakan HTTP 409 ACCOUNT_MERGE_REQUIRED saat login Google mencoba
-    mengambil alih email yang telah terdaftar dengan kata sandi lokal (BRULE-013)."""
-    email = "protected_merge@example.com"
-    password = "SecurePassword123"
+def test_google_auth_and_linking_endpoints_are_disabled():
+    """Memverifikasi seluruh endpoint Google auth publik dan linking dinonaktifkan."""
+    # 1. Pastikan route tidak terdaftar di FastAPI router
+    route_paths = [r.path for r in app.routes if hasattr(r, "path")]
+    assert "/api/auth/google" not in route_paths
+    assert "/api/auth/link-google" not in route_paths
+    assert "/api/auth/unlink-google" not in route_paths
 
-    # Registrasi via email/password
-    reg = client.post(
-        "/api/auth/register",
-        json={"email": email, "password": password, "name": "Protected User"},
-    )
-    assert reg.status_code == 200
-
-    # Percobaan login Google dengan email yang sama
-    google_res = client.post(
+    # 2. /api/auth/google dinonaktifkan (HTTP 401 diblokir middleware / 404 / 405)
+    res_login = client.post(
         "/api/auth/google",
         json={
-            "provider_user_id": "google-rogue-123",
-            "email": email,
-            "name": "Rogue Google User",
+            "provider_user_id": "google-sub-123",
+            "email": "disabled@example.com",
+            "name": "Disabled Google",
         },
     )
-    assert google_res.status_code == 409
-    assert google_res.headers.get("X-Error-Code") == "ACCOUNT_MERGE_REQUIRED"
-    assert "penggabungan akun otomatis tidak diizinkan" in google_res.json()["detail"]
+    assert res_login.status_code in (401, 404, 405)
 
-
-def test_link_google_account_and_unlink_api():
-    email = "link_user@example.com"
-    password = "LinkPassword123"
-
-    reg = client.post(
-        "/api/auth/register",
-        json={"email": email, "password": password, "name": "Link User"},
-    )
-    session_cookie = reg.cookies.get(SESSION_COOKIE_NAME)
-    csrf_token = reg.json()["csrf_token"]
-
-    # Tautkan akun Google dengan password yang benar
-    link_res = client.post(
+    # 3. /api/auth/link-google dinonaktifkan
+    res_link = client.post(
         "/api/auth/link-google",
         json={
-            "provider_user_id": "google-link-sub-456",
-            "email": "link_user@gmail.com",
-            "current_password": password,
+            "provider_user_id": "google-sub-123",
+            "email": "disabled@example.com",
         },
-        cookies={SESSION_COOKIE_NAME: session_cookie},
-        headers={"X-CSRF-Token": csrf_token},
     )
-    assert link_res.status_code == 200
-    assert link_res.json()["success"] is True
+    assert res_link.status_code in (401, 404, 405)
 
-    # Cek /me memuat akun Google di oauth_accounts
-    me_res = client.get(
-        "/api/auth/me",
-        cookies={SESSION_COOKIE_NAME: session_cookie},
-    )
-    assert len(me_res.json()["oauth_accounts"]) == 1
-    assert me_res.json()["oauth_accounts"][0]["provider"] == "google"
-
-    # Putuskan tautan Google
-    unlink_res = client.post(
-        "/api/auth/unlink-google",
-        cookies={SESSION_COOKIE_NAME: session_cookie},
-        headers={"X-CSRF-Token": csrf_token},
-    )
-    assert unlink_res.status_code == 200
-
-    me_after = client.get(
-        "/api/auth/me",
-        cookies={SESSION_COOKIE_NAME: session_cookie},
-    )
-    assert len(me_after.json()["oauth_accounts"]) == 0
+    # 4. /api/auth/unlink-google dinonaktifkan
+    res_unlink = client.post("/api/auth/unlink-google")
+    assert res_unlink.status_code in (401, 404, 405)
 
 
 def test_change_password_and_csrf_protection_api():
@@ -194,11 +175,17 @@ def test_change_password_and_csrf_protection_api():
     assert change_res.json()["success"] is True
 
     # 3. Login dengan password lama gagal
-    fail_login = client.post("/api/auth/login", json={"email": email, "password": old_pw})
+    fail_login = client.post(
+        "/api/auth/login",
+        json=make_login_payload(email, old_pw),
+    )
     assert fail_login.status_code == 401
 
     # 4. Login dengan password baru sukses
-    succ_login = client.post("/api/auth/login", json={"email": email, "password": new_pw})
+    succ_login = client.post(
+        "/api/auth/login",
+        json=make_login_payload(email, new_pw),
+    )
     assert succ_login.status_code == 200
 
 
@@ -229,8 +216,111 @@ def test_forgot_and_reset_password_api():
     assert reset_res.status_code == 200
 
     # Login dengan password baru
-    login_res = client.post("/api/auth/login", json={"email": email, "password": new_pw})
+    login_res = client.post(
+        "/api/auth/login",
+        json=make_login_payload(email, new_pw),
+    )
     assert login_res.status_code == 200
+
+
+def test_login_requires_valid_bot_challenge():
+    """Memverifikasi login menolak jika tantangan bot salah atau tidak disertakan."""
+    email = "challenge_guard@example.com"
+    pw = "ChallengePassword123"
+    client.post(
+        "/api/auth/register",
+        json={"email": email, "password": pw, "name": "Challenge Guard User"},
+    )
+
+    # 1. Login tanpa bot challenge -> 422 Unprocessable Entity
+    no_ch = client.post("/api/auth/login", json={"email": email, "password": pw})
+    assert no_ch.status_code == 422
+
+    # 2. Login dengan jawaban bot challenge salah -> 400 Bad Request
+    wrong_payload = make_login_payload(email, pw, wrong_challenge=True)
+    wrong_ch = client.post("/api/auth/login", json=wrong_payload)
+    assert wrong_ch.status_code == 400
+    assert "Jawaban soal anti-bot salah" in wrong_ch.json()["detail"]
+
+    # 3. Login dengan jawaban bot challenge benar -> 200 OK
+    valid_payload = make_login_payload(email, pw, wrong_challenge=False)
+    succ = client.post("/api/auth/login", json=valid_payload)
+    assert succ.status_code == 200
+
+
+def test_two_step_login_flow_credentials_first_then_math():
+    """Memverifikasi alur login dua tahap: cek kredensial dulu, baru muncul soal anti-bot."""
+    email = "twostep@example.com"
+    pw = "TwoStepPass123"
+    client.post(
+        "/api/auth/register",
+        json={"email": email, "password": pw, "name": "TwoStep User"},
+    )
+
+    # 1. Step 1 dengan kata sandi salah -> 401, soal TIDAK muncul
+    fail_init = client.post(
+        "/api/auth/login-init",
+        json={"email": email, "password": "WrongPassword999"},
+    )
+    assert fail_init.status_code == 401
+    assert "tidak valid" in fail_init.json()["detail"].lower()
+
+    # 2. Step 1 dengan kata sandi benar -> 200, mengembalikan challenge token terikat user
+    ok_init = client.post(
+        "/api/auth/login-init",
+        json={"email": email, "password": pw},
+    )
+    assert ok_init.status_code == 200
+    init_data = ok_init.json()
+    assert init_data["step"] == "challenge_required"
+    token = init_data["challenge_token"]
+    question = init_data["question"]
+    assert init_data["email"] == email
+    assert "user_id" in init_data
+
+    # 3. Refresh challenge soal jika pengguna meminta
+    ref_res = client.post(
+        "/api/auth/login-challenge-refresh",
+        json={"challenge_token": token},
+    )
+    assert ref_res.status_code == 200
+    ref_data = ref_res.json()
+    assert "challenge_token" in ref_data
+    assert "question" in ref_data
+    token = ref_data["challenge_token"]
+    question = ref_data["question"]
+
+    # 4. Step 2 dengan jawaban salah -> 400
+    nums = [int(n) for n in re.findall(r"\d+", question)]
+    correct_ans = (
+        (nums[0] - nums[1])
+        if ("-" in question or "dikurangi" in question)
+        else (nums[0] + nums[1])
+    )
+    wrong_ans = correct_ans + 1 if correct_ans < 20 else correct_ans - 1
+    fail_verify = client.post(
+        "/api/auth/login-verify",
+        json={"challenge_token": token, "challenge_answer": wrong_ans},
+    )
+    assert fail_verify.status_code == 400
+    assert "Jawaban soal anti-bot salah" in fail_verify.json()["detail"]
+
+    # 5. Step 2 dengan jawaban benar -> 200 & terbitkan sesi aktif
+    ok_verify = client.post(
+        "/api/auth/login-verify",
+        json={"challenge_token": token, "challenge_answer": correct_ans},
+    )
+    assert ok_verify.status_code == 200
+    verify_data = ok_verify.json()
+    assert verify_data["success"] is True
+    assert verify_data["user"]["email"] == email
+    session_cookie = ok_verify.cookies.get(SESSION_COOKIE_NAME)
+    assert session_cookie is not None
+
+    # Verifikasi sesi dapat dipakai mengakses /api/auth/me
+    me_res = client.get("/api/auth/me", cookies={SESSION_COOKIE_NAME: session_cookie})
+    assert me_res.status_code == 200
+    assert me_res.json()["user"]["email"] == email
 
 
 def test_backward_compatibility_bootstrap_and_session():

@@ -217,7 +217,7 @@ export const PdfWatermarkModal: React.FC<PdfWatermarkModalProps> = ({
                     Pilih atau tarik berkas PDF ke sini
                   </span>
                   <span className="text-3xs text-slate-400 block mt-0.5">
-                    Maksimum ukuran 25 MB • Pemrosesan 100% lokal offline
+                    Maksimum ukuran 25 MB • Pemrosesan aman &amp; privat
                   </span>
                 </div>
                 <input

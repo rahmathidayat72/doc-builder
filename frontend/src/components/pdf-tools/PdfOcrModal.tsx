@@ -169,7 +169,7 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
                     Engine Tesseract OCR Belum Terdeteksi
                   </h4>
                   <p className="text-2xs text-amber-800 leading-relaxed">
-                    Fitur OCR PDF memerlukan perangkat lunak <strong>Tesseract OCR</strong> terpasang di komputer lokal Anda untuk membaca teks dari gambar pindaian secara privat.
+                    Fitur OCR PDF memerlukan perangkat lunak <strong>Tesseract OCR</strong> terpasang di server untuk membaca teks dari gambar pindaian secara privat.
                   </p>
                 </div>
               </div>
@@ -219,7 +219,7 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
               <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between text-2xs text-emerald-900" data-testid="badge-ocr-ready">
                 <div className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Engine Tesseract OCR lokal aktif dan siap digunakan.</span>
+                  <span>Engine Tesseract OCR server aktif dan siap digunakan.</span>
                 </div>
                 <button
                   type="button"
@@ -268,7 +268,7 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
                         Pilih berkas PDF hasil scan
                       </span>
                       <span className="text-3xs text-slate-400 block mt-0.5">
-                        Maksimum ukuran 25 MB • Pemrosesan 100% lokal & privat
+                        Maksimum ukuran 25 MB • Pemrosesan aman &amp; privat
                       </span>
                     </div>
                     <input

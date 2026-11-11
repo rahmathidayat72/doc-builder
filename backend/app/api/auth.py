@@ -7,15 +7,15 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.middleware import is_allowed_origin
+from app.core.rate_limiter import get_client_ip, rate_limiter
 from app.core.security import (
     LEGACY_SESSION_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     session_manager,
 )
-from app.services.auth_service import (
-    AccountMergeRequiredError,
-    auth_service,
-)
+from app.services.auth_service import auth_service
+from app.services.bot_challenge import bot_challenge_service
+from app.services.brevo import brevo_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -67,22 +67,40 @@ class RegisterRequest(BaseModel):
     name: str
 
 
-class LoginRequest(BaseModel):
+class ChallengeResponse(BaseModel):
+    challenge_token: str
+    question: str
+    expires_in: int
+
+
+class LoginInitRequest(BaseModel):
     email: str
     password: str
 
 
-class GoogleAuthRequest(BaseModel):
-    provider_user_id: str
+class LoginInitResponse(BaseModel):
+    step: str = "challenge_required"
+    challenge_token: str
+    question: str
+    expires_in: int
     email: str
-    name: str | None = None
-    email_verified: bool = True
+    user_id: str
 
 
-class LinkGoogleRequest(BaseModel):
-    provider_user_id: str
+class LoginVerifyRequest(BaseModel):
+    challenge_token: str
+    challenge_answer: int | str
+
+
+class ChallengeRefreshRequest(BaseModel):
+    challenge_token: str
+
+
+class LoginRequest(BaseModel):
     email: str
-    current_password: str | None = None
+    password: str
+    challenge_token: str
+    challenge_answer: int | str
 
 
 class ChangePasswordRequest(BaseModel):
@@ -99,6 +117,14 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+
 class AuthResponse(BaseModel):
     success: bool
     user: dict[str, Any]
@@ -110,12 +136,152 @@ class AuthResponse(BaseModel):
 
 @router.post("/register", response_model=AuthResponse)
 def register(req: RegisterRequest, request: Request, response: Response):
-    """Mendaftarkan akun pengguna baru dan mengembalikan cookie sesi aktif."""
-    user, _verification_token = auth_service.register_user(
+    """Mendaftarkan akun pengguna baru dan mengirimkan email verifikasi akun."""
+    rate_limiter.enforce(
+        f"reg:{get_client_ip(request)}",
+        max_requests=5,
+        window_seconds=300,
+        detail="Terlalu banyak pendaftaran akun. Silakan coba beberapa saat lagi.",
+    )
+    user, verification_token = auth_service.register_user(
         email=req.email,
         password=req.password,
         name=req.name,
     )
+
+    # Kirim email verifikasi akun via Brevo
+    brevo_service.send_verification_email(
+        email=user.email,
+        name=user.name,
+        raw_token=verification_token,
+        base_url=settings.PUBLIC_BASE_URL,
+    )
+
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    raw_token, csrf_token, _ = auth_service.create_session(
+        user.id, ip_address=client_ip, user_agent=user_agent
+    )
+
+    _set_session_cookie(response, raw_token)
+    user_dict = user.to_dict()
+    if not settings.IS_PRODUCTION:
+        user_dict["debug_verification_token"] = verification_token
+
+    return AuthResponse(success=True, user=user_dict, csrf_token=csrf_token)
+
+
+@router.post("/verify-email")
+def verify_email(req: VerifyEmailRequest):
+    """Memverifikasi alamat email pengguna menggunakan token single-use (TTL 15 menit)."""
+    user = auth_service.verify_email_with_token(req.token)
+    return {
+        "success": True,
+        "message": "Alamat email berhasil diverifikasi. Akun Anda kini aktif.",
+        "user": user.to_dict(),
+    }
+
+
+@router.post("/resend-verification")
+def resend_verification(req: ResendVerificationRequest, request: Request):
+    """Mengirim ulang tautan verifikasi email jika akun belum diverifikasi."""
+    rate_limiter.enforce(
+        f"resend:{get_client_ip(request)}",
+        max_requests=3,
+        window_seconds=300,
+        detail="Terlalu banyak permintaan kirim ulang. Harap tunggu beberapa saat.",
+    )
+    result = auth_service.resend_verification_token(req.email)
+    payload: dict[str, Any] = {
+        "success": True,
+        "message": (
+            "Jika alamat email terdaftar dan belum diverifikasi, tautan verifikasi baru telah dikirimkan."
+        ),
+    }
+    if result is not None:
+        user, raw_token = result
+        brevo_service.send_verification_email(
+            email=user.email,
+            name=user.name,
+            raw_token=raw_token,
+            base_url=settings.PUBLIC_BASE_URL,
+        )
+        if not settings.IS_PRODUCTION:
+            payload["debug_verification_token"] = raw_token
+
+    return payload
+
+
+@router.post("/challenge", response_model=ChallengeResponse)
+def create_bot_challenge():
+    """Menghasilkan soal tantangan matematika SD kelas 1 untuk verifikasi anti-bot sebelum login."""
+    return bot_challenge_service.generate_challenge()
+
+
+@router.post("/login-init", response_model=LoginInitResponse)
+def login_init(req: LoginInitRequest, request: Request):
+    """Tahap 1: Verifikasi email dan kata sandi terlebih dahulu.
+    Soal matematika SD hanya di-generate jika kredensial terbukti benar.
+    """
+    rate_limiter.enforce(
+        f"login_init:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak percobaan masuk. Silakan tunggu 1 menit.",
+    )
+    user = auth_service.authenticate_user(email=req.email, password=req.password)
+    if settings.IS_PRODUCTION and not user.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="Alamat email belum diverifikasi. Silakan periksa email Anda atau minta tautan verifikasi baru.",
+        )
+    ch = bot_challenge_service.generate_challenge(user_id=user.id)
+    return LoginInitResponse(
+        step="challenge_required",
+        challenge_token=ch["challenge_token"],
+        question=ch["question"],
+        expires_in=ch["expires_in"],
+        email=user.email,
+        user_id=user.id,
+    )
+
+
+@router.post("/login-challenge-refresh", response_model=ChallengeResponse)
+def refresh_login_challenge(req: ChallengeRefreshRequest):
+    """Menghasilkan soal matematika baru untuk token yang sedang aktif."""
+    parts = req.challenge_token.split(".")
+    user_id = parts[2] if len(parts) == 4 else ""
+    return bot_challenge_service.generate_challenge(user_id=user_id)
+
+
+@router.post("/login-verify", response_model=AuthResponse)
+def login_verify(req: LoginVerifyRequest, request: Request, response: Response):
+    """Tahap 2: Verifikasi jawaban soal matematika anti-bot dan terbitkan sesi login."""
+    rate_limiter.enforce(
+        f"login_verify:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak percobaan jawaban anti-bot. Silakan tunggu 1 menit.",
+    )
+    is_valid, err_msg, user_id = bot_challenge_service.verify_challenge(
+        token=req.challenge_token,
+        answer_input=req.challenge_answer,
+    )
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=err_msg or "Jawaban soal anti-bot salah atau token kedaluwarsa.",
+        )
+
+    if not user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Token tantangan tidak terikat dengan kredensial pengguna yang valid.",
+        )
+
+    user = auth_service.repo.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Pengguna tidak ditemukan.")
 
     client_ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -129,7 +295,23 @@ def register(req: RegisterRequest, request: Request, response: Response):
 
 @router.post("/login", response_model=AuthResponse)
 def login(req: LoginRequest, request: Request, response: Response):
-    """Masuk dengan email dan kata sandi, memverifikasi hash Argon2id."""
+    """Masuk dengan email, kata sandi, dan pembuktian jawaban anti-bot matematika SD Kelas 1."""
+    rate_limiter.enforce(
+        f"login:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak percobaan masuk. Silakan tunggu 1 menit.",
+    )
+    is_valid, err_msg, _ = bot_challenge_service.verify_challenge(
+        token=req.challenge_token,
+        answer_input=req.challenge_answer,
+    )
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=err_msg or "Tantangan anti-bot tidak valid atau salah.",
+        )
+
     user = auth_service.authenticate_user(email=req.email, password=req.password)
 
     client_ip = request.client.host if request.client else None
@@ -140,56 +322,6 @@ def login(req: LoginRequest, request: Request, response: Response):
 
     _set_session_cookie(response, raw_token)
     return AuthResponse(success=True, user=user.to_dict(), csrf_token=csrf_token)
-
-
-@router.post("/google", response_model=AuthResponse)
-def google_auth(req: GoogleAuthRequest, request: Request, response: Response):
-    """Menangani otentikasi Google OAuth dengan penegakan Anti-Auto-Merge (BRULE-013)."""
-    try:
-        user = auth_service.authenticate_or_register_google(
-            provider_user_id=req.provider_user_id,
-            email=req.email,
-            name=req.name or "Google User",
-            email_verified=req.email_verified,
-        )
-    except AccountMergeRequiredError:
-        raise
-
-    client_ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    raw_token, csrf_token, _ = auth_service.create_session(
-        user.id, ip_address=client_ip, user_agent=user_agent
-    )
-
-    _set_session_cookie(response, raw_token)
-    return AuthResponse(success=True, user=user.to_dict(), csrf_token=csrf_token)
-
-
-@router.post("/link-google")
-def link_google(req: LinkGoogleRequest, request: Request):
-    """Menautkan akun Google ke user yang sedang aktif setelah verifikasi password sadar."""
-    current_user = getattr(request.state, "current_user", None)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Harap masuk terlebih dahulu.")
-
-    auth_service.link_google_account(
-        user_id=current_user.id,
-        provider_user_id=req.provider_user_id,
-        email=req.email,
-        current_password=req.current_password,
-    )
-    return {"success": True, "message": "Akun Google berhasil ditautkan."}
-
-
-@router.post("/unlink-google")
-def unlink_google(request: Request):
-    """Memutuskan tautan akun Google (membutuhkan akun telah memiliki password lokal)."""
-    current_user = getattr(request.state, "current_user", None)
-    if not current_user:
-        raise HTTPException(status_code=401, detail="Harap masuk terlebih dahulu.")
-
-    auth_service.unlink_google_account(user_id=current_user.id)
-    return {"success": True, "message": "Tautan akun Google berhasil diputuskan."}
 
 
 @router.get("/me")
@@ -233,24 +365,42 @@ def change_password(req: ChangePasswordRequest, request: Request):
 
 
 @router.post("/forgot-password")
-def forgot_password(req: ForgotPasswordRequest):
+def forgot_password(req: ForgotPasswordRequest, request: Request):
     """Meminta token reset kata sandi (TTL 15 menit)."""
+    rate_limiter.enforce(
+        f"forgot:{get_client_ip(request)}",
+        max_requests=5,
+        window_seconds=300,
+        detail="Terlalu banyak permintaan reset kata sandi. Harap tunggu beberapa saat.",
+    )
     result = auth_service.create_password_reset_token(req.email)
     payload: dict[str, Any] = {
         "success": True,
         "message": ("Jika alamat email terdaftar, instruksi reset kata sandi telah dikirimkan."),
     }
-    # Dalam mode non-produksi/testing, sertakan token untuk verifikasi test otomatis
-    if not settings.IS_PRODUCTION and result is not None:
-        _user, reset_token = result
-        payload["debug_reset_token"] = reset_token
+    if result is not None:
+        user, reset_token = result
+        brevo_service.send_password_reset_email(
+            email=user.email,
+            name=user.name,
+            raw_token=reset_token,
+            base_url=settings.PUBLIC_BASE_URL,
+        )
+        if not settings.IS_PRODUCTION:
+            payload["debug_reset_token"] = reset_token
 
     return payload
 
 
 @router.post("/reset-password")
-def reset_password(req: ResetPasswordRequest):
-    """Mereset kata sandi menggunakan token single-use."""
+def reset_password(req: ResetPasswordRequest, request: Request):
+    """Mereset kata sandi menggunakan token single-use dan mencabut seluruh sesi aktif."""
+    rate_limiter.enforce(
+        f"reset:{get_client_ip(request)}",
+        max_requests=5,
+        window_seconds=300,
+        detail="Terlalu banyak percobaan reset kata sandi. Harap tunggu beberapa saat.",
+    )
     auth_service.reset_password_with_token(raw_token=req.token, new_password=req.new_password)
     return {
         "success": True,
@@ -291,13 +441,18 @@ def delete_account(request: Request, response: Response):
 @router.post("/bootstrap", response_model=BootstrapResponse)
 def bootstrap_session(req: BootstrapRequest, request: Request, response: Response):
     """Menukarkan token bootstrap lokal menjadi Session Cookie HttpOnly dan CSRF token."""
+    origin = request.headers.get("origin")
+    if origin and not is_allowed_origin(origin):
+        raise HTTPException(status_code=403, detail="Forbidden: Origin tidak tepercaya")
+
+    if settings.IS_PRODUCTION:
+        import secrets
+
+        return BootstrapResponse(success=True, csrf_token=secrets.token_hex(16))
+
     if req.bootstrap_token:
         if not session_manager.verify_bootstrap(req.bootstrap_token):
             raise HTTPException(status_code=401, detail="Token bootstrap tidak valid")
-    else:
-        origin = request.headers.get("origin")
-        if origin and not is_allowed_origin(origin):
-            raise HTTPException(status_code=403, detail="Forbidden: Origin tidak tepercaya")
 
     # Set Cookie Sesi Lokal (HttpOnly, SameSite=Lax)
     response.set_cookie(
@@ -306,7 +461,7 @@ def bootstrap_session(req: BootstrapRequest, request: Request, response: Respons
         httponly=True,
         samesite="lax",
         path="/",
-        secure=False,
+        secure=settings.IS_PRODUCTION,
     )
 
     return BootstrapResponse(success=True, csrf_token=session_manager.csrf_token)
@@ -318,13 +473,18 @@ def bootstrap_session_get(request: Request, response: Response):
     if origin and not is_allowed_origin(origin):
         raise HTTPException(status_code=403, detail="Forbidden: Origin tidak tepercaya")
 
+    if settings.IS_PRODUCTION:
+        import secrets
+
+        return BootstrapResponse(success=True, csrf_token=secrets.token_hex(16))
+
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_manager.session_token,
         httponly=True,
         samesite="lax",
         path="/",
-        secure=False,
+        secure=settings.IS_PRODUCTION,
     )
 
     return BootstrapResponse(success=True, csrf_token=session_manager.csrf_token)

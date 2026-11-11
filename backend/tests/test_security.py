@@ -31,7 +31,7 @@ def test_protected_endpoint_without_session_returns_401():
     harus mengembalikan HTTP 401."""
     resp = client.get("/api/auth/session")
     assert resp.status_code == 401
-    assert resp.json()["error"] == "Unauthorized: Sesi lokal tidak valid"
+    assert resp.json()["error"] in ("Unauthorized: Sesi tidak valid", "Unauthorized: Sesi lokal tidak valid")
 
 
 def test_bootstrap_with_invalid_token_returns_401():

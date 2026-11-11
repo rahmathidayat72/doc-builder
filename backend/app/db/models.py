@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
     Float,
@@ -12,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.postgres import Base
 
@@ -139,3 +142,130 @@ class MediaDownloadUsage(Base):
         Index("idx_media_usage_user_time", "user_id", "timestamp"),
         Index("idx_media_usage_ip_time", "ip_address", "timestamp"),
     )
+
+
+class ResumeDraft(Base):
+    __tablename__ = "resume_drafts"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(140), nullable=False, default="CV Tanpa Judul")
+    payload = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    favorite = Column(Boolean, nullable=False, default=False)
+    target_job_title = Column(String(140), nullable=True)
+    size_bytes = Column(Integer, nullable=False, default=0)
+    version = Column(Integer, nullable=False, default=1)
+    created_at = Column(Float, nullable=False)
+    updated_at = Column(Float, nullable=False)
+    expires_at = Column(Float, nullable=False, index=True)
+    deleted_at = Column(Float, nullable=True, index=True)
+
+    __table_args__ = (
+        Index("idx_resume_drafts_user_updated", "user_id", "updated_at"),
+        Index("idx_resume_drafts_user_deleted", "user_id", "deleted_at"),
+        Index("idx_resume_drafts_expires", "expires_at"),
+        Index("idx_resume_drafts_deleted", "deleted_at"),
+    )
+
+
+class FileShelfItem(Base):
+    __tablename__ = "file_shelf_items"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(100), nullable=False)
+    size_bytes = Column(BigInteger, nullable=False)
+    status = Column(String(20), nullable=False, default="CHECKING")
+    sha256_hash = Column(String(64), nullable=True)
+    r2_object_key = Column(String(255), nullable=True)
+    r2_key_id = Column(String(64), nullable=True)
+    r2_etag = Column(String(64), nullable=True)
+    quarantine_path = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
+    has_exif_warning = Column(Boolean, nullable=False, default=False)
+    uploaded_at = Column(Float, nullable=False)
+    available_at = Column(Float, nullable=True)
+    expires_at = Column(Float, nullable=True, index=True)
+    deleted_at = Column(Float, nullable=True, index=True)
+
+    __table_args__ = (
+        Index("idx_file_shelf_user_status", "user_id", "status"),
+        Index("idx_file_shelf_user_expires", "user_id", "expires_at"),
+        Index("idx_file_shelf_status_uploaded", "status", "uploaded_at"),
+    )
+
+
+class FileRateEvent(Base):
+    __tablename__ = "rate_events"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(String(20), nullable=False)
+    timestamp = Column(Float, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("idx_file_rate_user_type_time", "user_id", "event_type", "timestamp"),
+    )
+
+
+class DownloadLease(Base):
+    __tablename__ = "download_leases"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    file_id = Column(
+        String(36),
+        ForeignKey("file_shelf_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    acquired_at = Column(Float, nullable=False)
+    expires_at = Column(Float, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("idx_download_lease_user", "user_id"),
+        Index("idx_download_lease_expires", "expires_at"),
+    )
+
+
+class FileDeletionJob(Base):
+    __tablename__ = "deletion_jobs"
+
+    id = Column(String(36), primary_key=True)
+    file_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), nullable=False)
+    r2_object_key = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="PENDING")
+    retry_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(Float, nullable=False)
+    updated_at = Column(Float, nullable=False)
+    last_error = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("idx_file_del_status_created", "status", "created_at"),
+    )
+
+
+class RuntimeState(Base):
+    __tablename__ = "runtime_state"
+
+    key = Column(String(100), primary_key=True)
+    value = Column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    updated_at = Column(Float, nullable=False)
+
+

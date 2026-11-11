@@ -1,14 +1,33 @@
 type BrowserLocation = Pick<Location, 'hostname' | 'port'>
 
+export interface ResolveBackendOptions {
+  isProd?: boolean
+  apiBaseUrl?: string
+}
+
 export function resolveBackendUrl(
-  location: BrowserLocation | undefined = typeof window === 'undefined' ? undefined : window.location
+  location: BrowserLocation | undefined = typeof window === 'undefined' ? undefined : window.location,
+  options?: ResolveBackendOptions
 ): string {
+  const customBase =
+    options?.apiBaseUrl ??
+    (typeof import.meta !== 'undefined' ? import.meta.env?.VITE_API_BASE_URL : undefined)
+  if (customBase !== undefined) return customBase
+
+  const isProd =
+    options?.isProd ??
+    (typeof import.meta !== 'undefined' ? Boolean(import.meta.env?.PROD) : false)
+  if (isProd) return ''
+
   if (!location || location.port === '8000') return ''
   const hostname = location.hostname === 'localhost' ? 'localhost' : '127.0.0.1'
   return `http://${hostname}:8000`
 }
 
 const BACKEND_URL = resolveBackendUrl()
+
+export const NETWORK_ERROR_MESSAGE =
+  'Layanan Satukit sedang tidak dapat dihubungi. Silakan periksa koneksi atau coba beberapa saat lagi.'
 
 let csrfToken: string | null = null
 let bootstrapPromise: Promise<string> | null = null
@@ -71,9 +90,7 @@ export async function apiFetch(
     })
   } catch (err: any) {
     if (err instanceof TypeError || (err.message && err.message.toLowerCase().includes('fetch'))) {
-      throw new Error(
-        'Server backend lokal (port 8000) tidak terhubung. Jalankan start-docbuilder.bat untuk memulai server.'
-      )
+      throw new Error(NETWORK_ERROR_MESSAGE)
     }
     throw err
   }
@@ -93,14 +110,16 @@ export async function apiFetch(
       })
     } catch (retryErr: any) {
       if (retryErr instanceof TypeError || (retryErr.message && retryErr.message.toLowerCase().includes('fetch'))) {
-        throw new Error(
-          'Server backend lokal (port 8000) tidak terhubung. Jalankan start-docbuilder.bat untuk memulai server.'
-        )
+        throw new Error(NETWORK_ERROR_MESSAGE)
       }
     }
   }
 
   return res
+}
+
+export function setCsrfToken(token: string | null): void {
+  csrfToken = token
 }
 
 export { BACKEND_URL }

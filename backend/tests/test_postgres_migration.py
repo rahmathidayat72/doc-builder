@@ -17,6 +17,7 @@ from app.db.models import (  # noqa: E402
     MediaDownloadJob,
     MediaDownloadUsage,
     OAuthAccount,
+    ResumeDraft,
     ShortUrl,
     User,
     UserSession,
@@ -33,6 +34,7 @@ def test_models_metadata_registration() -> None:
         "short_urls",
         "media_download_jobs",
         "media_download_usage",
+        "resume_drafts",
     }
     assert expected_tables.issubset(set(Base.metadata.tables.keys()))
     assert User.__tablename__ == "users"
@@ -42,6 +44,7 @@ def test_models_metadata_registration() -> None:
     assert ShortUrl.__tablename__ == "short_urls"
     assert MediaDownloadJob.__tablename__ == "media_download_jobs"
     assert MediaDownloadUsage.__tablename__ == "media_download_usage"
+    assert ResumeDraft.__tablename__ == "resume_drafts"
 
 
 def test_alembic_upgrade_and_downgrade_lifecycle(tmp_path: Path) -> None:
@@ -67,6 +70,7 @@ def test_alembic_upgrade_and_downgrade_lifecycle(tmp_path: Path) -> None:
         "short_urls",
         "media_download_jobs",
         "media_download_usage",
+        "resume_drafts",
         "alembic_version",
     }
     assert expected_tables.issubset(created_tables)
@@ -81,9 +85,20 @@ def test_alembic_upgrade_and_downgrade_lifecycle(tmp_path: Path) -> None:
     assert "created_at" in user_cols
     assert "updated_at" in user_cols
 
+    # Verifikasi kolom resume_drafts
+    draft_cols = {c["name"]: c for c in inspector.get_columns("resume_drafts")}
+    assert "id" in draft_cols
+    assert "user_id" in draft_cols
+    assert "payload" in draft_cols
+    assert "expires_at" in draft_cols
+    assert "deleted_at" in draft_cols
+
     # Verifikasi foreign key oauth_accounts -> users
     fks = inspector.get_foreign_keys("oauth_accounts")
     assert any(fk["referred_table"] == "users" for fk in fks)
+
+    draft_fks = inspector.get_foreign_keys("resume_drafts")
+    assert any(fk["referred_table"] == "users" for fk in draft_fks)
 
     # 2. Downgrade to base
     command.downgrade(alembic_cfg, "base")
@@ -94,6 +109,7 @@ def test_alembic_upgrade_and_downgrade_lifecycle(tmp_path: Path) -> None:
     assert "oauth_accounts" not in remaining_tables
     assert "user_sessions" not in remaining_tables
     assert "auth_tokens" not in remaining_tables
+    assert "resume_drafts" not in remaining_tables
     assert "short_urls" not in remaining_tables
     assert "media_download_jobs" not in remaining_tables
     assert "media_download_usage" not in remaining_tables

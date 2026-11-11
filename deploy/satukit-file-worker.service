@@ -1,0 +1,44 @@
+[Unit]
+Description=Satukit File Shelf Background Processing Worker
+After=network.target postgresql.service clamav-daemon.service
+Requires=postgresql.service clamav-daemon.service
+
+[Service]
+Type=exec
+User=satukit
+Group=satukit
+WorkingDirectory=/var/www/satukit/backend
+EnvironmentFile=/etc/satukit/satukit.env
+LoadCredential=keyring:/etc/satukit/keyring.json
+
+# Background daemon polling PostgreSQL queue & processing file shelf uploads
+ExecStart=/var/www/satukit/backend/.venv/bin/python -m app.workers.file_worker
+
+# Restart policies
+Restart=always
+RestartSec=5s
+
+# Resource Containment (Worker isolated from main web Uvicorn)
+CPUQuota=80%
+MemoryMax=512M
+MemoryHigh=400M
+TasksMax=60
+
+# Linux Namespaces & Sandboxing
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Dedicated paths for quarantine storage and logging
+ReadWritePaths=/var/lib/satukit/quarantine /var/www/satukit/backend/logs /tmp
+
+# File descriptor limits
+LimitNOFILE=32768
+
+[Install]
+WantedBy=multi-user.target

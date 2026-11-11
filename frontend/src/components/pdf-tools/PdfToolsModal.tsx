@@ -215,7 +215,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({
             <div>
               <h3 className="text-base font-bold text-stone-900">PDF Tools</h3>
               <p className="text-xs text-stone-600">
-                Utilitas manipulasi dokumen PDF dan gambar secara lokal.
+                Utilitas manipulasi dokumen PDF dan gambar secara aman &amp; privat.
               </p>
             </div>
           </div>
@@ -450,7 +450,7 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({
           {activeTab === 'compress' && (
             <div className="space-y-3 pb-1">
               <p className="text-xs text-stone-600 leading-relaxed">
-                Perkecil ukuran dokumen PDF secara lokal dengan 3 tingkat kompresi cerdas. Teks, tautan, dan tata letak tetap dipertahankan.
+                Perkecil ukuran dokumen PDF secara aman dengan 3 tingkat kompresi cerdas. Teks, tautan, dan tata letak tetap dipertahankan.
               </p>
 
               <label className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer transition ${

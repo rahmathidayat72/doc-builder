@@ -213,7 +213,7 @@ describe('PdfToolsModal Component Suite', () => {
     render(<PdfToolsModal isOpen={true} onClose={vi.fn()} initialTab="compress" />)
 
     expect(
-      screen.getByText(/Perkecil ukuran dokumen PDF secara lokal dengan 3 tingkat kompresi cerdas/i)
+      screen.getByText(/Perkecil ukuran dokumen PDF secara aman dengan 3 tingkat kompresi cerdas/i)
     ).toBeInTheDocument()
     expect(screen.getByTestId('btn-submit-compress')).toBeInTheDocument()
   })

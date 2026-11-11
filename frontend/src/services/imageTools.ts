@@ -83,7 +83,7 @@ export async function resizeImage(
     const err = await res.json().catch(() => ({}))
     return { success: false, message: err.detail || `Gagal mengubah ukuran citra (${res.status}).` }
   } catch (err: any) {
-    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend lokal.' }
+    return { success: false, message: err.message || 'Tidak dapat terhubung ke server backend Satukit.' }
   }
 }
 
@@ -141,7 +141,7 @@ export async function removeBackground(file: File): Promise<RemoveBackgroundResu
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.',
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.',
     }
   }
 }

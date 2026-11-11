@@ -24,7 +24,12 @@ PUBLIC_PATHS = {
     "/api/auth/bootstrap",
     "/api/auth/register",
     "/api/auth/login",
-    "/api/auth/google",
+    "/api/auth/login-init",
+    "/api/auth/login-verify",
+    "/api/auth/login-challenge-refresh",
+    "/api/auth/challenge",
+    "/api/auth/verify-email",
+    "/api/auth/resend-verification",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
     "/docs",
@@ -33,18 +38,19 @@ PUBLIC_PATHS = {
 
 
 def is_allowed_origin(origin: str) -> bool:
-    """Memeriksa apakah origin berasal dari localhost/loopback yang terdaftar."""
+    """Memeriksa apakah origin berasal dari origin yang terdaftar."""
     if not origin:
         return True
     if origin in settings.ALLOWED_ORIGINS:
         return True
-    try:
-        parsed = urlparse(origin)
-        hostname = parsed.hostname
-        if hostname in ("localhost", "127.0.0.1"):
-            return True
-    except Exception:
-        return False
+    if not settings.IS_PRODUCTION:
+        try:
+            parsed = urlparse(origin)
+            hostname = parsed.hostname
+            if hostname in ("localhost", "127.0.0.1"):
+                return True
+        except Exception:
+            return False
     return False
 
 
@@ -106,8 +112,30 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                                 "error": "Forbidden: Token CSRF tidak valid",
                             },
                         )
-            elif session_cookie and session_manager.verify_session(session_cookie):
-                # Fallback sesi lokal (pengujian lokal & guest mode)
+
+                # Penegakan verifikasi email di mode produksi untuk endpoint komputasi server
+                if (
+                    settings.IS_PRODUCTION
+                    and not user.email_verified
+                    and not (path.startswith("/api/auth/") or path == "/api/health")
+                ):
+                    audit_denial("unverified_email", 403)
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "success": False,
+                            "error": (
+                                "Forbidden: Alamat email belum diverifikasi. "
+                                "Harap verifikasi email Anda sebelum menggunakan layanan komputasi server."
+                            ),
+                        },
+                    )
+            elif (
+                not settings.IS_PRODUCTION
+                and session_cookie
+                and session_manager.verify_session(session_cookie)
+            ):
+                # Fallback sesi lokal (pengujian lokal & guest mode dev)
                 request.state.csrf_token = session_manager.csrf_token
 
                 if request.method in ("POST", "PUT", "DELETE", "PATCH"):
@@ -127,7 +155,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                     status_code=401,
                     content={
                         "success": False,
-                        "error": "Unauthorized: Sesi lokal tidak valid",
+                        "error": "Unauthorized: Sesi tidak valid",
                     },
                 )
 

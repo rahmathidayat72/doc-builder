@@ -122,13 +122,13 @@ Phase 14: End-to-End Online Verification, Security Scan & Production Deployment
 - **Exit Criteria:** Benchmark latensi dan RAM U2NetP memenuhi batas SLA di VPS; penolakan antrean 429 terbukti; workspace `0700` terverifikasi.
 
 ### Phase 11: Multi-User Auth, Cloud CV Storage & Retention Lifecycle
-- **Tujuan:** Menyediakan akun pengguna dengan otentikasi ganda (Email/Password & Google OAuth), penyimpanan draf CV terstruktur, kuota maksimal 5 CV, retensi 90 hari, dan notifikasi email kedaluwarsa.
+- **Tujuan:** Menyediakan akun pengguna dengan otentikasi ganda (Email/Password & Google OAuth), penyimpanan draf CV terstruktur, kuota maksimal 5 CV, retensi 30 hari, dan notifikasi email kedaluwarsa.
 - **Scope Task:**
   - `TASK-11.1`: Database Schema & Backend Authentication Service (User table, session management, Argon2id hashing, Google OAuth handler, anti-auto-merge guard untuk mencegah account takeover).
-  - `TASK-11.2`: CV Quota Engine & Retention Cleaner (max 5 CV per akun, max 10 MB per dokumen, max 50 MB total akun, global cap 5 GB, retensi 90 hari dari `updated_at`, background sweeper).
+  - `TASK-11.2`: CV Quota Engine & Retention Cleaner (max 5 CV per akun, max 10 MB per dokumen, max 50 MB total akun, global cap 5 GB, retensi 30 hari dari `updated_at`, background sweeper).
   - `TASK-11.3`: Integrasi Email Transaksional Brevo Free (adapter API, template verifikasi email, token reset password 15m, notifikasi kedaluwarsa H-14, H-7, H-1).
   - `TASK-11.4`: Antarmuka Akun Frontend (Modal login/register, Google OAuth button, dialog akun & kuota CV, sisa hari kedaluwarsa, fitur hapus akun mandiri).
-- **Exit Criteria:** Pendaftaran, login, dan account linking aman terverifikasi 100%; kuota 5 CV dan retensi 90 hari teruji dengan test otomatis.
+- **Exit Criteria:** Pendaftaran, login, dan account linking aman terverifikasi 100%; kuota 5 CV dan retensi 30 hari teruji dengan test otomatis.
 
 ### Phase 12: Standalone Serverless URL Shortener (Cloudflare Workers + D1)
 - **Tujuan:** Membangun layanan pemendek URL publik mandiri berlatensi rendah di edge Cloudflare Workers dan database D1 dengan kontrol penuh oleh pemilik.

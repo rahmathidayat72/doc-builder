@@ -305,7 +305,7 @@ export const QrCodeGeneratorModal: React.FC<QrCodeGeneratorModalProps> = ({ isOp
                 Generate QR Code
               </h2>
               <p className="text-xs text-stone-500">
-                Buat kode QR instan 100% lokal di browser Anda untuk tautan atau teks.
+                Buat kode QR instan langsung di browser Anda untuk tautan atau teks.
               </p>
             </div>
           </div>
@@ -581,7 +581,7 @@ export const QrCodeGeneratorModal: React.FC<QrCodeGeneratorModalProps> = ({ isOp
           <div className="p-3 bg-stone-100/70 border border-stone-200/60 rounded-xl flex items-start gap-2 text-2xs text-stone-600">
             <ShieldCheck className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              Diproses 100% lokal di browser menggunakan enkripsi algoritma QR standar (ECC Level M).
+              Diproses langsung di browser menggunakan enkripsi algoritma QR standar (ECC Level M).
               Data teks/tautan Anda tidak disimpan atau dikirimkan ke server.
             </p>
           </div>

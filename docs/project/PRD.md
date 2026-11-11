@@ -6,7 +6,7 @@
 - **Status:** Pending Approval (Revisi Gerbang 1B)
 - **Tanggal:** 2026-11-08
 - **Referensi BRD:** `docs/project/BRD.md`
-- **Revisi Terakhir:** 2026-11-08 — Transformasi online VPS multi-user: otentikasi akun & manajemen kuota CV 90 hari (FR-042 s/d FR-045), fitur penghapus latar belakang gambar lokal CPU-only U2NetP (FR-046, FR-047), dan layanan URL shortener serverless Cloudflare Workers + D1 (FR-048).
+- **Revisi Terakhir:** 2026-11-08 — Transformasi online VPS multi-user: otentikasi akun & manajemen kuota CV 30 hari (FR-042 s/d FR-045), fitur penghapus latar belakang gambar lokal CPU-only U2NetP (FR-046, FR-047), dan layanan URL shortener serverless Cloudflare Workers + D1 (FR-048).
 
 ## 2. Product Vision & Persona
 - **Visi:** Menjadi platform dokumen pribadi dan produktivitas web modern yang memberdayakan individu untuk menghasilkan dokumen profesional berkualitas tinggi, mengedit file secara instan, menghapus latar belakang foto secara mandiri, dan membagikan tautan ringkas yang aman tanpa mengorbankan privasi atau membebani biaya langganan.
@@ -24,7 +24,7 @@
 2. **Pengguna Terdaftar (Registered User):**
    - Mendapatkan seluruh hak akses Pengguna Anonim.
    - Berhak menyimpan hingga 5 proyek draf CV terstruktur secara persisten di akun server VPS.
-   - Draf CV disimpan selama 90 hari sejak tanggal pembaruan terakhir.
+   - Draf CV disimpan selama 30 hari sejak tanggal pembaruan terakhir.
    - Menerima notifikasi email peringatan kedaluwarsa dokumen pada H-14, H-7, dan H-1.
    - Dapat mengedit, menggandakan, mengunduh ulang, atau menghapus draf kapan saja.
    - Berhak menghapus akun beserta seluruh data tersimpan secara mandiri (eksekusi instan di antarmuka, pembersihan fisik maksimal 24 jam).
@@ -91,7 +91,7 @@
 ### 4.6 Modul Akun Pengguna & Penyimpanan Kuota CV Cloud (Online)
 - **FR-042:** Sistem menyediakan alur pendaftaran dan masuk akun pengguna menggunakan Email + Password (dengan verifikasi email wajib dan hashing modern) serta Google OAuth (hanya menerima email terverifikasi). Sistem dilarang melakukan auto-merge akun pada alamat email yang sama; penggabungan akun wajib melalui proses otorisasi eksplisit di pengaturan akun terautentikasi dengan re-authentication.
 - **FR-043:** Pengguna terdaftar dapat menyimpan, menyinkronkan, mengedit, menggandakan, dan menghapus proyek CV di server VPS dengan pembatasan kuota ketat: maksimal 5 dokumen aktif per akun, maksimal 10 MB per dokumen, maksimal 50 MB total per akun, dan ambang batas global 5 GB di server. Data CV disimpan dalam format data terstruktur + konfigurasi template (render PDF/DOCX dibuat on-demand dan dicache sementara).
-- **FR-044:** Dokumen CV memiliki masa retensi 90 hari terhitung sejak tanggal terakhir diedit/disimpan (`updated_at`); membuka atau mengunduh tidak memperpanjang masa retensi. Dokumen yang kedaluwarsa dihapus permanen oleh background worker maksimal dalam 24 jam setelah `expires_at`.
+- **FR-044:** Dokumen CV memiliki masa retensi 30 hari terhitung sejak tanggal terakhir diedit/disimpan (`updated_at`); membuka atau mengunduh tidak memperpanjang masa retensi. Dokumen yang kedaluwarsa dihapus permanen oleh background worker maksimal dalam 5 menit setelah `expires_at`.
 - **FR-045:** Sistem mengirimkan notifikasi email transaksional via Brevo Free pada H-14, H-7, dan H-1 sebelum dokumen kedaluwarsa dihapus permanen. Email pemberitahuan dilarang memuat rincian isi CV atau PII detail pengguna. Pengguna juga dapat melakukan penghapusan akun mandiri yang seketika mencabut sesi dan menjadwalkan penghapusan seluruh data aktif maksimal 24 jam (dengan backup terenkripsi di Cloudflare R2 otomatis kedaluwarsa maksimal 7 hari).
 
 ### 4.7 Modul Penghapus Latar Belakang Gambar Lokal (Remove Background)

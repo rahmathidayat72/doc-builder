@@ -1,0 +1,48 @@
+[Unit]
+Description=Satukit Document Engine & API Service
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=satukit
+Group=satukit
+WorkingDirectory=/var/www/satukit/backend
+EnvironmentFile=/etc/satukit/satukit.env
+LoadCredential=keyring:/etc/satukit/keyring.json
+
+# Run uvicorn on localhost only (loopback) with 2 workers for 1 vCPU / 2.2 GiB RAM
+ExecStart=/var/www/satukit/backend/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips=127.0.0.1 \
+    --access-log
+
+# Restart policies
+Restart=always
+RestartSec=3s
+
+# Resource Containment (1 vCPU / 2.2 GiB RAM VPS)
+CPUQuota=95%
+MemoryMax=1800M
+MemoryHigh=1500M
+TasksMax=120
+
+# Linux Namespaces & Sandboxing
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/www/satukit/backend/data /var/www/satukit/backend/logs /var/www/satukit/backend/temp_workspace
+
+# File descriptor limits
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

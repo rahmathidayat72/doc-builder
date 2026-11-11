@@ -114,9 +114,44 @@ Doc-builder berfokus pada keandalan rekonstruksi format dokumen, keakuratan atur
 - **Agregat Analitik:**
   - Verifikasi `click_count` bertambah dan `last_accessed_at` diperbarui tanpa menyimpan alamat IP atau fingerprint pengunjung.
 
+### 2.7 Matriks Pengujian Unggah Rak Berkas (10 Kelompok Pengujian)
+1. **Format Didukung (Happy Path):**
+   - PDF standar, DOCX standar, PPT/PPTX standar, XLS/XLSX standar, JPG/JPEG statis, PNG statis, WebP statis, Markdown UTF-8.
+   - Hasil: Lolos seluruh inspeksi, dienkripsi AES-256-GCM envelope 49B, disimpan ke R2, status `AVAILABLE`.
+2. **Format Dilarang:**
+   - Arsip (ZIP, RAR, 7Z, TAR, GZ), SVG, executable (.exe, .elf, .sh, .bat), audio/video (MP3, MP4, WAV).
+   - Hasil: Ditolak seketika (HTTP 400 Bad Request) dengan pesan kesalahan spesifik.
+3. **Bom Dekompresi / Arsip / XML:**
+   - XML bomb (billion laughs, quadratic entity expansion), image decompression bomb (resolusi gigapixel palsu), file kompresi biner tak wajar.
+   - Hasil: Tertahan batas memori `RLIMIT_AS=512 MiB` di bubblewrap dan `defusedxml`; proses dihentikan aman tanpa membuat host OOM.
+4. **Makro, Script, & Komponen Aktif:**
+   - Dokumen Office bermakro VBA (DOCM, XLSM, PPTM atau DOCX bertrik OLE), PDF ber-JavaScript, form OLE/ActiveX, launch actions, external references URI.
+   - Hasil: Terdeteksi via `vtx-oletools` dan PyMuPDF; ditolak dengan status rejected dan alasan konten aktif dilarang.
+5. **Berkas Terenkripsi / Password Protected:**
+   - Dokumen PDF atau Office yang diproteksi password sehingga isinya tidak dapat diinspeksi.
+   - Hasil: Terdeteksi via `msoffcrypto-tool` dan PyMuPDF metadata; ditolak HTTP 400.
+6. **Berkas Rusak / Malformed / Polyglot:**
+   - File dengan extension palsu (misal berkas EXE/ELF dinamai `.pdf`), header terpotong, atau struktur biner ganda (polyglot PDF-ZIP).
+   - Hasil: Validasi magic bytes multi-offset dan parser mendalam menolak berkas (HTTP 400).
+7. **Gambar Statis dengan Metadata EXIF/GPS:**
+   - Foto kamera asli yang memuat koordinat GPS, informasi perangkat, dan waktu pengambilan.
+   - Hasil: Jika checkbox konfirmasi persetujuan UI dicentang (`RISK-SEC-014`), byte asli dipertahankan utuh tanpa re-encoding. Gambar animasi (GIF/WebP animasi) ditolak.
+8. **Malware / EICAR Test File:**
+   - File uji standar EICAR test string.
+   - Hasil: Daemon ClamAV Unix socket mengembalikan status `FOUND`; file mentah di folder karantina segera dihapus permanen; database mencatat status gagal.
+9. **Batas Ukuran & Quota Limit:**
+   - File berukuran > 25.000.000 byte; upload saat kuota 5 slot akun penuh; upload saat kapasitas global rak penuh (7 GB).
+   - Hasil: Ditolak sebelum/saat streaming dengan kode HTTP 413 Payload Too Large atau HTTP 400 Quota Exceeded.
+10. **Konkurensi & Rate Limiting:**
+    - Upaya 2 upload simultan dari akun yang sama (hanya 1 in-flight diizinkan).
+    - Upaya >10 upload sukses dalam 1 rolling hour (HTTP 429).
+    - Upaya >30 download dalam 1 rolling hour (HTTP 429).
+    - Upaya >1 download aktif per akun atau >2 lease download global (HTTP 429 / 503).
+    - Hasil: Penegakan atomik di PostgreSQL menghentikan aksi berlebih secara akurat.
+
 ## 3. Automation & Quality Commands
 
-Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026-10-24. Contoh path backend menggunakan Linux/macOS; di Windows gunakan `backend\.venv\Scripts\python.exe` dan `backend\.venv\Scripts\pytest.exe`.
+Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026-11-11. Contoh path backend menggunakan Linux/macOS; di Windows gunakan `backend\.venv\Scripts\python.exe` dan `backend\.venv\Scripts\pytest.exe`.
 
 | Area | Command | Status |
 |---|---|---|
@@ -125,7 +160,7 @@ Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026
 | Frontend typecheck | `cd frontend && npx tsc -b` | Tersedia |
 | Frontend test | `npm --prefix frontend test` | Tersedia (Vitest) |
 | Frontend build | `npm --prefix frontend run build` | Tersedia (`tsc -b && vite build`) |
-| Frontend E2E | `npx playwright test` | **TIDAK TERSEDIA** — Playwright belum terpasang (`Q-005`) |
+| Frontend E2E | `npx playwright test` | Tersedia (5/5 suites PASS) |
 | Backend install | `backend/.venv/bin/python -m pip install -e "./backend[dev]"` | Tersedia |
 | Backend lint/SAST | `backend/.venv/bin/ruff check backend/app backend/tests` | Tersedia |
 | Backend typecheck | `backend/.venv/bin/mypy backend/app` | Tersedia |

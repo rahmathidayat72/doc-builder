@@ -242,6 +242,50 @@ describe('Dashboard Component Suite', () => {
     })
   })
 
+  it('merender badge sisa hari retensi dan peringatan saat masa aktif <= 7 hari', () => {
+    const now = Date.now()
+    const draftsWithExpiry: ResumeDraftSummary[] = [
+      {
+        id: 'draft-normal',
+        title: 'CV Masih Aman',
+        templateId: 'ats-clean',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 25 * 86400 * 1000, // 25 hari lagi
+        favorite: false
+      },
+      {
+        id: 'draft-urgent',
+        title: 'CV Akan Kedaluwarsa',
+        templateId: 'ats-clean',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: now + 5 * 86400 * 1000, // 5 hari lagi (<= 7 hari)
+        favorite: false
+      }
+    ]
+
+    render(
+      <Dashboard
+        draft={null}
+        draftsList={draftsWithExpiry}
+        privateMode={false}
+        onNavigate={vi.fn()}
+        onCreateNewResume={vi.fn()}
+        onOpenImportModal={vi.fn()}
+        onLoadDraft={vi.fn()}
+      />
+    )
+
+    const normalBadge = screen.getByTestId('draft-expiry-draft-normal')
+    expect(normalBadge).toHaveTextContent('Tersisa 25 hari')
+    expect(normalBadge.className).toContain('text-stone-600')
+
+    const urgentBadge = screen.getByTestId('draft-expiry-draft-urgent')
+    expect(urgentBadge).toHaveTextContent('Tersisa 5 hari')
+    expect(urgentBadge.className).toContain('text-amber-900')
+  })
+
   it('menerapkan fondasi merek Satukit dan komposisi landing referensi tanpa kelas warna ungu', () => {
     const { container } = render(
       <Dashboard
@@ -323,5 +367,27 @@ describe('Dashboard Component Suite', () => {
     expect(devLink).toHaveAttribute('href', 'https://porto.rahmath72.cloud/')
     expect(devLink).toHaveAttribute('target', '_blank')
     expect(devLink).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('merender 3 trust badge hero dalam kapsul kontras tinggi (Cepat & Mudah, Aman & Privat, Selalu Bertambah)', () => {
+    render(
+      <Dashboard
+        draft={null}
+        draftsList={[]}
+        privateMode={false}
+        onNavigate={vi.fn()}
+        onCreateNewResume={vi.fn()}
+        onOpenImportModal={vi.fn()}
+        onLoadDraft={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Cepat & Mudah')).toBeInTheDocument()
+    expect(screen.getByText('Aman & Privat')).toBeInTheDocument()
+    expect(screen.getByText('Selalu Bertambah')).toBeInTheDocument()
+
+    const badgeSpan = screen.getByText('Cepat & Mudah').closest('.rounded-full')
+    expect(badgeSpan?.className).toContain('rounded-full')
+    expect(badgeSpan?.className).toContain('bg-white/80')
   })
 })

@@ -50,7 +50,7 @@ export async function convertDocxToPdf(file: File): Promise<ConversionResult> {
         return {
           success: false,
           libreofficeMissing: true,
-          message: errData.message || 'LibreOffice belum terpasang di komputer lokal Anda.'
+          message: errData.message || 'LibreOffice belum terpasang di lingkungan server.'
         }
       }
       return {
@@ -67,7 +67,7 @@ export async function convertDocxToPdf(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }
@@ -108,7 +108,7 @@ export async function convertPdfToDocx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }
@@ -144,7 +144,7 @@ export async function convertPresentationToPdf(file: File): Promise<ConversionRe
         return {
           success: false,
           libreofficeMissing: true,
-          message: errData.message || 'LibreOffice belum terpasang di komputer lokal Anda.'
+          message: errData.message || 'LibreOffice belum terpasang di lingkungan server.'
         }
       }
       return {
@@ -161,7 +161,7 @@ export async function convertPresentationToPdf(file: File): Promise<ConversionRe
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }
@@ -202,7 +202,7 @@ export async function convertPdfToPptx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }
@@ -238,7 +238,7 @@ export async function convertSpreadsheetToPdf(file: File): Promise<ConversionRes
         return {
           success: false,
           libreofficeMissing: true,
-          message: errData.message || 'LibreOffice belum terpasang di komputer lokal Anda.'
+          message: errData.message || 'LibreOffice belum terpasang di lingkungan server.'
         }
       }
       return {
@@ -255,7 +255,7 @@ export async function convertSpreadsheetToPdf(file: File): Promise<ConversionRes
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }
@@ -296,7 +296,7 @@ export async function convertPdfToXlsx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend lokal.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
     }
   }
 }

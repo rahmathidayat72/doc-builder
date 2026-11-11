@@ -378,6 +378,48 @@ class AuthService:
             now=now,
         )
 
+    def verify_email_with_token(self, raw_token: str) -> UserRecord:
+        """Memverifikasi email menggunakan token verifikasi single-use."""
+        token_hash = hash_token(raw_token)
+        now = time.time()
+
+        token_info = self.repo.get_email_verification_token(token_hash)
+        if not token_info:
+            raise InvalidTokenError("Token verifikasi tidak valid atau telah kedaluwarsa.")
+
+        user_id, used_at, expires_at = token_info
+        if used_at is not None:
+            raise InvalidTokenError("Token verifikasi ini sudah pernah digunakan sebelumnya.")
+
+        if expires_at <= now:
+            raise InvalidTokenError("Token verifikasi telah kedaluwarsa. Silakan minta tautan baru.")
+
+        return self.repo.consume_email_verification_token(
+            user_id=user_id,
+            token_hash=token_hash,
+            now=now,
+        )
+
+    def resend_verification_token(self, email: str) -> tuple[UserRecord, str] | None:
+        """Menghasilkan token verifikasi email baru jika akun terdaftar dan belum terverifikasi."""
+        norm_email = normalize_email(email)
+        user = self.repo.get_user_by_email(norm_email)
+        if not user or user.email_verified:
+            return None
+
+        now = time.time()
+        raw_token = generate_secure_token(32)
+        token_hash = hash_token(raw_token)
+        token_expires_at = now + (settings.AUTH_TOKEN_TTL_MINUTES * 60)
+
+        self.repo.create_email_verification_token(
+            user_id=user.id,
+            token_hash=token_hash,
+            created_at=now,
+            expires_at=token_expires_at,
+        )
+        return user, raw_token
+
     def change_password(self, user_id: str, old_password: str, new_password: str) -> None:
         """Mengganti kata sandi dengan verifikasi kata sandi lama."""
         validate_password_strength(new_password)

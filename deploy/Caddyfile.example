@@ -1,0 +1,71 @@
+# Caddyfile - Satukit Production Reverse Proxy
+# Path: /etc/caddy/Caddyfile
+#
+# Replace example.com with your actual domain or set DOMAIN env var.
+
+{$DOMAIN:example.com} {
+    # 1. Logging & Encoding
+    log {
+        output file /var/log/caddy/satukit_access.log {
+            roll_size 50mb
+            roll_keep 7
+            roll_keep_for 30d
+        }
+        format json
+    }
+
+    encode zstd gzip
+
+    # 2. Security Headers (OWASP Recommended)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+        -Server
+    }
+
+    # 3. Maximum Upload Request Size (25MB file + multipart overhead = 35MB)
+    request_body {
+        max_size 35MB
+    }
+
+    # 4. API Endpoints Proxy to FastAPI Backend Loopback
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+
+            # Fail-closed buffer settings
+            transport http {
+                response_header_timeout 120s
+                dial_timeout 5s
+            }
+        }
+    }
+
+    # 5. Shortened URL Redirect Proxy (if using internal shortener redirect)
+    handle /s/* {
+        reverse_proxy 127.0.0.1:8000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # 6. Static Frontend SPA Assets
+    root * /var/www/satukit/frontend/dist
+
+    # Long-term caching for immutable hashed assets
+    @staticFiles path /assets/* *.webp *.png *.jpg *.jpeg *.svg *.woff2 *.css *.js
+    header @staticFiles Cache-Control "public, max-age=31536000, immutable"
+
+    # Serve files with SPA fallback
+    file_server
+    try_files {path} /index.html
+}
