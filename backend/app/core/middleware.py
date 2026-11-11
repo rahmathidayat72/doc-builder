@@ -88,7 +88,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             )
 
         # 2. Periksa Endpoint Terproteksi
-        is_public = path in PUBLIC_PATHS or path.startswith("/s/") or path.startswith("/api/s/")
+        is_public = (
+            path in PUBLIC_PATHS
+            or path.startswith("/s/")
+            or path.startswith("/api/s/")
+            or path.startswith("/api/converter/")
+        )
         if path.startswith("/api") and not is_public:
             session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
                 LEGACY_SESSION_COOKIE_NAME
@@ -126,7 +131,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
                             "success": False,
                             "error": (
                                 "Forbidden: Alamat email belum diverifikasi. "
-                                "Harap verifikasi email Anda sebelum menggunakan layanan komputasi server."
+                                "Harap verifikasi email Anda sebelum menggunakan layanan "
+                                "komputasi server."
                             ),
                         },
                     )

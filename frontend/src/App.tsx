@@ -101,7 +101,7 @@ import {
   X
 } from 'lucide-react'
 
-type ToolCategory = 'convert' | 'organize' | 'security' | 'image'
+type ToolCategory = 'convert' | 'organize' | 'extract' | 'security' | 'image' | 'utility'
 
 interface ToolItem {
   title: string
@@ -115,10 +115,12 @@ interface ToolItem {
 }
 
 const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
-  { id: 'convert', label: 'Konversi' },
-  { id: 'organize', label: 'Kelola PDF' },
+  { id: 'convert', label: 'Konversi Dokumen' },
+  { id: 'organize', label: 'Kelola & Optimasi PDF' },
+  { id: 'extract', label: 'Ekstraksi & Digitalisasi' },
   { id: 'security', label: 'Keamanan & Tanda Tangan' },
-  { id: 'image', label: 'Gambar' }
+  { id: 'image', label: 'Gambar & Foto' },
+  { id: 'utility', label: 'Utilitas Digital' }
 ]
 
 function workspaceFromHash(): Workspace {
@@ -567,7 +569,7 @@ export function App() {
     },
     {
       title: 'OCR PDF',
-      category: 'organize' as ToolCategory,
+      category: 'extract' as ToolCategory,
       desc: 'Ubah PDF hasil scan menjadi dokumen yang teksnya dapat dicari dan disalin.',
       icon: FileSearch,
       iconClass: 'bg-teal-50 text-teal-800',
@@ -591,7 +593,7 @@ export function App() {
     },
     {
       title: 'PDF to Markdown',
-      category: 'convert' as ToolCategory,
+      category: 'extract' as ToolCategory,
       desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) dengan mempertahankan heading, tabel, list & tautan.',
       icon: FileCode,
       iconClass: 'bg-teal-50 text-teal-800',
@@ -600,7 +602,7 @@ export function App() {
     },
     {
       title: 'Generate QR Code',
-      category: 'convert' as ToolCategory,
+      category: 'utility' as ToolCategory,
       desc: 'Buat kode QR instan dari tautan atau teks dengan kustomisasi warna, ukuran, dan ekspor PNG & SVG.',
       icon: QrCode,
       iconClass: 'bg-teal-50 text-teal-800',
@@ -610,7 +612,7 @@ export function App() {
     },
     {
       title: 'Pengunduh Media',
-      category: 'convert' as ToolCategory,
+      category: 'utility' as ToolCategory,
       desc: 'Unduh video MP4 (maks 720p) dan gambar publik dari YouTube, Instagram, dan TikTok secara aman.',
       icon: Download,
       iconClass: 'bg-teal-50 text-teal-800',
@@ -634,7 +636,7 @@ export function App() {
   }
 
   const handleExecuteTool = (tool: ToolItem) => {
-    if (tool.isBrowserOnly) {
+    if (tool.isBrowserOnly || tool.category === 'convert') {
       tool.action()
       return
     }
@@ -1122,7 +1124,7 @@ export function App() {
                                   <span className="text-2xs font-semibold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md border border-emerald-200 dark:border-emerald-800">
                                     Browser
                                   </span>
-                                ) : !currentUser ? (
+                                ) : !currentUser && tool.category !== 'convert' ? (
                                   <span className="text-2xs font-semibold px-2 py-0.5 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 flex items-center gap-1">
                                     <Lock className="w-2.5 h-2.5" />
                                     Perlu Akun
@@ -1138,7 +1140,7 @@ export function App() {
                             <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors">{tool.title}</h3>
                             <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 mt-1.5 flex-1">{tool.desc}</p>
                             <span className="mt-4 text-xs font-semibold text-teal-800 dark:text-teal-400">
-                              {tool.isBrowserOnly ? 'Buka di browser' : !currentUser ? 'Masuk untuk membuka' : 'Buka utilitas'}
+                              {tool.isBrowserOnly ? 'Buka di browser' : !currentUser && tool.category !== 'convert' ? 'Masuk untuk membuka' : 'Buka utilitas'}
                             </span>
                           </button>
                         )

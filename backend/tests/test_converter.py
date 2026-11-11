@@ -42,11 +42,13 @@ def test_convert_docx_to_pdf_sandboxed_rejects_invalid_magic_bytes():
         convert_docx_to_pdf_sandboxed(b"NOT_A_VALID_DOCX_FILE", "test.docx")
 
 
-def test_convert_docx_endpoint_requires_auth():
-    """Endpoint POST /api/converter/docx-to-pdf menolak request tanpa session cookie."""
-    files = {"file": ("test.docx", b"PK\x03\x04dummy", "application/vnd.openxmlformats")}
+def test_convert_docx_endpoint_accessible_without_auth():
+    """Endpoint POST /api/converter/docx-to-pdf bebas diakses tanpa session cookie."""
+    docx_io = generate_resume_docx(DUMMY_RESUME_PAYLOAD)
+    files = {"file": ("sample_report.docx", docx_io.getvalue(), "application/vnd.openxmlformats")}
     resp = client.post("/api/converter/docx-to-pdf", files=files)
-    assert resp.status_code == 401
+    assert resp.status_code not in (401, 403)
+    assert resp.status_code in (200, 422)
 
 
 def test_convert_docx_endpoint_rejects_non_docx_extension():

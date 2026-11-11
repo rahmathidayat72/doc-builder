@@ -341,10 +341,12 @@ describe('App integration', () => {
     window.location.hash = '#/tools'
     render(<App />)
 
-    expect(screen.getByRole('heading', { name: 'Konversi' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Kelola PDF' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Konversi Dokumen' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Kelola & Optimasi PDF' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Ekstraksi & Digitalisasi' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Keamanan & Tanda Tangan' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Gambar' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Gambar & Foto' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Utilitas Digital' })).toBeInTheDocument()
 
     const search = screen.getByTestId('input-search-tools')
     fireEvent.change(search, { target: { value: 'ocr' } })
@@ -431,7 +433,7 @@ describe('App integration', () => {
     })
   })
 
-  it('mengizinkan pengguna anonim masuk ke workspace tools, membuka alat browser murni, dan mengalihkan ke login jika klik alat server', async () => {
+  it('mengizinkan pengguna anonim masuk ke workspace tools, membuka alat browser murni serta konversi dokumen tanpa login, dan mengalihkan ke login jika klik alat server lain', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null)
     window.location.hash = '#/home'
     render(<App />)
@@ -459,10 +461,24 @@ describe('App integration', () => {
     // Tutup modal WebP ke JPG
     fireEvent.click(screen.getByTestId('btn-close-webp-modal'))
 
-    // 3. Klik alat komputasi server (DOCX ke PDF) -> dialihkan ke login dengan pesan guard
+    // 3. Klik alat kelompok Konversi Dokumen (DOCX ke PDF) -> modal terbuka langsung tanpa login
     const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
     expect(docxToolBtn).toBeInTheDocument()
+    expect(docxToolBtn).not.toHaveTextContent('Perlu Akun')
     fireEvent.click(docxToolBtn)
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Konversi DOCX ke PDF' })).toBeInTheDocument()
+    })
+
+    // Tutup modal Konversi DOCX ke PDF
+    fireEvent.click(screen.getByRole('button', { name: 'Tutup modal konversi Word ke PDF' }))
+
+    // 4. Klik alat komputasi server kategori lain (Split PDF) -> dialihkan ke login dengan pesan guard
+    const splitToolBtn = screen.getByTestId('tool-card-split-pdf')
+    expect(splitToolBtn).toBeInTheDocument()
+    expect(splitToolBtn).toHaveTextContent('Perlu Akun')
+    fireEvent.click(splitToolBtn)
 
     await waitFor(() => {
       expect(window.location.hash).toBe('#/login')

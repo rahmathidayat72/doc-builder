@@ -48,11 +48,14 @@ def test_convert_pdf_to_docx_sandboxed_with_sample_pdf():
     assert docx_io.getvalue()[:2] == b"PK"
 
 
-def test_convert_pdf_to_docx_endpoint_requires_auth():
-    """Endpoint POST /api/converter/pdf-to-docx menolak request tanpa session cookie."""
-    files = {"file": ("document.pdf", b"%PDF-1.4 mock", "application/pdf")}
+def test_convert_pdf_to_docx_endpoint_accessible_without_auth():
+    """Endpoint POST /api/converter/pdf-to-docx bebas diakses tanpa session cookie."""
+    assert SAMPLE_PDF_PATH.exists()
+    pdf_bytes = SAMPLE_PDF_PATH.read_bytes()
+    files = {"file": ("document.pdf", pdf_bytes, "application/pdf")}
     resp = client.post("/api/converter/pdf-to-docx", files=files)
-    assert resp.status_code == 401
+    assert resp.status_code not in (401, 403)
+    assert resp.status_code == 200
 
 
 def test_convert_pdf_to_docx_endpoint_rejects_non_pdf():

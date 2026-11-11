@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -53,7 +54,10 @@ def test_resend_verification_flow() -> None:
     """Kirim ulang email verifikasi menerbitkan token baru dan bekerja valid."""
     email = f"resend_{int(time.time())}@example.com"
     pwd = "ResendPassword123"
-    client.post("/api/auth/register", json={"email": email, "password": pwd, "name": "Resend Tester"})
+    client.post(
+        "/api/auth/register",
+        json={"email": email, "password": pwd, "name": "Resend Tester"},
+    )
 
     # Minta token verifikasi baru
     resend_res = client.post("/api/auth/resend-verification", json={"email": email})
@@ -207,5 +211,23 @@ def test_production_computing_endpoints_require_verified_account() -> None:
             headers={"Origin": "http://localhost:5173", "X-CSRF-Token": csrf_token},
         )
         assert res_verified.status_code not in (401, 403)
+    finally:
+        settings.IS_PRODUCTION = orig_prod
+
+
+def test_converter_endpoints_accessible_without_login_in_production() -> None:
+    """Kelompok konversi dokumen (/api/converter/*) bebas diakses tanpa perlu login akun."""
+    orig_prod = settings.IS_PRODUCTION
+    try:
+        settings.IS_PRODUCTION = True
+        # Request anonim tanpa session/cookie/CSRF
+        res = client.post(
+            "/api/converter/docx-to-pdf",
+            headers={"Origin": "http://localhost:5173"},
+        )
+        # Bukan 401 Unauthorized atau 403 Forbidden
+        assert res.status_code not in (401, 403)
+        # Karena tidak ada file yang dikirim, FastAPI mengembalikan 422 Unprocessable Entity
+        assert res.status_code == 422
     finally:
         settings.IS_PRODUCTION = orig_prod

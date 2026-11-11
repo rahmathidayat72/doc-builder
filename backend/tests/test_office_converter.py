@@ -107,10 +107,10 @@ def test_convert_office_services_reject_corrupt_bytes():
 # --- PRESENTATION TO PDF TESTS ---
 
 
-def test_convert_presentation_endpoint_requires_auth():
+def test_convert_presentation_endpoint_accessible_without_auth():
     files = {"file": ("demo.pptx", make_dummy_pptx_bytes(), "application/vnd.openxmlformats")}
     response = client.post("/api/converter/presentation-to-pdf", files=files)
-    assert response.status_code in (401, 403)
+    assert response.status_code not in (401, 403)
 
 
 def test_convert_presentation_endpoint_rejects_wrong_extension():
@@ -143,10 +143,10 @@ def test_convert_presentation_endpoint_libreoffice_handling():
 # --- SPREADSHEET TO PDF TESTS ---
 
 
-def test_convert_spreadsheet_endpoint_requires_auth():
+def test_convert_spreadsheet_endpoint_accessible_without_auth():
     files = {"file": ("data.xlsx", make_dummy_xlsx_bytes(), "application/vnd.openxmlformats")}
     response = client.post("/api/converter/spreadsheet-to-pdf", files=files)
-    assert response.status_code in (401, 403)
+    assert response.status_code not in (401, 403)
 
 
 def test_convert_spreadsheet_endpoint_rejects_wrong_extension():
@@ -177,10 +177,11 @@ def test_convert_spreadsheet_endpoint_libreoffice_handling():
 # --- PDF TO PPTX TESTS ---
 
 
-def test_pdf_to_pptx_endpoint_requires_auth():
+def test_pdf_to_pptx_endpoint_accessible_without_auth():
     files = {"file": ("doc.pdf", make_test_pdf_bytes(1), "application/pdf")}
     response = client.post("/api/converter/pdf-to-pptx", files=files)
-    assert response.status_code in (401, 403)
+    assert response.status_code not in (401, 403)
+    assert response.status_code == 200
 
 
 def test_pdf_to_pptx_endpoint_success():
@@ -199,10 +200,10 @@ def test_pdf_to_pptx_endpoint_success():
 # --- PDF TO XLSX TESTS ---
 
 
-def test_pdf_to_xlsx_endpoint_requires_auth():
+def test_pdf_to_xlsx_endpoint_accessible_without_auth():
     files = {"file": ("doc.pdf", make_test_pdf_bytes(1), "application/pdf")}
     response = client.post("/api/converter/pdf-to-xlsx", files=files)
-    assert response.status_code in (401, 403)
+    assert response.status_code not in (401, 403)
 
 
 def test_pdf_to_xlsx_endpoint_with_tables_and_formula_defense():
