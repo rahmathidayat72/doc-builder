@@ -15,7 +15,7 @@ security_review_due: "2026-11-15"
 remediation_gate_status: "NOT_REQUIRED"
 remediation_allowed: false
 remediation_task: null
-status: "RELEASE_PENDING"
+status: "RELEASED"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
