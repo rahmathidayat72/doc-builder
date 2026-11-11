@@ -121,6 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCvMenu, setShowCvMenu] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const [infoModal, setInfoModal] = useState<'panduan' | 'tentang' | null>(null)
   const [draftSearch, setDraftSearch] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -152,9 +153,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     setShowTemplatePicker(false)
     setShowExportMenu(false)
     setShowCvMenu(false)
+    setShowUserMenu(false)
   }
 
-  const anyMenuOpen = showColorPicker || showFontPicker || showTemplatePicker || showExportMenu || showCvMenu
+  const anyMenuOpen = showColorPicker || showFontPicker || showTemplatePicker || showExportMenu || showCvMenu || showUserMenu
   const menusRef = useDismiss<HTMLDivElement>(anyMenuOpen, closeMenus)
   const draftsPanelRef = useDismiss<HTMLDivElement>(showDraftsModal, () => {
     if (renamingId) {
@@ -258,23 +260,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Wrench className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
               <span>Tools</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                closeMenus()
-                onNavigate?.('files')
-              }}
-              className={`h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold transition-colors duration-150 cursor-pointer ${
-                activeWorkspace === 'files'
-                  ? 'bg-white dark:bg-stone-900 text-teal-900 dark:text-teal-300 shadow-xs border border-stone-200/80 dark:border-stone-700'
-                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-stone-700/50'
-              }`}
-              aria-current={activeWorkspace === 'files' ? 'page' : undefined}
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-teal-800 dark:text-teal-400" />
-              <span>Rak Berkas</span>
             </button>
 
             <button
@@ -547,26 +532,88 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Auth Profile / Login Button */}
             {currentUser ? (
-              <div
-                className="flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full bg-teal-50 dark:bg-stone-800 border border-teal-200 dark:border-stone-700 text-xs shrink-0"
-                data-testid="nav-user-profile"
-              >
-                <span className="w-5 h-5 rounded-full bg-[#079875] text-white flex items-center justify-center text-3xs font-black uppercase">
-                  {currentUser.name ? currentUser.name.charAt(0) : 'U'}
-                </span>
-                <span className="font-bold text-stone-800 dark:text-stone-200 max-w-[80px] sm:max-w-[120px] truncate" title={currentUser.name}>
-                  {currentUser.name}
-                </span>
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={onLogout}
-                  className="ml-1 text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer p-0.5 rounded"
-                  title="Keluar dari akun"
-                  aria-label="Keluar dari akun"
-                  data-testid="btn-nav-logout"
+                  onClick={() => {
+                    const next = !showUserMenu
+                    closeMenus()
+                    setShowUserMenu(next)
+                  }}
+                  className={`flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full text-xs shrink-0 cursor-pointer transition border ${
+                    showUserMenu || activeWorkspace === 'files'
+                      ? 'bg-teal-100 dark:bg-stone-700 border-teal-300 dark:border-stone-600 text-teal-900 dark:text-teal-200 shadow-xs'
+                      : 'bg-teal-50 dark:bg-stone-800 border-teal-200 dark:border-stone-700 hover:bg-teal-100/70 dark:hover:bg-stone-700/80 text-stone-800 dark:text-stone-200'
+                  }`}
+                  data-testid="nav-user-profile"
+                  aria-expanded={showUserMenu}
+                  aria-haspopup="menu"
+                  title="Menu Akun & Profil"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="w-5 h-5 rounded-full bg-[#079875] text-white flex items-center justify-center text-3xs font-black uppercase shrink-0">
+                    {currentUser.name ? currentUser.name.charAt(0) : 'U'}
+                  </span>
+                  <span className="font-bold max-w-[80px] sm:max-w-[120px] truncate" title={currentUser.name}>
+                    {currentUser.name}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 text-stone-500 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
+
+                {showUserMenu && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white dark:bg-stone-900 border border-teal-900/10 dark:border-stone-700 shadow-[0_12px_32px_rgba(15,118,110,0.14)] p-1.5 z-50 animate-pop-in"
+                    role="menu"
+                    data-testid="nav-user-menu"
+                  >
+                    <div className="px-3 py-2 border-b border-stone-100 dark:border-stone-800 mb-1">
+                      <p className="text-xs font-bold text-stone-800 dark:text-stone-100 truncate">
+                        {currentUser.name}
+                      </p>
+                      <p className="text-2xs text-stone-500 dark:text-stone-400 truncate">
+                        {currentUser.email}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onNavigate?.('files')
+                      }}
+                      className={`w-full px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition cursor-pointer ${
+                        activeWorkspace === 'files'
+                          ? 'bg-teal-50 dark:bg-stone-800 text-teal-900 dark:text-teal-300 font-bold'
+                          : 'text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
+                      }`}
+                      role="menuitem"
+                      data-testid="menu-item-files"
+                    >
+                      <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-stone-800 text-teal-800 dark:text-teal-400 shrink-0">
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <div className="text-left">
+                        <div>Rak Berkas</div>
+                        <div className="text-3xs text-stone-500 dark:text-stone-400 font-normal">Penyimpanan berkas privat</div>
+                      </div>
+                    </button>
+
+                    <div className="my-1 border-t border-stone-100 dark:border-stone-800" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenus()
+                        onLogout?.()
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 transition cursor-pointer"
+                      role="menuitem"
+                      data-testid="btn-nav-logout"
+                    >
+                      <LogOut className="w-3.5 h-3.5 shrink-0" />
+                      <span>Keluar</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : onOpenLogin ? (
               <button

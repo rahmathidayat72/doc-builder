@@ -225,4 +225,34 @@ describe('Navbar draft management', () => {
     expect(props.onExportPrint).toHaveBeenCalled()
     expect(onNavigate).toHaveBeenCalledWith('builder')
   })
+
+  it('tidak menampilkan tombol Rak Berkas di navigasi utama, melainkan di menu akun/profil pengguna', () => {
+    const onNavigate = vi.fn()
+    const onLogout = vi.fn()
+    const currentUser = {
+      id: 'usr-1',
+      email: 'user@example.com',
+      name: 'Ahmad User',
+      email_verified: true,
+      created_at: 1000,
+    }
+
+    renderNavbar({ onNavigate, onLogout, currentUser, activeWorkspace: 'home' })
+
+    const mainNav = screen.getByRole('navigation', { name: 'Navigasi utama' })
+    expect(mainNav).not.toHaveTextContent('Rak Berkas')
+
+    const profileBtn = screen.getByTestId('nav-user-profile')
+    expect(profileBtn).toHaveTextContent('Ahmad User')
+    expect(screen.queryByTestId('nav-user-menu')).not.toBeInTheDocument()
+
+    fireEvent.click(profileBtn)
+    expect(screen.getByTestId('nav-user-menu')).toBeInTheDocument()
+
+    const filesBtn = screen.getByTestId('menu-item-files')
+    expect(filesBtn).toHaveTextContent('Rak Berkas')
+    fireEvent.click(filesBtn)
+    expect(onNavigate).toHaveBeenCalledWith('files')
+    expect(screen.queryByTestId('nav-user-menu')).not.toBeInTheDocument()
+  })
 })
