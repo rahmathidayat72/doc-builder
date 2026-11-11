@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react'
 import {
-  AlertTriangle,
   CheckCircle2,
   FileText,
   Info,
@@ -10,6 +9,7 @@ import {
   X
 } from 'lucide-react'
 import { convertPdfToDocx, type ConversionResult } from '../../services/converter'
+import { KituNotice } from '../brand/KituNotice'
 
 interface PdfToDocxModalProps {
   isOpen: boolean
@@ -143,10 +143,9 @@ export const PdfToDocxModal: React.FC<PdfToDocxModalProps> = ({ isOpen, onClose 
             </div>
 
             {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
+              <KituNotice tone="error" expression="kecewa" title="Gagal Mengonversi Berkas">
                 <span>{errorMessage}</span>
-              </div>
+              </KituNotice>
             )}
 
             <div className="flex justify-end gap-2">

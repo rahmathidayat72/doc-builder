@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react'
 import {
-  AlertTriangle,
   ArrowRight,
   CheckCircle2,
   ChevronDown,
@@ -17,6 +16,7 @@ import {
   type ImportSectionId
 } from '../../services/importMerge'
 import { apiFetch } from '../../services/apiClient'
+import { KituNotice } from '../brand/KituNotice'
 
 interface ConfidenceMap {
   overall: number
@@ -255,10 +255,9 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               <input ref={fileInputRef} type="file" accept=".pdf,.docx" onChange={handleFileChange} className="hidden" data-testid="input-file-import" />
 
               {errorMessage && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <KituNotice tone="error" expression="kecewa" title="Kendala Berkas">
                   <span>{errorMessage}</span>
-                </div>
+                </KituNotice>
               )}
             </div>
           ) : (
@@ -369,9 +368,11 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
               </section>
 
               {parsedResult.extraction.missingSections.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  <strong>Belum terdeteksi:</strong> {parsedResult.extraction.missingSections.join(', ')}. Data bagian ini akan kosong bila impor diterapkan.
-                </div>
+                <KituNotice tone="warning" expression="penasaran" title="Bagian Belum Terdeteksi">
+                  <span>
+                    <strong>Belum terdeteksi:</strong> {parsedResult.extraction.missingSections.join(', ')}. Data bagian ini akan kosong bila impor diterapkan.
+                  </span>
+                </KituNotice>
               )}
 
               <section className="rounded-xl border border-stone-200 p-3">

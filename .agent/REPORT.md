@@ -5985,6 +5985,69 @@ Gerbang penghentian inisialisasi persistensi SQLite pada runtime utama backend (
 ### Status
 ✅ Selesai dan terverifikasi (`DB-POSTGRES-007`). Phase 16 tuntas.
 
+---
+
+## Task REBRAND-SATUKIT-022 — Integrasi Maskot Kitu & Komponen Notifikasi — 2026-11-11
+
+**Task:** phase-15 — REBRAND-SATUKIT-022: Integrasi Maskot Kitu & Standarisasi Komponen Notifikasi
+**Requirement:** BUS-018, NFR-UX-002, NFR-ACC-002
+
+### Ringkasan
+1. Menambahkan 26 aset ekspresi WebP transparan maskot Kitu di `frontend/src/assets/kitu/` (senyum, wink, semangat, hore, selesai, fokus, berpikir, penasaran, ide, kaget, bingung, kecewa, sedih, marah, lelah, tidur, santai, cinta, terimakasih, buatcv, editfoto, hapuslatar, kelolafile, konversi, pendekkanurl, siapmembantu).
+2. Membuat komponen pendukung visual:
+   - `HeroScenery.tsx`: latar budaya candi & awan bergaya hangat.
+   - `KituNotice.tsx`: komponen banner/notice/toast dengan ekspresi Kitu kontekstual.
+   - `kituExpressions.ts`: kamus tipe dan loader dinamis ekspresi Kitu.
+   - `Reveal.tsx`: utilitas animasi transisi tampilan.
+3. Menyelaraskan seluruh modal dan dashboard Satukit dengan KituNotice untuk feedback aksi pengguna.
+4. Menambahkan script ekstraksi aset `scripts/extract_kitu_expressions.py` dan runner screenshot `scripts/capture_screenshots.mjs`.
+
+### File Dibuat
+- `frontend/src/assets/kitu/*.webp` (26 files)
+- `frontend/src/components/brand/HeroScenery.tsx`
+- `frontend/src/components/brand/KituNotice.tsx`
+- `frontend/src/components/brand/kituExpressions.ts`
+- `frontend/src/components/layout/Reveal.tsx`
+- `scripts/capture_screenshots.mjs`
+- `scripts/extract_kitu_expressions.py`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `frontend/src/components/ats/AtsScorePanel.tsx`
+- `frontend/src/components/ats/JobMatchModal.tsx`
+- `frontend/src/components/builder/ImportResumeModal.tsx`
+- `frontend/src/components/converter/DocxToPdfModal.tsx`
+- `frontend/src/components/converter/PdfToDocxModal.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/export/ExportResumeModal.tsx`
+- `frontend/src/components/image-tools/ImageResizeModal.tsx`
+- `frontend/src/components/image-tools/PhotoProfileMakerModal.tsx`
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/image-tools/WebpToJpgModal.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/pdf-tools/PdfSecurityModal.tsx`
+- `frontend/src/components/pdf-tools/PdfToolsModal.tsx`
+- `frontend/src/components/tools/MediaDownloaderModal.tsx`
+- `frontend/src/components/tools/QrCodeGeneratorModal.tsx`
+- `frontend/src/components/tools/UrlShortenerModal.tsx`
+- `frontend/src/index.css`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Tool/Command | Hasil | Catatan |
+|---|---|---|---|
+| Vitest Suite Frontend | `npm --prefix frontend test` | PASS | 353/353 passed |
+| Aksesibilitas WCAG 2.2 AA | `vitest run accessibility.test.tsx` | PASS | 7/7 passed, 0 violations |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | tsc -b & vite build sukses |
+| Frontend Linter | `npm --prefix frontend run lint` | PASS | Oxlint 0 errors |
+
+### Status
+✅ Selesai dan terverifikasi (`REBRAND-SATUKIT-022`).
+
+
 
 
 

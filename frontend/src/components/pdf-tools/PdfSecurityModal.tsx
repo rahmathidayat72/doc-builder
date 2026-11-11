@@ -3,8 +3,6 @@ import {
   Unlock,
   Shield,
   Upload,
-  CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   Eye,
@@ -14,6 +12,7 @@ import {
   Check,
 } from 'lucide-react'
 import { protectPdf, unlockPdf, type PdfToolResult } from '../../services/pdfTools'
+import { KituNotice } from '../brand/KituNotice'
 
 export type SecurityTab = 'unlock' | 'protect'
 
@@ -345,17 +344,25 @@ export const PdfSecurityModal: React.FC<PdfSecurityModalProps> = ({
 
               {/* Alerts */}
               {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700" data-testid="alert-error">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <KituNotice
+                  tone="error"
+                  expression="kecewa"
+                  title="Gagal Membuka Kunci"
+                  data-testid="alert-error"
+                >
                   <span>{errorMessage}</span>
-                </div>
+                </KituNotice>
               )}
 
               {successMessage && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-700" data-testid="alert-success">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <KituNotice
+                  tone="success"
+                  expression="selesai"
+                  title="Berhasil Dibuka"
+                  data-testid="alert-success"
+                >
                   <span>{successMessage}</span>
-                </div>
+                </KituNotice>
               )}
 
               <button
@@ -494,17 +501,25 @@ export const PdfSecurityModal: React.FC<PdfSecurityModalProps> = ({
 
               {/* Alerts */}
               {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700" data-testid="alert-error">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <KituNotice
+                  tone="error"
+                  expression="kecewa"
+                  title="Gagal Membuka Kunci"
+                  data-testid="alert-error"
+                >
                   <span>{errorMessage}</span>
-                </div>
+                </KituNotice>
               )}
 
               {successMessage && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-700" data-testid="alert-success">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <KituNotice
+                  tone="success"
+                  expression="selesai"
+                  title="Berhasil Dibuka"
+                  data-testid="alert-success"
+                >
                   <span>{successMessage}</span>
-                </div>
+                </KituNotice>
               )}
 
               <button

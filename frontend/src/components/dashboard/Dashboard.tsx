@@ -9,7 +9,6 @@ import {
   Star,
   FilePlus,
   Edit3,
-  AlertCircle,
   RefreshCw,
   ArrowRight,
   CheckCircle2,
@@ -22,16 +21,17 @@ import {
 import { type ResumeDraft, type ResumeDraftSummary } from '../../types/resume'
 import { type Workspace } from '../layout/Navbar'
 import { Footer } from '../layout/Footer'
+import { Reveal } from '../layout/Reveal'
+import { HeroScenery } from '../brand/HeroScenery'
+import { KituNotice } from '../brand/KituNotice'
+import { KITU_EXPRESSIONS } from '../brand/kituExpressions'
 
 // Brand Assets
 import kituMascotWebp from '../../assets/kitu-mascot.webp'
-import kituFeatureCv from '../../assets/kitu-feature-cv.webp'
-import kituFeaturePhoto from '../../assets/kitu-feature-photo.webp'
-import kituFeatureConvert from '../../assets/kitu-feature-convert.webp'
-import kituFeatureShortener from '../../assets/kitu-feature-shortener.webp'
-import scenicTemple from '../../assets/satukit-scenic-temple.webp'
-import batikLeft from '../../assets/satukit-batik-left.webp'
-import batikRight from '../../assets/satukit-batik-right.webp'
+import kituMascotPng from '../../assets/kitu-mascot.png'
+
+/** Atur kelambatan animasi masuk (ms) lewat variabel CSS `--d`. */
+const delay = (ms: number): React.CSSProperties => ({ '--d': `${ms}ms` } as React.CSSProperties)
 
 interface DashboardProps {
   draft: ResumeDraft | null
@@ -149,83 +149,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* 1. Storage Error Alert jika ada kendala */}
       {storageError && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
-          <div
+          <KituNotice
+            tone="error"
             role="alert"
             data-testid="dashboard-storage-error"
-            className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+            title="Kendala Penyimpanan Lokal"
+            action={
+              onRetryLoadDrafts && (
+                <button
+                  type="button"
+                  onClick={() => onRetryLoadDrafts()}
+                  data-testid="btn-dashboard-retry-storage"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-rose-900 hover:bg-rose-100 dark:hover:bg-rose-800 text-rose-900 dark:text-rose-100 border border-rose-300 dark:border-rose-700 text-sm font-semibold transition cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700"
+                >
+                  <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                  <span>Coba Lagi</span>
+                </button>
+              )
+            }
           >
-            <div className="flex items-start gap-3 min-w-0">
-              <AlertCircle className="w-5 h-5 text-rose-700 dark:text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-rose-900 dark:text-rose-100">Kendala Penyimpanan Lokal</p>
-                <p className="text-sm text-rose-800 dark:text-rose-300 mt-0.5 break-words">{storageError}</p>
-              </div>
-            </div>
-            {onRetryLoadDrafts && (
-              <button
-                type="button"
-                onClick={() => onRetryLoadDrafts()}
-                data-testid="btn-dashboard-retry-storage"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white dark:bg-rose-900 hover:bg-rose-100 dark:hover:bg-rose-800 text-rose-900 dark:text-rose-100 border border-rose-300 dark:border-rose-700 text-sm font-semibold transition cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700"
-              >
-                <RefreshCw className="w-4 h-4" aria-hidden="true" />
-                <span>Coba Lagi</span>
-              </button>
-            )}
-          </div>
+            <span className="text-sm">{storageError}</span>
+          </KituNotice>
         </div>
       )}
 
-      {/* 2. Hero Section Pixel-Perfect Satukit (Landscape + Kitu Wadah Besek + Batik Kawung) */}
+      {/* 2. Hero Satukit: lanskap vektor (tanpa tepi persegi) + gelombang mask + Kitu */}
       <section
         aria-labelledby="dashboard-welcome-heading"
-        className="relative overflow-hidden bg-[linear-gradient(110deg,#e8faf4_0%,#d5f6ed_38%,#ebfbf6_72%,#ffffff_100%)] dark:bg-[linear-gradient(110deg,#061a19_0%,#0a2926_46%,#071618_100%)] pt-8 pb-20 sm:pt-10 sm:pb-24 lg:pt-6 lg:pb-24 transition-colors"
+        className="hero-wave-mask relative overflow-hidden bg-[linear-gradient(110deg,#e4f9f2_0%,#d3f5ec_40%,#e9fbf5_74%,#f6fffb_100%)] dark:bg-[linear-gradient(110deg,#061a19_0%,#0a2926_46%,#071618_100%)] pt-8 pb-24 sm:pt-10 sm:pb-28 lg:pt-6 lg:pb-28 transition-colors duration-500"
       >
-        {/* Ornamen Batik Kawung Kiri */}
-        <img
-          src={batikLeft}
-          alt=""
-          aria-hidden="true"
-          className="absolute left-0 bottom-4 w-24 sm:w-36 lg:w-48 opacity-90 dark:opacity-20 pointer-events-none select-none z-0"
-        />
-
-        {/* Siluet Candi & Perbukitan Kanan Atas */}
-        <img
-          src={scenicTemple}
-          alt=""
-          aria-hidden="true"
-          className="absolute right-0 bottom-6 h-[72%] sm:h-[85%] lg:h-[92%] w-auto opacity-35 sm:opacity-95 dark:opacity-20 pointer-events-none select-none mix-blend-multiply dark:mix-blend-screen z-0"
-        />
-
-        {/* Ornamen Batik Kawung Kanan Bawah */}
-        <img
-          src={batikRight}
-          alt=""
-          aria-hidden="true"
-          className="absolute right-0 bottom-4 w-24 sm:w-32 opacity-75 dark:opacity-20 pointer-events-none select-none z-0"
-        />
-
-        {/* Kurva Gelombang Organik Pemisah Hero di Bagian Bawah */}
-        <div className="absolute bottom-0 left-0 right-0 w-full overflow-hidden leading-none pointer-events-none z-10">
-          <svg
-            viewBox="0 0 1440 90"
-            fill="none"
-            preserveAspectRatio="none"
-            className="w-full h-10 sm:h-14 lg:h-18 text-[#fffaf1] dark:text-[#081316] transition-colors"
-            aria-hidden="true"
-          >
-            <path
-              d="M0,45 C280,85 520,15 820,50 C1100,80 1320,35 1440,40 L1440,90 L0,90 Z"
-              fill="currentColor"
-            />
-          </svg>
-        </div>
+        <HeroScenery />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-6 items-center min-h-[440px] lg:min-h-[420px]">
             {/* Kolom Kiri: Tagline, Headline dengan Brush Underline, Subteks, CTA */}
             <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#c2f6ea] dark:bg-teal-950/80 border border-[#16b89a]/30 dark:border-teal-600/50 text-[#095f57] dark:text-teal-200 font-bold text-[13px] tracking-wide shadow-2xs">
+              <div style={delay(80)} className="hero-in inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#c2f6ea] dark:bg-teal-950/80 border border-[#16b89a]/30 dark:border-teal-600/50 text-[#095f57] dark:text-teal-200 font-bold text-[13px] tracking-wide shadow-2xs">
                 <span className="text-[#ffb22e] text-base leading-none" aria-hidden="true">✦</span>
                 <span>Platform Alat Digital Serba Ada</span>
                 {privateMode && (
@@ -237,7 +196,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <h1
                 id="dashboard-welcome-heading"
-                className="text-4xl sm:text-5xl lg:text-[3.8rem] font-black tracking-[-0.035em] text-[#17383c] dark:text-white leading-[1.08]"
+                style={delay(170)}
+                className="hero-in text-4xl sm:text-5xl lg:text-[3.8rem] font-black tracking-[-0.035em] text-[#17383c] dark:text-white leading-[1.08]"
               >
                 Satu Tempat,
                 <br />
@@ -261,12 +221,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </span>
               </h1>
 
-              <p className="text-base sm:text-lg leading-relaxed text-[#40565b] dark:text-stone-300 max-w-xl">
+              <p style={delay(270)} className="hero-in text-base sm:text-lg leading-relaxed text-[#40565b] dark:text-stone-300 max-w-xl">
                 Buat CV profesional, edit foto, olah file, pendekkan URL, dan berbagai alat digital lainnya dalam satu platform yang mudah, cepat, dan gratis untuk dicoba.
               </p>
 
               {/* Tombol Aksi Utama */}
-              <div className="pt-2 flex flex-wrap items-center gap-3">
+              <div style={delay(360)} className="hero-in pt-2 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   disabled={pendingAction !== null}
@@ -324,7 +284,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* 3 Trust Badges */}
-              <div className="pt-2 flex flex-wrap items-center gap-x-7 gap-y-2.5 text-[13px] font-bold text-[#29484c] dark:text-stone-300">
+              <div style={delay(450)} className="hero-in pt-2 flex flex-wrap items-center gap-x-7 gap-y-2.5 text-[13px] font-bold text-[#29484c] dark:text-stone-300">
                 <span className="inline-flex items-center gap-2">
                   <Zap className="w-4 h-4 text-[#079875] dark:text-teal-400 fill-[#079875]/20" />
                   Cepat &amp; Mudah
@@ -342,32 +302,48 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            {/* Kolom Kanan: Maskot Kitu Wadah Besek + Speech Bubble */}
+            {/* Kolom Kanan: Maskot Kitu (PNG/WebP transparan utuh, bukan potongan) + Speech Bubble */}
             <div className="lg:col-span-6 flex justify-center items-end relative pt-4 pb-2 lg:py-0 lg:self-stretch">
               <div className="relative w-full max-w-sm sm:max-w-lg flex flex-col items-center justify-end lg:h-full">
                 {/* Speech Bubble Kitu */}
-                <div className="absolute top-2 right-1 sm:right-4 z-20 bg-white/98 dark:bg-[#0c2427] border-2 border-[#079875] dark:border-teal-400 rounded-[2rem] px-5 py-4 shadow-[0_12px_32px_rgba(7,152,117,0.18)] max-w-[210px] text-sm text-[#17383c] dark:text-teal-50 animate-float-balloon">
-                  <span className="block text-sm font-semibold text-stone-700 dark:text-stone-300 leading-tight">Halo, aku</span>
-                  <div className="flex items-center gap-1.5 my-0.5">
-                    <strong className="text-3xl font-black leading-none text-[#079875] dark:text-teal-400">Kitu!</strong>
-                    <div className="flex flex-col gap-0.5 text-[#ffb22e] animate-sparkle" aria-hidden="true">
-                      <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full rotate-45 transform origin-left" />
-                      <span className="w-3.5 h-0.5 bg-[#ffb22e] rounded-full" />
-                      <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full -rotate-45 transform origin-left" />
+                <div style={delay(650)} className="hero-in absolute top-0 right-0 sm:right-2 z-20">
+                  <div className="relative bg-white/98 dark:bg-[#0c2427] border-2 border-[#079875] dark:border-teal-400 rounded-[2rem] px-5 py-4 shadow-[0_12px_32px_rgba(7,152,117,0.18)] max-w-[210px] text-sm text-[#17383c] dark:text-teal-50 animate-float-balloon">
+                    <span className="block text-sm font-semibold text-stone-700 dark:text-stone-300 leading-tight">Halo, aku</span>
+                    <div className="flex items-center gap-1.5 my-0.5">
+                      <strong className="text-3xl font-black leading-none text-[#079875] dark:text-teal-400">Kitu!</strong>
+                      <div className="flex flex-col gap-0.5 text-[#ffb22e] animate-sparkle" aria-hidden="true">
+                        <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full rotate-45 transform origin-left" />
+                        <span className="w-3.5 h-0.5 bg-[#ffb22e] rounded-full" />
+                        <span className="w-2.5 h-0.5 bg-[#ffb22e] rounded-full -rotate-45 transform origin-left" />
+                      </div>
                     </div>
+                    <span className="block text-[13px] font-medium text-stone-600 dark:text-stone-300 leading-snug">
+                      Asisten digitalmu di Satukit.
+                    </span>
+                    {/* Ekor Segitiga Balon */}
+                    <div className="absolute -bottom-2.5 left-8 w-4 h-4 bg-white dark:bg-[#0c2427] border-b-2 border-r-2 border-[#079875] dark:border-teal-400 rotate-45" />
                   </div>
-                  <span className="block text-[13px] font-medium text-stone-600 dark:text-stone-300 leading-snug">
-                    Asisten digitalmu di Satukit.
-                  </span>
-                  {/* Ekor Segitiga Balon */}
-                  <div className="absolute -bottom-2.5 left-8 w-4 h-4 bg-white dark:bg-[#0c2427] border-b-2 border-r-2 border-[#079875] dark:border-teal-400 rotate-45" />
                 </div>
 
-                <img
-                  src={kituMascotWebp}
-                  alt="Kitu — Maskot Resmi Satukit"
-                  className="w-72 sm:w-96 lg:w-[28rem] h-auto object-contain mx-auto select-none drop-shadow-2xl animate-float-gentle lg:absolute lg:bottom-[-1.5rem] lg:left-0 z-10"
-                />
+                <div
+                  style={delay(300)}
+                  className="mascot-in relative z-10 mt-14 sm:mt-10 lg:mt-0 lg:absolute lg:bottom-[-1rem] lg:left-0"
+                >
+                  {/* Bayangan lantai lembut mengikuti gerak melayang */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute -bottom-1 left-1/2 h-5 w-3/5 -translate-x-1/2 rounded-[50%] bg-teal-900/20 dark:bg-black/40 blur-md animate-pulse-subtle"
+                  />
+                  <picture>
+                    <source srcSet={kituMascotWebp} type="image/webp" />
+                    <img
+                      src={kituMascotPng}
+                      alt="Kitu — Maskot Resmi Satukit"
+                      draggable={false}
+                      className="relative w-72 sm:w-96 lg:w-[28rem] h-auto object-contain mx-auto select-none drop-shadow-[0_18px_22px_rgba(8,80,70,0.22)] animate-float-gentle"
+                    />
+                  </picture>
+                </div>
               </div>
             </div>
           </div>
@@ -401,224 +377,229 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-12 sm:space-y-16">
         {/* 4. Empat Kartu Fitur Unggulan Kitu (Sesuai Konsep Landing Page) */}
-        <section aria-labelledby="features-heading" className="space-y-6">
-          <div className="text-center max-w-2xl mx-auto space-y-2">
-            <div className="w-12 h-1 bg-[#16b89a] rounded-full mx-auto mb-2.5" />
-            <h2 id="features-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17383c] dark:text-white">
-              Fitur Unggulan Satukit
-            </h2>
-            <p className="text-sm sm:text-base text-stone-600 dark:text-stone-400">
-              Berbagai alat digital praktis untuk kebutuhan kerja, belajar, dan produktivitasmu.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Kartu 1: CV Builder */}
-            <div
-              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
-            >
-              <div className="flex items-center gap-3.5">
-                <img
-                  src={kituFeatureCv}
-                  alt="Kitu CV Builder"
-                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
-                />
-                <div className="min-w-0 flex-1 pr-6">
-                  <div className="flex items-center gap-1.5">
-                    <FileText className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
-                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                      CV Builder
-                    </h3>
-                  </div>
-                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                    Buat CV profesional dengan cepat dan mudah.
-                  </p>
-                </div>
-              </div>
-
-              <div className="absolute right-3.5 bottom-3.5">
-                <button
-                  type="button"
-                  onClick={() => runGuardedAction('create', onCreateNewResume)}
-                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
-                >
-                  <span className="sr-only">Buat CV Sekarang</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Kartu 2: Edit Foto */}
-            <div
-              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
-            >
-              <div className="flex items-center gap-3.5">
-                <img
-                  src={kituFeaturePhoto}
-                  alt="Kitu Edit Foto"
-                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
-                />
-                <div className="min-w-0 flex-1 pr-6">
-                  <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                    Edit Foto
-                  </h3>
-                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                    Atur ukuran, kompres, dan tingkatkan kualitas foto.
-                  </p>
-                </div>
-              </div>
-
-              <div className="absolute right-3.5 bottom-3.5">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
-                >
-                  <span className="sr-only">Mulai Edit Foto</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Kartu 3: Konversi File */}
-            <div
-              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
-            >
-              <div className="flex items-center gap-3.5">
-                <img
-                  src={kituFeatureConvert}
-                  alt="Kitu Konversi File"
-                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
-                />
-                <div className="min-w-0 flex-1 pr-6">
-                  <div className="flex items-center gap-1.5">
-                    <Files className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
-                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                      Konversi File
-                    </h3>
-                  </div>
-                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                    Ubah antar format file (PDF, DOCX, JPG, dll).
-                  </p>
-                </div>
-              </div>
-
-              <div className="absolute right-3.5 bottom-3.5">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
-                >
-                  <span className="sr-only">Konversi Sekarang</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Kartu 4: Pendekkan URL */}
-            <div
-              className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
-            >
-              <div className="flex items-center gap-3.5">
-                <img
-                  src={kituFeatureShortener}
-                  alt="Kitu URL Shortener"
-                  className="w-18 h-18 object-contain shrink-0 select-none group-hover:scale-105 transition-transform duration-300 drop-shadow-sm"
-                />
-                <div className="min-w-0 flex-1 pr-6">
-                  <div className="flex items-center gap-1.5">
-                    <Link2 className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
-                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
-                      Pendekkan URL
-                    </h3>
-                  </div>
-                  <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
-                    Buat tautan lebih ringkas, rapi, dan mudah dibagikan.
-                  </p>
-                </div>
-              </div>
-
-              <div className="absolute right-3.5 bottom-3.5">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('tools')}
-                  className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
-                >
-                  <span className="sr-only">Buat Tautan Pendek</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 5. Banner Cara Menggunakan Satukit (3 Langkah Mudah) */}
-        <section
-          aria-labelledby="how-it-works-heading"
-          className="rounded-[2rem] bg-[#edfcf6] dark:bg-[#092220] border border-[#bbf0dc] dark:border-teal-800/60 text-[#17383c] dark:text-white p-6 sm:p-8 shadow-xs relative overflow-hidden"
-        >
-          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_2.9fr] gap-6 lg:gap-8 items-center">
-            <div>
-              <h2 id="how-it-works-heading" className="text-2xl font-black tracking-tight text-[#17383c] dark:text-white">
-                Cara Menggunakan Satukit
+        <Reveal>
+          <section aria-labelledby="features-heading" className="space-y-6">
+            <div className="text-center max-w-2xl mx-auto space-y-2">
+              <div className="w-12 h-1 bg-[#16b89a] rounded-full mx-auto mb-2.5" />
+              <h2 id="features-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17383c] dark:text-white">
+                Fitur Unggulan Satukit
               </h2>
-              <p className="text-sm text-[#40565b] dark:text-stone-300 mt-1 leading-relaxed">
-                Hanya 3 langkah mudah, semua urusan digital jadi beres!
+              <p className="text-sm sm:text-base text-stone-600 dark:text-stone-400">
+                Berbagai alat digital praktis untuk kebutuhan kerja, belajar, dan produktivitasmu.
               </p>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-              {/* Langkah 1 */}
-              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
-                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
-                  1
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Kartu 1: CV Builder */}
+              <div
+                className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={KITU_EXPRESSIONS.buatcv}
+                    alt="Kitu CV Builder"
+                    className="w-18 h-18 sm:w-20 sm:h-20 object-contain shrink-0 select-none group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 drop-shadow-[0_4px_10px_rgba(7,152,117,0.18)]"
+                  />
+                  <div className="min-w-0 flex-1 pr-6">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                      <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                        CV Builder
+                      </h3>
+                    </div>
+                    <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                      Buat CV profesional dengan cepat dan mudah.
+                    </p>
+                  </div>
                 </div>
-                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
-                  <Upload className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Pilih Fitur</h3>
-                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Pilih alat yang kamu butuhkan.</p>
+
+                <div className="absolute right-3.5 bottom-3.5">
+                  <button
+                    type="button"
+                    onClick={() => runGuardedAction('create', onCreateNewResume)}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
+                  >
+                    <span className="sr-only">Buat CV Sekarang</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
-              <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
+              {/* Kartu 2: Edit Foto */}
+              <div
+                className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={KITU_EXPRESSIONS.editfoto}
+                    alt="Kitu Edit Foto"
+                    className="w-18 h-18 sm:w-20 sm:h-20 object-contain shrink-0 select-none group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 drop-shadow-[0_4px_10px_rgba(7,152,117,0.18)]"
+                  />
+                  <div className="min-w-0 flex-1 pr-6">
+                    <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                      Edit Foto
+                    </h3>
+                    <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                      Atur ukuran, kompres, dan tingkatkan kualitas foto.
+                    </p>
+                  </div>
+                </div>
 
-              {/* Langkah 2 */}
-              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
-                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
-                  2
-                </div>
-                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
-                  <RefreshCw className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unggah &amp; Proses</h3>
-                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Masukkan file atau data, lalu proses otomatis.</p>
+                <div className="absolute right-3.5 bottom-3.5">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('tools')}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
+                  >
+                    <span className="sr-only">Mulai Edit Foto</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
-              <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
+              {/* Kartu 3: Konversi File */}
+              <div
+                className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={KITU_EXPRESSIONS.konversi}
+                    alt="Kitu Konversi File"
+                    className="w-18 h-18 sm:w-20 sm:h-20 object-contain shrink-0 select-none group-hover:scale-110 group-hover:-rotate-3 transition-transform duration-300 drop-shadow-[0_4px_10px_rgba(7,152,117,0.18)]"
+                  />
+                  <div className="min-w-0 flex-1 pr-6">
+                    <div className="flex items-center gap-1.5">
+                      <Files className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                      <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                        Konversi File
+                      </h3>
+                    </div>
+                    <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                      Ubah antar format file (PDF, DOCX, JPG, dll).
+                    </p>
+                  </div>
+                </div>
 
-              {/* Langkah 3 */}
-              <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
-                <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
-                  3
+                <div className="absolute right-3.5 bottom-3.5">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('tools')}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
+                  >
+                    <span className="sr-only">Konversi Sekarang</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
+              </div>
+
+              {/* Kartu 4: Pendekkan URL */}
+              <div
+                className="relative min-w-0 overflow-hidden bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/50 hover:border-teal-400 dark:hover:border-teal-500 rounded-2xl p-4 shadow-[0_6px_20px_rgba(15,118,110,0.06)] hover:shadow-xl dark:hover:shadow-[0_8px_30px_rgba(20,184,166,0.12)] hover:-translate-y-1.5 transition-all duration-300 min-h-34 group"
+              >
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={KITU_EXPRESSIONS.pendekkanurl}
+                    alt="Kitu URL Shortener"
+                    className="w-18 h-18 sm:w-20 sm:h-20 object-contain shrink-0 select-none group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 drop-shadow-[0_4px_10px_rgba(7,152,117,0.18)]"
+                  />
+                  <div className="min-w-0 flex-1 pr-6">
+                    <div className="flex items-center gap-1.5">
+                      <Link2 className="w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0" />
+                      <h3 className="text-base font-extrabold text-[#17383c] dark:text-stone-100 group-hover:text-teal-800 dark:group-hover:text-teal-300 transition-colors">
+                        Pendekkan URL
+                      </h3>
+                    </div>
+                    <p className="text-[13px] text-stone-600 dark:text-stone-400 mt-1 leading-relaxed">
+                      Buat tautan lebih ringkas, rapi, dan mudah dibagikan.
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unduh &amp; Gunakan</h3>
-                  <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Hasilnya siap digunakan!</p>
+
+                <div className="absolute right-3.5 bottom-3.5">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('tools')}
+                    className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-[#079875] hover:bg-[#068465] text-white transition-all group-hover:scale-110 group-hover:translate-x-0.5 cursor-pointer shadow-xs"
+                  >
+                    <span className="sr-only">Buat Tautan Pendek</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </Reveal>
+
+        {/* 5. Banner Cara Menggunakan Satukit (3 Langkah Mudah) */}
+        <Reveal delay={80}>
+          <section
+            aria-labelledby="how-it-works-heading"
+            className="rounded-[2rem] bg-[#edfcf6] dark:bg-[#092220] border border-[#bbf0dc] dark:border-teal-800/60 text-[#17383c] dark:text-white p-6 sm:p-8 shadow-xs relative overflow-hidden"
+          >
+            <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_2.9fr] gap-6 lg:gap-8 items-center">
+              <div>
+                <h2 id="how-it-works-heading" className="text-2xl font-black tracking-tight text-[#17383c] dark:text-white">
+                  Cara Menggunakan Satukit
+                </h2>
+                <p className="text-sm text-[#40565b] dark:text-stone-300 mt-1 leading-relaxed">
+                  Hanya 3 langkah mudah, semua urusan digital jadi beres!
+                </p>
+              </div>
+
+              <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+                {/* Langkah 1 */}
+                <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                  <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
+                    1
+                  </div>
+                  <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Pilih Fitur</h3>
+                    <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Pilih alat yang kamu butuhkan.</p>
+                  </div>
+                </div>
+
+                <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
+
+                {/* Langkah 2 */}
+                <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                  <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
+                    2
+                  </div>
+                  <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                    <RefreshCw className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unggah &amp; Proses</h3>
+                    <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Masukkan file atau data, lalu proses otomatis.</p>
+                  </div>
+                </div>
+
+                <ArrowRight className="hidden md:block w-4 h-4 text-[#079875] dark:text-teal-400 shrink-0 animate-pulse-subtle" aria-hidden="true" />
+
+                {/* Langkah 3 */}
+                <div className="w-full flex-1 flex items-center gap-3 bg-white/80 dark:bg-[#0e2726]/80 border border-white/90 dark:border-teal-700/40 rounded-2xl p-3.5 shadow-2xs hover:-translate-y-0.5 transition-transform">
+                  <div className="w-7 h-7 rounded-full bg-[#079875] text-white text-[13px] font-black flex items-center justify-center shrink-0 shadow-xs">
+                    3
+                  </div>
+                  <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/80 text-[#079875] dark:text-teal-400 shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-[#17383c] dark:text-white">Unduh &amp; Gunakan</h3>
+                    <p className="text-[13px] text-[#53676b] dark:text-stone-300 leading-tight mt-0.5">Hasilnya siap digunakan!</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </Reveal>
 
         {/* 6. Meja Draf Pengguna & Ledger Status (Arsip & Ruang Kerja Nyata) */}
-        <section aria-labelledby="recent-drafts-heading" className="space-y-6 relative">
+        <Reveal delay={140}>
+          <section aria-labelledby="recent-drafts-heading" className="space-y-6 relative">
           <div className="bg-white dark:bg-[#0c2225] border border-stone-200/90 dark:border-teal-800/40 rounded-3xl shadow-xs overflow-hidden">
             {/* Accent Header Stripe */}
             <div className="h-1.5 w-full bg-gradient-to-r from-teal-700 via-teal-600 to-lime-500" />
@@ -979,8 +960,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         </section>
+      </Reveal>
 
-        {/* 7. Footer Pengembang */}
+      {/* 7. Footer Pengembang */}
         <div className="pt-6">
           <Footer />
         </div>

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X,
   Download,
-  AlertTriangle,
   CheckCircle2,
   Loader2,
   Film,
@@ -18,6 +17,7 @@ import {
   downloadMediaFile,
   type MediaDownloadJobStatus,
 } from '../../services/mediaDownloader'
+import { KituNotice } from '../brand/KituNotice'
 
 interface MediaDownloaderModalProps {
   isOpen: boolean
@@ -236,13 +236,14 @@ export const MediaDownloaderModal: React.FC<MediaDownloaderModalProps> = ({ isOp
 
           {/* Error Banner */}
           {errorMessage && (
-            <div
-              className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200 text-xs sm:text-sm flex items-start gap-2.5 animate-shake"
+            <KituNotice
+              tone="error"
+              expression="kaget"
+              title="Kendala Unduhan Media"
               role="alert"
             >
-              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-              <div className="flex-1">{errorMessage}</div>
-            </div>
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {!activeJobId || jobStatus?.status === 'failed' || jobStatus?.status === 'cancelled' ? (

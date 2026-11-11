@@ -34,6 +34,7 @@ import { TEMPLATES } from '../../templates/registry'
 import { useDismiss } from '../../hooks/useDismiss'
 import { BrandLogo } from '../brand/BrandLogo'
 import { ThemeToggle } from './ThemeToggle'
+import { KituNotice } from '../brand/KituNotice'
 
 export type Workspace = 'home' | 'builder' | 'ats' | 'tools'
 
@@ -790,11 +791,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       </header>
 
       {pendingDelete && (
-        <div role="status" className="fixed bottom-4 right-4 bg-stone-900 text-white px-4 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 border border-stone-700 animate-toast-in">
-          <span className="text-xs">Draft <strong>“{pendingDelete.title}”</strong> dihapus.</span>
-          <button type="button" onClick={onUndoDelete} className="flex items-center gap-1 text-xs font-bold text-amber-400">
-            <RotateCcw className="w-3.5 h-3.5" /> Batal
-          </button>
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm sm:max-w-md animate-toast-in">
+          <KituNotice
+            variant="toast"
+            tone="warning"
+            expression="sedih"
+            title="Draf Dihapus"
+            role="status"
+            action={
+              <button
+                type="button"
+                onClick={onUndoDelete}
+                className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Batal
+              </button>
+            }
+          >
+            <span>
+              Draft <strong>“{pendingDelete.title}”</strong> dihapus.
+            </span>
+          </KituNotice>
         </div>
       )}
 

@@ -6,8 +6,6 @@ import {
   Image as ImageIcon,
   Archive,
   Upload,
-  CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   Trash2,
@@ -24,6 +22,7 @@ import {
   pdfToImages,
   type PdfToolResult,
 } from '../../services/pdfTools'
+import { KituNotice } from '../brand/KituNotice'
 
 export type ToolTab = 'merge' | 'split' | 'compress' | 'img2pdf' | 'pdf2img'
 
@@ -263,17 +262,15 @@ export const PdfToolsModal: React.FC<PdfToolsModalProps> = ({
 
         {/* Alerts */}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700">
-            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+          <KituNotice tone="error" expression="kecewa" title="Gagal Memproses PDF">
             <span>{errorMessage}</span>
-          </div>
+          </KituNotice>
         )}
 
         {successMessage && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2 text-xs text-emerald-700">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+          <KituNotice tone="success" expression="selesai" title="Proses Berhasil">
             <span>{successMessage}</span>
-          </div>
+          </KituNotice>
         )}
 
         {/* Tab Content */}

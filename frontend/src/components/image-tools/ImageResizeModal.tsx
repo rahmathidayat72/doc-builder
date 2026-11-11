@@ -3,13 +3,13 @@ import {
   ImageIcon,
   Upload,
   CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   ShieldCheck,
   ArrowRight,
 } from 'lucide-react'
 import { resizeImage, type ImageResizeResult } from '../../services/imageTools'
+import { KituNotice } from '../brand/KituNotice'
 
 interface ImageResizeModalProps {
   isOpen: boolean
@@ -100,10 +100,13 @@ export const ImageResizeModal: React.FC<ImageResizeModalProps> = ({ isOpen, onCl
 
         {/* Alerts */}
         {errorMessage && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-xs text-rose-700">
-            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+          <KituNotice
+            tone="error"
+            expression="kecewa"
+            title="Gagal Mengubah Ukuran Gambar"
+          >
             <span>{errorMessage}</span>
-          </div>
+          </KituNotice>
         )}
 
         {/* Content */}

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { type ResumeDraft } from '../../types/resume'
 import { matchResumeToJob, type JobMatchResult } from '../../services/ats'
+import { KituNotice } from '../brand/KituNotice'
 
 export interface TargetedDraftRequest {
   title: string
@@ -185,14 +186,12 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
           {matchResult && (
             <div className="space-y-4 border-t border-stone-200 pt-4">
               {matchResult.analysis_status === 'insufficient_data' ? (
-                <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 space-y-2" data-testid="insufficient-data-alert">
-                  <div className="flex items-center gap-2 font-bold text-sm">
-                    <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                    Data Kualifikasi Belum Cukup
-                  </div>
-                  <p className="text-xs text-amber-800 leading-relaxed">
-                    {matchResult.advice[0] || 'Deskripsi lowongan belum memuat informasi kualifikasi atau posisi yang memadai untuk dievaluasi.'}
-                  </p>
+                <div data-testid="insufficient-data-alert">
+                  <KituNotice tone="warning" expression="bingung" title="Data Kualifikasi Belum Cukup">
+                    <span>
+                      {matchResult.advice[0] || 'Deskripsi lowongan belum memuat informasi kualifikasi atau posisi yang memadai untuk dievaluasi.'}
+                    </span>
+                  </KituNotice>
                 </div>
               ) : (
                 <>
@@ -239,15 +238,17 @@ export const JobMatchModal: React.FC<JobMatchModalProps> = ({
 
                   {/* Peringatan Batas Skor Maksimal 69 */}
                   {matchResult.capped_by_required && (
-                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 text-xs text-rose-900" role="alert" data-testid="capped-by-required-alert">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold block">Batas Skor Maksimal 69 Aktif</span>
-                        <span className="text-rose-800">
-                          Skor dibatasi maksimal 69 karena ada kualifikasi wajib (required) yang belum terpenuhi di CV.
-                        </span>
-                      </div>
-                    </div>
+                    <KituNotice
+                      tone="error"
+                      expression="kaget"
+                      title="Batas Skor Maksimal 69 Aktif"
+                      role="alert"
+                      data-testid="capped-by-required-alert"
+                    >
+                      <span>
+                        Skor dibatasi maksimal 69 karena ada kualifikasi wajib (required) yang belum terpenuhi di CV.
+                      </span>
+                    </KituNotice>
                   )}
 
                   {/* Rincian Dimensi Evaluasi (Score Breakdown) */}

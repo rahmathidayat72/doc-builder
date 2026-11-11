@@ -6,7 +6,6 @@ import {
   Check,
   ExternalLink,
   Sparkles,
-  AlertCircle,
   ShieldCheck,
   Clock,
 } from 'lucide-react'
@@ -16,6 +15,7 @@ import {
   getShortenerConfig,
   type ShortenedLinkItem,
 } from '../../services/shortener'
+import { KituNotice } from '../brand/KituNotice'
 
 interface UrlShortenerModalProps {
   isOpen: boolean
@@ -208,10 +208,9 @@ export const UrlShortenerModal: React.FC<UrlShortenerModalProps> = ({ isOpen, on
 
           {/* Alert Error */}
           {errorMessage && (
-            <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-red-800 text-sm animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <p className="flex-1">{errorMessage}</p>
-            </div>
+            <KituNotice tone="error" expression="bingung" title="Kendala Tautan">
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {/* Kartu Hasil URL Pendek */}

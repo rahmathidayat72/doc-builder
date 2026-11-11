@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
-  CheckCircle2,
   Download,
   FileText,
   Printer,
@@ -16,6 +15,7 @@ import {
   type ResumeQualityIssue
 } from '../../services/resumeQuality'
 import { normalizeExportFilename } from '../../services/export'
+import { KituNotice } from '../brand/KituNotice'
 
 export type ExportFormat = 'pdf' | 'docx' | 'print'
 
@@ -278,20 +278,16 @@ export const ExportResumeModal: React.FC<ExportResumeModalProps> = ({
 
           <div className="space-y-3">
             {report.errors.length === 0 && report.warnings.length === 0 ? (
-              <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
-                <p className="text-xs text-emerald-800">
-                  Semua pemeriksaan penting terpenuhi. CV siap diekspor.
-                </p>
-              </div>
+              <KituNotice tone="success" expression="hore" title="Semua Siap!">
+                <span>Semua pemeriksaan terpenuhi dengan rapi. CV siap diekspor!</span>
+              </KituNotice>
             ) : null}
 
             {report.errors.length > 0 && (
-              <div>
-                <div className="mb-1.5 flex items-center gap-1.5">
-                  <AlertCircle className="h-4 w-4 text-red-600" aria-hidden="true" />
-                  <h3 className="text-xs font-bold text-stone-900">Harus diperbaiki</h3>
-                </div>
+              <div className="space-y-2">
+                <KituNotice tone="error" expression="kaget" title="Data Wajib Perlu Dilengkapi">
+                  <span>Ada {report.errors.length} data penting yang perlu diperbaiki sebelum CV siap diekspor.</span>
+                </KituNotice>
                 <ul className="space-y-2">
                   {report.errors.map(issue => (
                     <IssueRow key={issue.id} issue={issue} onFix={onFixIssue} />

@@ -12,6 +12,7 @@ import { type ResumeData } from './types/resume'
 import { Navbar, type Workspace } from './components/layout/Navbar'
 import { Footer } from './components/layout/Footer'
 import { Dashboard } from './components/dashboard/Dashboard'
+import { KituNotice } from './components/brand/KituNotice'
 import { ImportResumeModal } from './components/builder/ImportResumeModal'
 import {
   ExportResumeModal,
@@ -1083,20 +1084,27 @@ export function App() {
       )}
 
       {importUndo && draft?.id === importUndo.draftId && (
-        <div
-          className="fixed bottom-4 left-4 z-50 flex max-w-sm items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-white shadow-2xl animate-toast-in"
-          role="status"
-          data-testid="import-undo-toast"
-        >
-          <span className="text-xs">Data impor diterapkan ke CV.</span>
-          <button
-            type="button"
-            onClick={handleUndoImport}
-            className="flex shrink-0 items-center gap-1 text-xs font-bold text-amber-400 hover:text-amber-300"
-            data-testid="btn-undo-import"
+        <div className="fixed bottom-4 left-4 z-50 max-w-sm sm:max-w-md animate-toast-in">
+          <KituNotice
+            variant="toast"
+            tone="success"
+            expression="selesai"
+            title="Data Impor Diterapkan!"
+            role="status"
+            data-testid="import-undo-toast"
+            action={
+              <button
+                type="button"
+                onClick={handleUndoImport}
+                className="inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-bold transition cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+                data-testid="btn-undo-import"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Urungkan
+              </button>
+            }
           >
-            <RotateCcw className="h-3.5 w-3.5" /> Urungkan
-          </button>
+            <span>Data resume berhasil diterapkan ke draf CV aktifmu.</span>
+          </KituNotice>
         </div>
       )}
 

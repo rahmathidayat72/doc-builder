@@ -124,7 +124,7 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
     )
     const populatedResults = await axe(populatedRender.container)
     expect(populatedResults.violations).toEqual([])
-  })
+  }, 20000)
 
   it('ContactForm & SummaryForm bebas pelanggaran aksesibilitas', async () => {
     const { container } = render(

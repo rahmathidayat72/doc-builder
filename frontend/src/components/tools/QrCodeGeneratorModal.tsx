@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   QrCode,
   Download,
-  AlertTriangle,
   X,
   ShieldCheck,
   Palette,
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react'
 import QRCode from 'qrcode'
 import { downloadImageBlob } from '../../services/imageTools'
+import { KituNotice } from '../brand/KituNotice'
 
 interface QrCodeGeneratorModalProps {
   isOpen: boolean
@@ -324,13 +324,14 @@ export const QrCodeGeneratorModal: React.FC<QrCodeGeneratorModalProps> = ({ isOp
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Alert Error */}
           {errorMessage && (
-            <div
+            <KituNotice
+              tone="error"
+              expression="bingung"
+              title="Gagal Membuat QR Code"
               role="alert"
-              className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-shake"
             >
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1 leading-relaxed">{errorMessage}</div>
-            </div>
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {/* Mode Tabs: Teks vs URL */}

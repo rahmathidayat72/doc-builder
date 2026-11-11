@@ -3,7 +3,6 @@ import {
   Sparkles,
   Upload,
   CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   Download,
@@ -18,6 +17,7 @@ import {
   downloadImageBlob,
   type RemoveBackgroundResult,
 } from '../../services/imageTools'
+import { KituNotice } from '../brand/KituNotice'
 
 interface RemoveBackgroundModalProps {
   isOpen: boolean
@@ -484,16 +484,14 @@ export const RemoveBackgroundModal: React.FC<RemoveBackgroundModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5">
           {/* Alert Error */}
           {errorMessage && (
-            <div
+            <KituNotice
+              tone="error"
+              expression="sedih"
+              title="Gagal Memproses Latar"
               role="alert"
-              className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-3 text-rose-800 text-sm"
             >
-              <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold">Terjadi Kesalahan</p>
-                <p className="mt-0.5 text-xs text-rose-700">{errorMessage}</p>
-              </div>
-            </div>
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {/* Kondisi 1: Belum ada file atau belum diproses */}

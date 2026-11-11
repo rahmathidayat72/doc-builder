@@ -16,6 +16,7 @@ import {
   exportAtsReportDocx,
   exportAtsReportPdf
 } from '../../services/ats'
+import { KITU_EXPRESSIONS, type KituExpression } from '../brand/kituExpressions'
 
 interface AtsScorePanelProps {
   analysis: AtsAnalysisResult | null
@@ -76,6 +77,13 @@ export const AtsScorePanel: React.FC<AtsScorePanelProps> = ({
     }
   }
 
+  const getKituExpression = (score: number): KituExpression => {
+    if (score >= 85) return 'hore'
+    if (score >= 70) return 'semangat'
+    if (score >= 50) return 'berpikir'
+    return 'kecewa'
+  }
+
   const scoreColor = getScoreColor(analysis.score)
   const failedChecksCount = analysis.totalChecksCount - analysis.passedChecksCount
   const filteredChecklist = analysis.checklist.filter(item => {
@@ -131,11 +139,18 @@ export const AtsScorePanel: React.FC<AtsScorePanelProps> = ({
           <div className="space-y-5">
             <section className="grid gap-4 rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[auto_1fr] sm:items-center sm:p-5">
               <div className="flex items-center gap-4">
-                <div className={`flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-full border-4 bg-white shadow-2xs ${scoreColor.ring}`}>
-                  <span className={`text-3xl font-black leading-none ${scoreColor.text}`} data-testid="ats-score-number">
-                    {analysis.score}
-                  </span>
-                  <span className="mt-1 text-[10px] font-semibold text-stone-500">dari 100</span>
+                <div className="relative">
+                  <div className={`flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-full border-4 bg-white shadow-2xs ${scoreColor.ring}`}>
+                    <span className={`text-3xl font-black leading-none ${scoreColor.text}`} data-testid="ats-score-number">
+                      {analysis.score}
+                    </span>
+                    <span className="mt-1 text-[10px] font-semibold text-stone-500">dari 100</span>
+                  </div>
+                  <img
+                    src={KITU_EXPRESSIONS[getKituExpression(analysis.score)]}
+                    alt="Ekspresi Kitu"
+                    className="absolute -bottom-2 -right-3 w-10 h-10 object-contain drop-shadow-sm select-none pointer-events-none"
+                  />
                 </div>
                 <div className="sm:hidden">
                   <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${scoreColor.badge}`}>

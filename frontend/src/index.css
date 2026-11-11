@@ -106,6 +106,127 @@
   animation: brush-draw 900ms var(--ease-soft) forwards;
 }
 
+/* ===== Maskot Kitu pada notifikasi: gerak mengikuti ekspresi ===== */
+@keyframes kitu-hop {
+  0% { transform: translateY(6px) scale(0.85); opacity: 0; }
+  45% { transform: translateY(-7px) scale(1.06); opacity: 1; }
+  70% { transform: translateY(1px) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes kitu-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-3px) rotate(-4deg); }
+  40% { transform: translateX(3px) rotate(4deg); }
+  60% { transform: translateX(-2px) rotate(-2deg); }
+  80% { transform: translateX(2px) rotate(2deg); }
+}
+@keyframes kitu-wiggle {
+  0%, 100% { transform: rotate(0) scale(1); }
+  25% { transform: rotate(-6deg) scale(1.05); }
+  75% { transform: rotate(6deg) scale(1.05); }
+}
+@keyframes kitu-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.animate-kitu-hop { animation: kitu-hop 640ms var(--ease-spring) both; }
+.animate-kitu-shake { animation: kitu-shake 520ms ease-in-out 1 both; }
+.animate-kitu-wiggle { animation: kitu-wiggle 700ms ease-in-out 2 both; }
+.animate-kitu-bob { animation: kitu-bob 1.6s ease-in-out infinite; }
+
+/* ===== Transisi halus: entrance hero & scroll reveal ===== */
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes mascot-enter {
+  from { opacity: 0; transform: translateY(26px) scale(0.92); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes scenery-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cloud-drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(16px); }
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-in {
+  animation: hero-rise 720ms var(--ease-soft) both;
+  animation-delay: var(--d, 0ms);
+}
+.mascot-in {
+  animation: mascot-enter 900ms var(--ease-soft) both;
+  animation-delay: var(--d, 0ms);
+}
+.scenery-in {
+  animation: scenery-in 1100ms var(--ease-soft) both;
+  animation-delay: var(--d, 0ms);
+}
+.animate-cloud-drift {
+  animation: cloud-drift 14s ease-in-out infinite;
+}
+.animate-page-in {
+  animation: page-in 380ms var(--ease-soft) both;
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 640ms var(--ease-soft),
+    transform 640ms var(--ease-soft);
+  transition-delay: var(--d, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Gelombang bawah hero memakai mask agar latar halaman di bawahnya tampil mulus (tanpa patahan warna) */
+.hero-wave-mask {
+  -webkit-mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - 55px) no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 56' preserveAspectRatio='none'%3E%3Cpath d='M0 0H1440V20C1240 52 1010 58 800 34C560 8 300 12 0 42Z'/%3E%3C/svg%3E") bottom / 100% 56px no-repeat;
+  mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - 55px) no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 56' preserveAspectRatio='none'%3E%3Cpath d='M0 0H1440V20C1240 52 1010 58 800 34C560 8 300 12 0 42Z'/%3E%3C/svg%3E") bottom / 100% 56px no-repeat;
+}
+
+/* Warna lanskap hero (SVG vektor, tanpa tepi persegi) */
+:root {
+  --scn-cloud: #ffffff;
+  --scn-far: #9fe3d2;
+  --scn-mid: #52c7a9;
+  --scn-temple: #1b7f74;
+  --scn-hill-a: #c6ef72;
+  --scn-hill-b: #34b985;
+  --scn-hill-c: #0f9e82;
+  --scn-leaf: #0e8a6b;
+  --scn-kawung-bg-a: #28b39a;
+  --scn-kawung-bg-b: #0f8f7c;
+  --scn-kawung: #fde68a;
+}
+.dark {
+  --scn-cloud: #7ddfd0;
+  --scn-far: #14484a;
+  --scn-mid: #0f5b57;
+  --scn-temple: #0a2f33;
+  --scn-hill-a: #2f8f6f;
+  --scn-hill-b: #15705f;
+  --scn-hill-c: #0b4d49;
+  --scn-leaf: #0a5a4c;
+  --scn-kawung-bg-a: #0f6b62;
+  --scn-kawung-bg-b: #0a4a47;
+  --scn-kawung: #c9a24a;
+}
+@media print {
+  .reveal { opacity: 1 !important; transform: none !important; }
+}
+
 /* Animasi transisi mikro maskot dokumen */
 .animate-mascot-change {
   animation: mascot-change 250ms var(--ease-soft) both;

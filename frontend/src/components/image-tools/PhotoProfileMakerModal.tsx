@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react'
 import {
   CircleUser,
   Upload,
-  AlertTriangle,
   X,
   Loader2,
   Download,
@@ -24,6 +23,7 @@ import {
   downloadImageBlob,
   type RemoveBackgroundResult,
 } from '../../services/imageTools'
+import { KituNotice } from '../brand/KituNotice'
 
 interface PhotoProfileMakerModalProps {
   isOpen: boolean
@@ -553,16 +553,14 @@ export const PhotoProfileMakerModal: React.FC<PhotoProfileMakerModalProps> = ({
         <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
           {/* Alert Error */}
           {errorMessage && (
-            <div
+            <KituNotice
+              tone="error"
+              expression="sedih"
+              title="Gagal Mengedit Foto Profil"
               role="alert"
-              className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-3 text-rose-800 text-sm"
             >
-              <AlertTriangle className="w-5 h-5 shrink-0 text-rose-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold">Terjadi Kesalahan</p>
-                <p className="mt-0.5 text-xs text-rose-700">{errorMessage}</p>
-              </div>
-            </div>
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {/* Kondisi 1: Belum ada file yang dipilih */}

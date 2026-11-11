@@ -3,7 +3,6 @@ import {
   FileCode,
   Upload,
   CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   Info,
@@ -11,6 +10,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { convertDocxToPdf, type ConversionResult } from '../../services/converter'
+import { KituNotice } from '../brand/KituNotice'
 
 interface DocxToPdfModalProps {
   isOpen: boolean
@@ -140,10 +140,9 @@ export const DocxToPdfModal: React.FC<DocxToPdfModalProps> = ({ isOpen, onClose 
             </div>
 
             {errorMessage && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              <KituNotice tone="error" expression="kecewa" title="Gagal Mengonversi Dokumen">
                 <span>{errorMessage}</span>
-              </div>
+              </KituNotice>
             )}
 
             <div className="flex justify-end gap-2 pt-2">

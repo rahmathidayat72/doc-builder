@@ -3,7 +3,6 @@ import {
   FileImage,
   Upload,
   CheckCircle2,
-  AlertTriangle,
   X,
   Loader2,
   ShieldCheck,
@@ -14,6 +13,7 @@ import {
   Info,
 } from 'lucide-react'
 import { downloadImageBlob } from '../../services/imageTools'
+import { KituNotice } from '../brand/KituNotice'
 
 interface WebpToJpgModalProps {
   isOpen: boolean
@@ -269,13 +269,14 @@ export const WebpToJpgModal: React.FC<WebpToJpgModalProps> = ({ isOpen, onClose 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Alert Error */}
           {errorMessage && (
-            <div
+            <KituNotice
+              tone="error"
+              expression="kecewa"
+              title="Gagal Mengonversi Gambar"
               role="alert"
-              className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800 animate-shake"
             >
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="flex-1 leading-relaxed">{errorMessage}</div>
-            </div>
+              <span>{errorMessage}</span>
+            </KituNotice>
           )}
 
           {/* Kondisi 1: Belum ada berkas -> Dropzone */}
