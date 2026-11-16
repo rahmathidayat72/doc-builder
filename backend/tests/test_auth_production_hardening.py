@@ -127,6 +127,7 @@ def test_brevo_service_simulated_when_no_api_key() -> None:
     orig_key = settings.BREVO_API_KEY
     try:
         settings.BREVO_API_KEY = None
+        assert settings.BREVO_SENDER_NAME == "Beresin by Satukit"
         ok_v = brevo_service.send_verification_email(
             "user@example.com", "Test", "token123", "https://satukit.id"
         )

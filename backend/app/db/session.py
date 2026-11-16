@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT,
     name TEXT NOT NULL,
+    avatar_url TEXT,
     email_verified INTEGER NOT NULL DEFAULT 0,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
@@ -35,6 +36,21 @@ CREATE TABLE IF NOT EXISTS oauth_accounts (
 CREATE INDEX IF NOT EXISTS idx_oauth_accounts_user_id ON oauth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_oauth_accounts_provider_uid
     ON oauth_accounts(provider, provider_user_id);
+
+CREATE TABLE IF NOT EXISTS oauth_transactions (
+    state_hash TEXT PRIMARY KEY,
+    provider TEXT NOT NULL DEFAULT 'google',
+    intent TEXT NOT NULL,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    browser_binding_hash TEXT NOT NULL,
+    code_verifier TEXT NOT NULL,
+    nonce TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL,
+    used_at REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_oauth_tx_expires ON oauth_transactions(expires_at);
 
 CREATE TABLE IF NOT EXISTS user_sessions (
     token_hash TEXT PRIMARY KEY,

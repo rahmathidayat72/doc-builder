@@ -190,7 +190,7 @@ describe('QrCodeGeneratorModal Component Suite', () => {
     })
   })
 
-  it('dapat mengunduh berkas PNG dengan nama satukit-qr-code.png', async () => {
+  it('dapat mengunduh berkas PNG dengan nama beresin-qr-code.png', async () => {
     const mockToBlob = vi.fn((callback: (blob: Blob | null) => void) => {
       callback(new Blob(['mock-png-bytes'], { type: 'image/png' }))
     })
@@ -210,11 +210,11 @@ describe('QrCodeGeneratorModal Component Suite', () => {
 
     expect(imageToolsService.downloadImageBlob).toHaveBeenCalledWith(
       expect.any(Blob),
-      'satukit-qr-code.png'
+      'beresin-qr-code.png'
     )
   })
 
-  it('dapat mengunduh berkas SVG dengan nama satukit-qr-code.svg', async () => {
+  it('dapat mengunduh berkas SVG dengan nama beresin-qr-code.svg', async () => {
     render(<QrCodeGeneratorModal isOpen={true} onClose={vi.fn()} />)
 
     const input = screen.getByTestId('input-qr-text')
@@ -237,7 +237,7 @@ describe('QrCodeGeneratorModal Component Suite', () => {
       )
       expect(imageToolsService.downloadImageBlob).toHaveBeenCalledWith(
         expect.any(Blob),
-        'satukit-qr-code.svg'
+        'beresin-qr-code.svg'
       )
     })
   })

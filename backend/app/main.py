@@ -19,6 +19,8 @@ from app.api.import_cv import router as import_router
 from app.api.media_downloader import router as media_downloader_router
 from app.api.pdf_tools import router as pdf_tools_router
 from app.api.shortener import redirect_router
+from app.api.video_compression import router as video_compression_router
+from app.api.watermark_removal import router as watermark_removal_router
 from app.core.config import settings
 from app.core.disk_guard import DiskSpaceExhaustedError
 from app.core.jobs import background_sweeper
@@ -108,6 +110,9 @@ def create_app() -> FastAPI:
             "X-Total-Pages",
             "X-Converted-Pages",
             "X-Markdown-Length",
+            "X-Structural-Pages",
+            "X-Rasterized-Pages",
+            "X-Annots-Removed",
         ],
     )
 
@@ -119,11 +124,13 @@ def create_app() -> FastAPI:
     app.include_router(converter_router, prefix="/api")
     app.include_router(pdf_tools_router, prefix="/api")
     app.include_router(image_tools_router, prefix="/api")
+    app.include_router(watermark_removal_router, prefix="/api")
     app.include_router(drafts_router, prefix="/api")
     app.include_router(file_shelf_router, prefix="/api")
     app.include_router(redirect_router)
     app.include_router(redirect_router, prefix="/api")
     app.include_router(media_downloader_router, prefix="/api")
+    app.include_router(video_compression_router, prefix="/api")
 
     # Sajikan static frontend SPA jika folder dist tersedia (mode rilis / distribusi lokal)
     frontend_dist = settings.BASE_DIR.parent / "frontend" / "dist"

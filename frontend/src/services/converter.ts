@@ -67,7 +67,7 @@ export async function convertDocxToPdf(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }
@@ -108,7 +108,7 @@ export async function convertPdfToDocx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }
@@ -161,7 +161,7 @@ export async function convertPresentationToPdf(file: File): Promise<ConversionRe
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }
@@ -202,7 +202,7 @@ export async function convertPdfToPptx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }
@@ -255,7 +255,7 @@ export async function convertSpreadsheetToPdf(file: File): Promise<ConversionRes
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }
@@ -296,7 +296,7 @@ export async function convertPdfToXlsx(file: File): Promise<ConversionResult> {
   } catch (err: any) {
     return {
       success: false,
-      message: err.message || 'Tidak dapat terhubung ke server backend Satukit.'
+      message: err.message || 'Tidak dapat terhubung ke server backend Beresin.'
     }
   }
 }

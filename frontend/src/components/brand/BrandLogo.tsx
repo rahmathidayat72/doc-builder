@@ -1,9 +1,8 @@
 import React from 'react'
-import logoWebp from '../../assets/satukit-logo.webp'
-import logoPng from '../../assets/satukit-logo.png'
-import iconWebp from '../../assets/satukit-icon.webp'
-import iconPng from '../../assets/satukit-icon.png'
-import appIconPng from '../../assets/satukit-app-icon.png'
+import logoWebp from '../../assets/beresin-logo.webp'
+import logoPng from '../../assets/beresin-logo.png'
+import iconSvg from '../../assets/beresin-icon.svg'
+import appIconPng from '../../assets/beresin-app-icon.png'
 
 export type BrandLogoVariant = 'horizontal' | 'icon' | 'app-icon'
 export type BrandLogoSize = 'sm' | 'md' | 'lg' | 'xl'
@@ -41,24 +40,23 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   variant = 'horizontal',
   size = 'md',
   className = '',
-  alt = 'Satukit — Satu Tempat, Banyak Solusi Digital',
+  alt = 'Beresin by Satukit — Urusan Berkas? Beresin Aja!',
   priority = false,
 }) => {
   const sizeClasses = SIZE_MAP[variant][size]
 
   if (variant === 'icon') {
     return (
-      <picture className={`inline-flex shrink-0 items-center justify-center ${className}`}>
-        <source srcSet={iconWebp} type="image/webp" />
+      <span className={`inline-flex shrink-0 items-center justify-center ${className}`}>
         <img
-          src={iconPng}
+          src={iconSvg}
           alt={alt}
           className={`object-contain ${sizeClasses}`}
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
           data-testid="satukit-icon"
         />
-      </picture>
+      </span>
     )
   }
 

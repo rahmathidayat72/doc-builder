@@ -1,16 +1,15 @@
+import html
 import io
-import tempfile
-import uuid
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
+import pymupdf
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.shared import Inches, Pt, RGBColor
 
-from app.api.health import detect_libreoffice
-from app.core.sandbox import SandboxConfig, run_sandboxed_subprocess
+A4_WIDTH = 595.0
+A4_HEIGHT = 842.0
 
 COLOR_INDIGO = RGBColor(67, 56, 202)
 COLOR_DARK = RGBColor(30, 41, 59)
@@ -50,7 +49,7 @@ def generate_ats_report_docx(analysis: dict[str, Any], resume_title: str = "Resu
     now_str = datetime.now().strftime("%d %B %Y, %H:%M")
     p_sub = doc.add_paragraph()
     run_sub = p_sub.add_run(
-        f"Dokumen: {resume_title}  |  Dihasilkan: {now_str}  |  Satukit Suite"
+        f"Dokumen: {resume_title}  |  Dihasilkan: {now_str}  |  Beresin by Satukit"
     )
     run_sub.font.size = Pt(9)
     run_sub.font.color.rgb = COLOR_MUTED
@@ -193,48 +192,146 @@ def generate_ats_report_docx(analysis: dict[str, Any], resume_title: str = "Resu
     return out
 
 
+def _esc(val: Any) -> str:
+    return html.escape(str(val or ""), quote=False)
+
+
 def generate_ats_report_pdf(
     analysis: dict[str, Any], resume_title: str = "Resume"
 ) -> tuple[io.BytesIO | None, str | None]:
     """
-    Mengonversi laporan evaluasi ATS menjadi berkas PDF via LibreOffice headless.
+    Merender laporan evaluasi ATS secara langsung menjadi berkas PDF menggunakan PyMuPDF.
     """
-    lo_available, lo_path = detect_libreoffice()
-    if not lo_available or not lo_path:
-        return None, "LIBREOFFICE_NOT_FOUND"
+    now_str = datetime.now().strftime("%d %B %Y, %H:%M")
+    score = analysis.get("score", analysis.get("overall_score", 0))
+    grade = analysis.get("grade", "D")
+    passed_count = analysis.get("passedChecksCount", 0)
+    total_count = analysis.get("totalChecksCount", 0)
+    breakdown = analysis.get("breakdown", {}) if isinstance(analysis.get("breakdown"), dict) else {}
+    recommendations = (
+        analysis.get("recommendations", [])
+        if isinstance(analysis.get("recommendations"), list)
+        else []
+    )
+    checklist = analysis.get("checklist", []) if isinstance(analysis.get("checklist"), list) else []
+    disclaimer = analysis.get(
+        "disclaimer",
+        "Skor ATS bersifat heuristik untuk mengevaluasi keterbacaan format mesin "
+        "dan bukan merupakan jaminan penerimaan kerja pada proses rekrutmen.",
+    )
 
-    docx_io = generate_ats_report_docx(analysis, resume_title)
+    pilar_rows = [
+        ("Kelengkapan Informasi Kontak", f"{breakdown.get('contact', 0)} poin", "25 poin"),
+        ("Kelengkapan Struktur Bagian Inti", f"{breakdown.get('structure', 0)} poin", "25 poin"),
+        ("Kepadatan & Kualitas Ringkasan", f"{breakdown.get('summary', 0)} poin", "20 poin"),
+        ("Pengukuran Dampak & Metrik", f"{breakdown.get('quantified_impact', 0)} poin", "20 poin"),
+        ("Integritas Konten & Anti-Stuffing", f"{breakdown.get('integrity', 0)} poin", "10 poin"),
+    ]
+    pilar_html = "".join(
+        f"<tr><td style='padding:3pt;'>{_esc(name)}</td>"
+        f"<td style='padding:3pt;'>{_esc(actual)}</td>"
+        f"<td style='padding:3pt;'>{_esc(max_pts)}</td></tr>"
+        for name, actual, max_pts in pilar_rows
+    )
 
-    with tempfile.TemporaryDirectory(prefix="docbuilder_report_") as tmpdir:
-        work_dir = Path(tmpdir)
-        input_docx = work_dir / f"ats_report_{uuid.uuid4().hex[:8]}.docx"
-        input_docx.write_bytes(docx_io.getvalue())
-
-        cmd = [
-            lo_path,
-            "--headless",
-            "--norestore",
-            "--nolockcheck",
-            "--nologo",
-            "--convert-to",
-            "pdf",
-            str(input_docx.name),
-            "--outdir",
-            str(work_dir),
-        ]
-
-        config = SandboxConfig(
-            working_dir=work_dir, timeout_sec=60.0, max_memory_mb=500, allow_network=False
+    if recommendations:
+        rec_html = (
+            "<ul>"
+            + "".join(f"<li>{_esc(rec)}</li>" for rec in recommendations if str(rec).strip())
+            + "</ul>"
+        )
+    else:
+        rec_html = (
+            "<p style='color:#047857;'>"
+            "Selamat! Dokumen Anda telah memenuhi seluruh kriteria dasar format ATS.</p>"
         )
 
-        result = run_sandboxed_subprocess(cmd, config)
+    h2_style = "color:#4338ca;font-size:11pt;margin:10pt 0 4pt 0;"
+    tbl_style = "font-size:8.5pt;border-color:#cbd5e1;width:100%;"
+    chk_rows_html = ""
+    if checklist:
+        chk_rows = []
+        for item in checklist:
+            if not isinstance(item, dict):
+                continue
+            cat = _esc(item.get("category", ""))
+            ind = _esc(item.get("item") or item.get("label") or "")
+            is_pass = bool(item.get("passed"))
+            status_text = "LOLOS" if is_pass else "PERLU CEK"
+            status_color = "#047857" if is_pass else "#b45309"
+            tip = _esc(item.get("tip") or item.get("message") or "")
+            chk_rows.append(
+                f"<tr><td style='padding:3pt;'>{cat}</td>"
+                f"<td style='padding:3pt;'>{ind}</td>"
+                f"<td style='padding:3pt;color:{status_color};font-weight:bold;'>{status_text}</td>"
+                f"<td style='padding:3pt;'>{tip}</td></tr>"
+            )
+        chk_rows_html = f"""
+        <h2 style="{h2_style}">3. STATUS CHECKLIST INDIKATOR</h2>
+        <table border="1" cellspacing="0" cellpadding="3" style="{tbl_style}">
+            <tr style="background-color:#f8fafc;font-weight:bold;">
+                <td>Kategori</td>
+                <td>Indikator Pemeriksaan</td>
+                <td>Status</td>
+                <td>Catatan Panduan</td>
+            </tr>
+            {"".join(chk_rows)}
+        </table>
+        """
 
-        expected_pdf = input_docx.with_suffix(".pdf")
-        if result.exit_code == 0 and expected_pdf.exists():
-            pdf_bytes = expected_pdf.read_bytes()
-            out = io.BytesIO(pdf_bytes)
-            out.seek(0)
-            return out, None
+    score_line = f"SKOR TOTAL: {_esc(score)} / 100   —   GRADE: {_esc(grade)}"
+    status_line = (
+        f"Status: {_esc(passed_count)} dari {_esc(total_count)} "
+        "indikator keterbacaan lolos uji evaluasi."
+    )
+    html_doc = f"""
+    <html>
+    <body style="font-family:sans-serif;font-size:9.5pt;color:#1e293b;line-height:1.35;">
+        <h1 style="color:#4338ca;font-size:17pt;margin:0 0 2pt 0;">
+            LAPORAN EVALUASI KETERBACAAN ATS
+        </h1>
+        <p style="color:#64748b;font-size:8.5pt;margin:0 0 10pt 0;">
+            Dokumen: {_esc(resume_title)}  |  Dihasilkan: {_esc(now_str)}  |  Beresin by Satukit
+        </p>
+        <p style="margin:4pt 0 8pt 0;">
+            <b style="color:#4338ca;font-size:12pt;">{score_line}</b><br/>
+            <span>{status_line}</span>
+        </p>
+        <h2 style="{h2_style}">1. RINCIAN SKOR 5 PILAR PENILAIAN</h2>
+        <table border="1" cellspacing="0" cellpadding="3" style="{tbl_style}">
+            <tr style="background-color:#f8fafc;font-weight:bold;">
+                <td>Pilar Struktur</td>
+                <td>Skor Tercapai</td>
+                <td>Bobot Maksimum</td>
+            </tr>
+            {pilar_html}
+        </table>
+        <h2 style="{h2_style}">2. REKOMENDASI TINDAKAN PRIORITAS</h2>
+        {rec_html}
+        {chk_rows_html}
+        <p style="color:#64748b;font-size:8pt;margin-top:14pt;">
+            <b>Catatan Penafian (Disclaimer):</b><br/>
+            {_esc(disclaimer)}
+        </p>
+    </body>
+    </html>
+    """
 
-        error_detail = result.error_message or result.stderr or "Gagal membuat PDF laporan ATS."
-        return None, f"REPORT_CONVERSION_FAILED: {error_detail}"
+    buf = io.BytesIO()
+    writer = pymupdf.DocumentWriter(buf)
+    story = pymupdf.Story(html=html_doc)
+    mediabox = pymupdf.Rect(0, 0, A4_WIDTH, A4_HEIGHT)
+    body_rect = pymupdf.Rect(42, 42, A4_WIDTH - 42, A4_HEIGHT - 42)
+
+    more = True
+    while more:
+        device = writer.begin_page(mediabox)
+        more, _ = story.place(body_rect)
+        story.draw(device)
+        writer.end_page()
+    writer.close()
+
+    pdf_doc = pymupdf.open("pdf", buf.getvalue())
+    out_bytes = pdf_doc.tobytes(garbage=3, deflate=True)
+    pdf_doc.close()
+    return io.BytesIO(out_bytes), None

@@ -174,6 +174,7 @@ describe('Navbar draft management', () => {
     expect(onNavigate).toHaveBeenCalledWith('home')
 
     const logoBtn = screen.getByTestId('btn-logo-home')
+    expect(logoBtn).toHaveAttribute('aria-label', 'Buka Beranda Beresin')
     expect(screen.getByTestId('satukit-horizontal-logo')).toBeInTheDocument()
 
     fireEvent.click(logoBtn)

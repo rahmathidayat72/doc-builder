@@ -24,6 +24,8 @@ def test_production_validation_fails_on_default_secrets() -> None:
     assert "SHORTENER_ADMIN_HMAC_SECRET" in err_msg
     assert "DATABASE_URL" in err_msg
     assert "PUBLIC_BASE_URL" in err_msg
+    assert "GOOGLE_CLIENT_ID" in err_msg
+    assert "GOOGLE_CLIENT_SECRET" in err_msg
 
 
 def test_production_validation_passes_with_strong_settings() -> None:
@@ -35,6 +37,8 @@ def test_production_validation_passes_with_strong_settings() -> None:
         SHORTENER_ADMIN_HMAC_SECRET="strong-shortener-secret-production-random-987",
         DATABASE_URL="postgresql+psycopg://satukit_user:StrongRandomPass123!@127.0.0.1:5432/satukit",
         PUBLIC_BASE_URL="https://satukit.id",
+        GOOGLE_CLIENT_ID="prod-client-id.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET="prod-client-secret-very-secure",
     )
     # Tidak melempar exception
     s.validate_production()

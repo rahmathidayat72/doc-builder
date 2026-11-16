@@ -61,6 +61,12 @@ async def convert_docx_to_pdf(file: Annotated[UploadFile, File()]):
                     },
                 )
 
+            if err_code and err_code.startswith("CONVERSION_BUSY"):
+                raise HTTPException(
+                    status_code=429,
+                    detail=err_code.removeprefix("CONVERSION_BUSY:").strip() or err_code,
+                )
+
             if not pdf_io or err_code:
                 raise HTTPException(status_code=500, detail=err_code or "Gagal mengonversi berkas.")
 
@@ -178,6 +184,12 @@ async def convert_presentation_to_pdf(file: Annotated[UploadFile, File()]):
                     },
                 )
 
+            if err_code and err_code.startswith("CONVERSION_BUSY"):
+                raise HTTPException(
+                    status_code=429,
+                    detail=err_code.removeprefix("CONVERSION_BUSY:").strip() or err_code,
+                )
+
             if not pdf_io or err_code:
                 raise HTTPException(
                     status_code=500, detail=err_code or "Gagal mengonversi presentasi ke PDF."
@@ -290,6 +302,12 @@ async def convert_spreadsheet_to_pdf(file: Annotated[UploadFile, File()]):
                             "Silakan instal LibreOffice gratis untuk mengaktifkan konversi."
                         ),
                     },
+                )
+
+            if err_code and err_code.startswith("CONVERSION_BUSY"):
+                raise HTTPException(
+                    status_code=429,
+                    detail=err_code.removeprefix("CONVERSION_BUSY:").strip() or err_code,
                 )
 
             if not pdf_io or err_code:

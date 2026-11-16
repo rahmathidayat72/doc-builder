@@ -1,11 +1,13 @@
 import ctypes
 import os
+import signal
 import subprocess
 import sys
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass
@@ -78,23 +80,27 @@ class WindowsJobObject:
         if sys.platform == "win32":
             kernel32 = ctypes.windll.kernel32
             self.handle = kernel32.CreateJobObjectW(None, None)
-            if self.handle:
-                info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-                info.BasicLimitInformation.LimitFlags = (
-                    self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-                    | self.JOB_OBJECT_LIMIT_PROCESS_MEMORY
-                    | self.JOB_OBJECT_LIMIT_JOB_MEMORY
-                )
-                limit_bytes = max_memory_mb * 1024 * 1024
-                info.ProcessMemoryLimit = limit_bytes
-                info.JobMemoryLimit = limit_bytes
+            if not self.handle:
+                raise RuntimeError("Gagal membuat Win32 Job Object untuk isolasi proses.")
+            info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+            info.BasicLimitInformation.LimitFlags = (
+                self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                | self.JOB_OBJECT_LIMIT_PROCESS_MEMORY
+                | self.JOB_OBJECT_LIMIT_JOB_MEMORY
+            )
+            limit_bytes = max_memory_mb * 1024 * 1024
+            info.ProcessMemoryLimit = limit_bytes
+            info.JobMemoryLimit = limit_bytes
 
-                kernel32.SetInformationJobObject(
-                    self.handle,
-                    self.JobObjectExtendedLimitInformation,
-                    ctypes.byref(info),
-                    ctypes.sizeof(info),
-                )
+            res = kernel32.SetInformationJobObject(
+                self.handle,
+                self.JobObjectExtendedLimitInformation,
+                ctypes.byref(info),
+                ctypes.sizeof(info),
+            )
+            if not res:
+                self.close()
+                raise RuntimeError("Gagal mengatur limit pada Win32 Job Object.")
 
     def assign_process(self, process_handle) -> bool:
         if sys.platform == "win32" and self.handle:
@@ -151,31 +157,48 @@ def run_sandboxed_subprocess(cmd: list[str], config: SandboxConfig) -> Execution
     exit_code = -1
     error_msg = None
 
-    creation_flags = 0
+    popen_kwargs: dict[str, Any] = {
+        "cwd": str(config.working_dir),
+        "env": env,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+    }
     if sys.platform == "win32":
-        creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
 
     try:
-        proc = subprocess.Popen(
-            cmd,
-            cwd=str(config.working_dir),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=creation_flags,
-        )
+        proc = subprocess.Popen(cmd, **popen_kwargs)
 
         if job and sys.platform == "win32":
-            job.assign_process(proc._handle)
+            assigned = job.assign_process(proc._handle)
+            if not assigned:
+                proc.kill()
+                proc.communicate()
+                raise RuntimeError("Gagal mendaftarkan proses ke Win32 Job Object (fail-closed).")
 
         try:
             stdout_data, stderr_data = proc.communicate(timeout=config.timeout_sec)
             exit_code = proc.returncode
         except subprocess.TimeoutExpired:
             timed_out = True
-            proc.kill()
-            stdout_data, stderr_data = proc.communicate()
+            if sys.platform == "win32":
+                proc.kill()
+                stdout_data, stderr_data = proc.communicate()
+            else:
+                try:
+                    pgid = os.getpgid(proc.pid)
+                    sigkill = getattr(signal, "SIGKILL", signal.SIGTERM)
+                    os.killpg(pgid, signal.SIGTERM)
+                    try:
+                        stdout_data, stderr_data = proc.communicate(timeout=1.5)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(pgid, sigkill)
+                        stdout_data, stderr_data = proc.communicate()
+                except ProcessLookupError:
+                    stdout_data, stderr_data = proc.communicate()
             exit_code = -9
             error_msg = f"Proses melampaui batas waktu ({config.timeout_sec}s)."
 

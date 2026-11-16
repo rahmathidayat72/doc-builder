@@ -149,6 +149,89 @@ Doc-builder berfokus pada keandalan rekonstruksi format dokumen, keakuratan atur
     - Upaya >1 download aktif per akun atau >2 lease download global (HTTP 429 / 503).
     - Hasil: Penegakan atomik di PostgreSQL menghentikan aksi berlebih secara akurat.
 
+### 2.8 Matriks Pengujian Compress Video (`CR-021` — `VC-01` s/d `VC-06`)
+1. **Streaming Upload & Batas Workspace:**
+   - Unggahan stream `application/octet-stream` + `X-Video-Metadata` base64url (MP4/MOV/WebM) tanpa memanggil `request.body()`.
+   - Ukuran `250.000.000` byte lulus; `250.000.001` byte ditolak HTTP 413 dan file parsial segera dihapus.
+   - Berkas kosong (0 B) ditolak HTTP 400; total workspace video global melampaui `1.25 GiB` ditolak fail-closed (HTTP 503/507).
+2. **ClamAV Pre-Probe Fail-Closed & Streaming `INSTREAM`:**
+   - `ClamAVScanner.scan_file()` mengirim chunk 64 KiB ke Unix socket tanpa memuat penuh file ke RAM (`f.read()`).
+   - Berkas EICAR ditolak sebelum `ffprobe` pernah dipanggil; daemon mati atau signature > 24 jam gagal tertutup.
+3. **Validasi `ffprobe`, Preset Kualitas, & Aturan Output:**
+   - Penolakan format di luar MP4/MOV/WebM, durasi > 600 detik, resolusi > 4K (landscape `3840x2160` / portrait `2160x3840`), dan frame rate > 60 FPS.
+   - Verifikasi 3 preset single-pass (`light` CRF 23/128k, `balanced` CRF 28/96k, `maximum` CRF 32/64k), tanpa upscale pada input ≤ 1080p atau ≤ 30 FPS, dukungan video tanpa track audio, dan penghapusan metadata/chapter (`-map_metadata -1 -map_chapters -1`).
+   - Simulasi `output_size_bytes >= input_size_bytes` memastikan output dihapus segera dan status gagal `OUTPUT_NOT_SMALLER`.
+4. **Sandbox `bubblewrap`, Process-Group Kill, & Pembersihan:**
+   - Verifikasi argumen `bubblewrap --unshare-net --die-with-parent` di Linux, hard timeout 45 menit (`2700s`), cancel job `queued`/`running`, cleanup file input segera setelah proses, serta startup recovery & sweeper TTL 15 menit.
+5. **Koordinasi Antrean PostgreSQL & Rate Limit:**
+   - Uji `pg_advisory_xact_lock`, partial unique index (1 job aktif/akun, 1 global `running`), `SELECT ... FOR UPDATE SKIP LOCKED`, kapasitas antrean global `1 running + 2 waiting` (ke-4 ditolak 429/503 + `Retry-After`), serta batas rolling 60 menit `3 job/jam` per akun dan per IP.
+6. **Otorisasi, Anti-BOLA, & Single-Use Download:**
+   - Penolakan `401`/`403` untuk akses anonim, Origin tidak diizinkan, CSRF hilang, dan email unverified di produksi; akses lintas akun mengembalikan `404`.
+   - Unduhan pertama mengembalikan berkas `<nama>_compressed.mp4` (`200`), transisi atomik `succeeded -> claimed` menghapus berkas setelah stream selesai, dan unduhan ulang ditolak (`409`/`410`).
+7. **Telemetry `/api/health` & Deployment Config:**
+   - `/api/health` menampilkan status ketersediaan `ffmpeg`/`ffprobe` (`apt`) dan kesegaran heartbeat worker tanpa membocorkan path internal host.
+   - Validasi statis `deploy/Caddyfile.example` (global 35 MB utuh + override matcher `POST /api/video-compressions`) dan unit `deploy/satukit-video-worker.service`.
+8. **Frontend UI, Login Guard, Aksesibilitas WCAG 2.2 AA, & E2E:**
+   - `CompressVideoModal.tsx` (`vitest` progress stream, polling status, cancel, pesan `OUTPUT_NOT_SMALLER`), guard `#/tools` menuju `#/login` untuk pengguna anonim (`app.integration.test.tsx`), `0` pelanggaran `vitest-axe` (`accessibility.test.tsx`), dan Playwright E2E `stat-tools-count` = `'26'`.
+
+### 2.9 Matriks Pengujian MP4 ke MP3 (`CR-022` — `MP3-00` s/d `MP3-04`)
+1. **Model & Skema Antrean Bersama (`MP3-00`):**
+   - Migrasi Alembic `005_mp4_to_mp3.py` menambah kolom `job_type` (`compress` vs `extract_audio`) dan memperluas check constraint preset (`light`, `balanced`, `maximum`, `128k`, `192k`, `320k`).
+   - Repository `VideoCompressionRepository` mendukung pembuatan dan klaim job bertipe `extract_audio`.
+   - Shared limits teruji: job video compression dan extract audio berbagi slot konkurensi (1 aktif per user, 1 global running).
+2. **Audio Probing & Validasi Stream (`MP3-01`):**
+   - Penolakan format selain `.mp4` (MOV dan WebM ditolak untuk tool MP4 ke MP3).
+   - Penolakan berkas video tanpa stream audio sama sekali dengan kode error `NO_AUDIO_STREAM` sebelum masuk ke encoding.
+   - Deteksi stream default: jika terdapat beberapa stream audio, otomatis memilih stream dengan flag `default` (fallback ke stream audio pertama `0:a:0`).
+   - Deteksi channel: jika channel audio > 2 (misal surround 5.1), dipaksa downmix stereo `-ac 2`.
+3. **Eksekusi Encoding MP3 & Worker Pipeline (`MP3-01` / `MP3-02`):**
+   - Pemanggilan FFmpeg dengan `libmp3lame`, preset bitrate CBR yang sesuai (`128k`, `192k`, `320k`), `-vn`, `-map_metadata -1 -map_chapters -1`.
+   - Output filename `<stem>_audio.mp3`.
+   - Pembersihan berkas input segera setelah ekstraksi berhasil atau gagal.
+   - Hard timeout 10 menit (600s) untuk ekstraksi audio.
+4. **Endpoint API & Single-Use Download (`MP3-02`):**
+   - `POST /api/video-compressions` dengan header `X-Video-Metadata` berisi `job_type="extract_audio"` dan preset MP3.
+   - Status polling `/api/video-compressions/{job_id}` mengembalikan detail progres dan output filename MP3.
+   - Unduhan `/api/video-compressions/{job_id}/download` menyajikan file MP3 dengan Content-Type `audio/mpeg`, Content-Disposition `<stem>_audio.mp3`.
+   - Single-use claim: setelah unduh, status berubah ke `claimed` dan file dihapus dari disk.
+   - Audit trail non-PII dicatat (`mp4_to_mp3_requested`, `mp4_to_mp3_downloaded`).
+5. **Frontend UI Modal, Checkbox Hak Cipta, & WCAG 2.2 AA (`MP3-03` / `MP3-04`):**
+   - `Mp4ToMp3Modal.tsx` dengan dropzone MP4-only, pilihan preset bitrate (128k, 192k default, 320k), checkbox konfirmasi hak kepemilikan audio wajib.
+   - Indikator progres upload dan processing (antrean/konversi).
+   - Penanganan error responsif (`NO_AUDIO_STREAM`, timeout, kuota penuh).
+   - Tool card #27 di direktori `#/tools` dengan guard login wajib (`requiresAuth: true`).
+   - Uji aksesibilitas `vitest-axe` 0 pelanggaran dan Playwright E2E verifikasi `stat-tools-count` = `'27'`.
+
+### 2.10 Matriks Pengujian Video ke Teks (`CR-023` — `VTT-00` s/d `VTT-05`)
+1. **Model & Skema Antrean Bersama (`VTT-01`):**
+   - Migrasi Alembic `006_video_to_text.py` memperluas kolom `job_type` (`compress`, `extract_audio`, `transcribe`) dan check constraint preset (`light`, `balanced`, `maximum`, `128k`, `192k`, `320k`, `auto`, `id`, `en`).
+   - Repository `VideoCompressionRepository` mendukung pembuatan dan klaim job bertipe `transcribe`.
+   - Shared limits teruji: job kompresi video, ekstraksi audio, dan transkripsi berbagi slot konkurensi (1 aktif per user, 1 global running).
+2. **Audio Extraction, Probing, & VAD Filtering (`VTT-02`):**
+   - Penolakan format selain `.mp4` (ekstensi non-MP4 ditolak HTTP 422).
+   - Penolakan berkas video tanpa stream audio dengan kode error `NO_AUDIO_STREAM` sebelum masuk antrean model.
+   - Ekstraksi audio perantara via FFmpeg ke format PCM WAV 16kHz mono 16-bit (`-ar 16000 -ac 1 -c:a pcm_s16le`).
+   - VAD (Voice Activity Detection) fail-closed: audio tanpa ucapan yang dapat dikenali ditolak dengan `NO_SPEECH`.
+3. **Eksekusi Transkripsi, Dokumen Generator, & ZIP Packager (`VTT-02`):**
+   - Integrasi service transkripsi offline CPU-only (kuantisasi int8) dengan opsi bahasa `auto`, `id`, dan `en`.
+   - Generator teks `.txt` bertimestamp segmen `[HH:MM:SS - HH:MM:SS]`.
+   - Generator subtitel `.srt` standar SubRip `HH:MM:SS,mmm --> HH:MM:SS,mmm`.
+   - Generator dokumen Microsoft Word `.docx` (via `python-docx`) dengan struktur tabel rapi dan disclaimer verifikasi manusia.
+   - Pengemas ZIP: membuat `<stem>_transcript.zip` yang memuat tepat ketiga berkas tersebut, integritas arsip tervalidasi, tanpa symlink atau path traversal.
+   - Pembersihan berkas audio perantara `.wav` seketika setelah inferensi selesai.
+4. **Endpoint API, Ephemeral Preview, & Single-Use Download (`VTT-03`):**
+   - `POST /api/video-compressions` dengan header `X-Video-Metadata` berisi `job_type="transcribe"`, `preset="auto"|"id"|"en"`, dan `owner_confirmed=true`.
+   - Status polling `/api/video-compressions/{job_id}` mengembalikan pratinjau baca-saja `transcript_preview` saat job berstatus `succeeded`.
+   - Unduhan `/api/video-compressions/{job_id}/download` menyajikan paket ZIP dengan Content-Type `application/zip`, Content-Disposition `<stem>_transcript.zip`.
+   - Single-use claim: setelah unduh, status berubah ke `claimed` dan direktori workspace (termasuk ZIP dan `preview.json`) langsung dihapus. Replay download menghasilkan HTTP 410.
+   - Redaksi audit trail non-PII (`action="video_to_text_requested"`, `action="video_to_text_downloaded"`).
+5. **Frontend UI Modal, Pratinjau Read-Only, & WCAG 2.2 AA (`VTT-04` / `VTT-05`):**
+   - `VideoToTextModal.tsx` dengan dropzone MP4, selektor bahasa (`auto` default, `id`, `en`), checkbox ganda konfirmasi kepemilikan dan izin suara.
+   - Tampilan progres bertahap (`uploading` -> `queued` -> `scanning` -> `probing` -> `extracting_audio` -> `transcribing` -> `packaging`).
+   - Komponen pratinjau baca-saja semantik (daftar segmen berwaktu) yang mudah ditinjau sebelum/setelah unduh.
+   - Tool card #28 di direktori `#/tools` dengan guard login wajib (`requiresAuth: true`).
+   - Uji aksesibilitas `vitest-axe` 0 pelanggaran dan Playwright E2E verifikasi `stat-tools-count` = `'28'`.
+
 ## 3. Automation & Quality Commands
 
 Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026-11-11. Contoh path backend menggunakan Linux/macOS; di Windows gunakan `backend\.venv\Scripts\python.exe` dan `backend\.venv\Scripts\pytest.exe`.
@@ -170,5 +253,7 @@ Command di bawah adalah tooling yang benar-benar tersedia di repository per 2026
 | SCA frontend | `npm --prefix frontend audit` | Tersedia |
 | SCA backend | `pip-audit` | Tersedia hanya di environment eksternal; bukan dependency `.venv` |
 | DAST/API test | — | Belum ada tool khusus; negative API test dijalankan via Pytest |
+| Subprocess & LibreOffice Unit Test (`OFF-01`) | `backend/.venv/Scripts/python -m pytest backend/tests/test_sandbox.py backend/tests/test_libreoffice.py -v` | Tersedia & LULUS (`14/14` unit test baru; `34/34` gabungan converter; `375/375` full suite) |
+| Beta Coming Soon Gate Test (`BETA-01`) | `backend/.venv/Scripts/python -m pytest backend/tests/test_beta_feature_gates.py -v` | Tersedia & LULUS (`16/16` test gate `503 FEATURE_COMING_SOON` + `84/84` gabungan legacy suites) |
 
 **Catatan:** Biome, Bandit, Semgrep, `uv sync`, dan `npm run typecheck` tidak tersedia sebagai konfigurasi proyek saat ini. Jangan menyalin command lama dari dokumen historis tanpa memeriksa manifest.

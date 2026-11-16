@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import secrets
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -11,11 +14,14 @@ from app.core.rate_limiter import get_client_ip, rate_limiter
 from app.core.security import (
     LEGACY_SESSION_COOKIE_NAME,
     SESSION_COOKIE_NAME,
+    hash_token,
     session_manager,
+    verify_password,
 )
-from app.services.auth_service import auth_service
+from app.services.auth_service import AccountMergeRequiredError, auth_service
 from app.services.bot_challenge import bot_challenge_service
 from app.services.brevo import brevo_service
+from app.services.google_oidc import generate_pkce_pair, google_oidc_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -47,6 +53,52 @@ def _clear_session_cookie(response: Response) -> None:
         httponly=True,
         samesite="lax",
     )
+
+
+def _set_oauth_tx_cookie(response: Response, binding_token: str) -> None:
+    """Menyetel cookie sementara pengikat browser untuk alur OAuth (TTL 10 menit)."""
+    response.set_cookie(
+        key=settings.GOOGLE_OAUTH_COOKIE_NAME,
+        value=binding_token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        secure=settings.IS_PRODUCTION,
+        max_age=settings.GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS,
+    )
+
+
+def _clear_oauth_tx_cookie(response: Response) -> None:
+    """Menghapus cookie sementara transaksi OAuth."""
+    response.delete_cookie(
+        key=settings.GOOGLE_OAUTH_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def _google_redirect(status: str) -> RedirectResponse:
+    """Menghasilkan respon pengalihan callback Google yang aman (anti-open-redirect)."""
+    if status.startswith("google_login_success") or status.startswith("google_link_success"):
+        target = f"/#/home?auth_status={status}"
+    else:
+        target = f"/#/login?auth_status={status}"
+    resp = RedirectResponse(target, status_code=303)
+    _clear_oauth_tx_cookie(resp)
+    resp.headers["Cache-Control"] = "no-store"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
+
+
+def _resolve_base_url(request: Request) -> str:
+    """Mengembalikan base URL aplikasi. Di development, menyesuaikan host request (127.0.0.1 / localhost)."""
+    if not settings.IS_PRODUCTION:
+        host = request.headers.get("host")
+        if host and ("127.0.0.1" in host or "localhost" in host):
+            scheme = request.url.scheme or "http"
+            return f"{scheme}://{host}"
+    return settings.PUBLIC_BASE_URL
 
 
 # --- Schemas ---
@@ -131,6 +183,14 @@ class AuthResponse(BaseModel):
     csrf_token: str
 
 
+class LinkGoogleStartRequest(BaseModel):
+    current_password: str
+
+
+class UnlinkGoogleRequest(BaseModel):
+    current_password: str
+
+
 # --- Multi-User Endpoints ---
 
 
@@ -195,7 +255,8 @@ def resend_verification(req: ResendVerificationRequest, request: Request):
     payload: dict[str, Any] = {
         "success": True,
         "message": (
-            "Jika alamat email terdaftar dan belum diverifikasi, tautan verifikasi baru telah dikirimkan."
+            "Jika alamat email terdaftar dan belum diverifikasi, "
+            "tautan verifikasi baru telah dikirimkan."
         ),
     }
     if result is not None:
@@ -233,7 +294,10 @@ def login_init(req: LoginInitRequest, request: Request):
     if settings.IS_PRODUCTION and not user.email_verified:
         raise HTTPException(
             status_code=403,
-            detail="Alamat email belum diverifikasi. Silakan periksa email Anda atau minta tautan verifikasi baru.",
+            detail=(
+                "Alamat email belum diverifikasi. "
+                "Silakan periksa email Anda atau minta tautan verifikasi baru."
+            ),
         )
     ch = bot_challenge_service.generate_challenge(user_id=user.id)
     return LoginInitResponse(
@@ -433,6 +497,240 @@ def delete_account(request: Request, response: Response):
     auth_service.delete_user_account(current_user.id)
     _clear_session_cookie(response)
     return {"success": True, "message": "Akun Anda berhasil dihapus secara permanen."}
+
+
+# --- Google OpenID Connect Endpoints ---
+
+
+@router.get("/google/start")
+def google_auth_start(request: Request):
+    """Memulai alur masuk atau daftar Google OpenID Connect (PKCE + Anti-CSRF)."""
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        return _google_redirect("google_not_configured")
+
+    now = time.time()
+    try:
+        auth_service.repo.cleanup_expired_oauth_transactions(now)
+
+        code_verifier, code_challenge = generate_pkce_pair()
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+        browser_binding = secrets.token_urlsafe(32)
+
+        state_hash = hash_token(state)
+        browser_binding_hash = hash_token(browser_binding)
+        expires_at = now + settings.GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS
+
+        auth_service.repo.create_oauth_transaction(
+            state_hash=state_hash,
+            provider="google",
+            intent="login",
+            user_id=None,
+            browser_binding_hash=browser_binding_hash,
+            code_verifier=code_verifier,
+            nonce=nonce,
+            created_at=now,
+            expires_at=expires_at,
+        )
+
+        redirect_uri = google_oidc_service.get_redirect_uri(_resolve_base_url(request))
+        auth_url = google_oidc_service.build_authorization_url(
+            state=state,
+            nonce=nonce,
+            code_challenge=code_challenge,
+            redirect_uri=redirect_uri,
+        )
+
+        resp = RedirectResponse(auth_url, status_code=303)
+        _set_oauth_tx_cookie(resp, browser_binding)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+    except Exception:
+        return _google_redirect("google_temporarily_unavailable")
+
+
+@router.post("/google/link/start")
+def google_link_start(req: LinkGoogleStartRequest, request: Request):
+    """Memvalidasi kata sandi akun dan menyiapkan otorisasi penautan akun Google."""
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Layanan autentikasi Google belum dikonfigurasi pada server. "
+                "Harap atur GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET di berkas .env."
+            ),
+        )
+
+    current_user = getattr(request.state, "current_user", None)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Harap masuk terlebih dahulu.")
+
+    if current_user.has_password:
+        if not req.current_password or not verify_password(
+            req.current_password, current_user.password_hash or ""
+        ):
+            raise HTTPException(status_code=400, detail="Kata sandi saat ini tidak valid.")
+
+    now = time.time()
+    auth_service.repo.cleanup_expired_oauth_transactions(now)
+
+    code_verifier, code_challenge = generate_pkce_pair()
+    state = secrets.token_urlsafe(32)
+    nonce = secrets.token_urlsafe(32)
+    browser_binding = secrets.token_urlsafe(32)
+
+    state_hash = hash_token(state)
+    browser_binding_hash = hash_token(browser_binding)
+    expires_at = now + settings.GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS
+
+    auth_service.repo.create_oauth_transaction(
+        state_hash=state_hash,
+        provider="google",
+        intent="link",
+        user_id=current_user.id,
+        browser_binding_hash=browser_binding_hash,
+        code_verifier=code_verifier,
+        nonce=nonce,
+        created_at=now,
+        expires_at=expires_at,
+    )
+
+    redirect_uri = google_oidc_service.get_redirect_uri(_resolve_base_url(request))
+    auth_url = google_oidc_service.build_authorization_url(
+        state=state,
+        nonce=nonce,
+        code_challenge=code_challenge,
+        redirect_uri=redirect_uri,
+    )
+
+    resp = JSONResponse(content={"success": True, "auth_url": auth_url})
+    _set_oauth_tx_cookie(resp, browser_binding)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@router.get("/google/callback")
+def google_auth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    """Menangani kembalian dari Google Identity, memvalidasi PKCE, dan menyetel sesi."""
+    if error:
+        return _google_redirect("google_cancelled")
+
+    if not code or not state:
+        return _google_redirect("google_invalid_response")
+
+    browser_binding = request.cookies.get(settings.GOOGLE_OAUTH_COOKIE_NAME)
+    if not browser_binding:
+        return _google_redirect("google_invalid_response")
+
+    state_hash = hash_token(state)
+    browser_binding_hash = hash_token(browser_binding)
+    now = time.time()
+
+    tx = auth_service.repo.claim_oauth_transaction(
+        state_hash=state_hash,
+        browser_binding_hash=browser_binding_hash,
+        now=now,
+    )
+    if not tx:
+        return _google_redirect("google_invalid_response")
+
+    redirect_uri = google_oidc_service.get_redirect_uri(_resolve_base_url(request))
+    try:
+        tokens = google_oidc_service.exchange_code_for_tokens(
+            code=code,
+            code_verifier=tx.code_verifier,
+            redirect_uri=redirect_uri,
+        )
+    except Exception:
+        return _google_redirect("google_temporarily_unavailable")
+
+    try:
+        user_info = google_oidc_service.verify_id_token(
+            id_token_jwt=tokens["id_token"],
+            expected_nonce=tx.nonce,
+        )
+    except Exception:
+        return _google_redirect("google_invalid_response")
+
+    if tx.intent == "login":
+        try:
+            user = auth_service.authenticate_or_register_google(
+                provider_user_id=user_info["sub"],
+                email=user_info["email"],
+                name=user_info["name"],
+                email_verified=True,
+                avatar_url=user_info.get("avatar_url"),
+            )
+        except AccountMergeRequiredError:
+            return _google_redirect("account_merge_required")
+        except Exception:
+            return _google_redirect("google_temporarily_unavailable")
+
+        # Sesi baru: cabut sesi lama jika ada
+        old_session = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
+            LEGACY_SESSION_COOKIE_NAME
+        )
+        if old_session:
+            auth_service.revoke_session(old_session)
+
+        client_ip = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        raw_token, _, _ = auth_service.create_session(
+            user.id, ip_address=client_ip, user_agent=user_agent
+        )
+
+        resp = _google_redirect("google_login_success")
+        _set_session_cookie(resp, raw_token)
+        return resp
+
+    if tx.intent == "link":
+        session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
+            LEGACY_SESSION_COOKIE_NAME
+        )
+        user_session = (
+            auth_service.validate_session(session_cookie) if session_cookie else None
+        )
+        if not user_session or user_session[0].id != tx.user_id:
+            return _google_redirect("google_invalid_response")
+
+        try:
+            auth_service.link_google_account(
+                user_id=tx.user_id,
+                provider_user_id=user_info["sub"],
+                email=user_info["email"],
+                avatar_url=user_info.get("avatar_url"),
+                bypass_password_check=True,
+            )
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                return _google_redirect("google_link_conflict")
+            return _google_redirect("google_link_error")
+        except Exception:
+            return _google_redirect("google_temporarily_unavailable")
+
+        return _google_redirect("google_link_success")
+
+    return _google_redirect("google_invalid_response")
+
+
+@router.post("/google/unlink")
+def google_unlink(req: UnlinkGoogleRequest, request: Request):
+    """Memutuskan tautan akun Google dengan verifikasi kata sandi."""
+    current_user = getattr(request.state, "current_user", None)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Harap masuk terlebih dahulu.")
+
+    auth_service.unlink_google_account(
+        user_id=current_user.id,
+        current_password=req.current_password,
+    )
+    return {"success": True, "message": "Tautan akun Google berhasil diputuskan."}
 
 
 # --- Backward Compatible Endpoints ---

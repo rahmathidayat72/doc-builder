@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-# ponytail: stdlib env loader handles .env & os.environ, add pydantic-settings when nested config trees needed.
+
+# ponytail: stdlib env loader handles .env & os.environ;
+# add pydantic-settings when nested config trees needed.
 def _find_and_load_env() -> None:
     candidates = [
         Path.cwd() / ".env",
@@ -18,7 +21,7 @@ def _find_and_load_env() -> None:
     for p in candidates:
         if p.is_file():
             try:
-                with open(p, "r", encoding="utf-8") as f:
+                with open(p, encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if not line or line.startswith("#") or "=" not in line:
@@ -80,13 +83,15 @@ def _env_list(key: str, default: list[str]) -> list[str]:
 
 class Settings(BaseModel):
     PROJECT_NAME: str = Field(
-        default_factory=lambda: _env_str("PROJECT_NAME", "Satukit Backend API")
+        default_factory=lambda: _env_str("PROJECT_NAME", "Beresin by Satukit API")
     )
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = Field(default_factory=lambda: _env_str("ENVIRONMENT", "development"))
     IS_PRODUCTION: bool = Field(
-        default_factory=lambda: _env_bool("IS_PRODUCTION", False)
-        or (_env_str("ENVIRONMENT", "development").lower() in ("production", "prod"))
+        default_factory=lambda: (
+            _env_bool("IS_PRODUCTION", False)
+            or (_env_str("ENVIRONMENT", "development").lower() in ("production", "prod"))
+        )
     )
     PUBLIC_BASE_URL: str = Field(
         default_factory=lambda: _env_str("PUBLIC_BASE_URL", "http://localhost:5173")
@@ -140,6 +145,9 @@ class Settings(BaseModel):
             ),
         )
     )
+    BETA_COMING_SOON_GATES_ENABLED: bool = Field(
+        default_factory=lambda: _env_bool("BETA_COMING_SOON_GATES_ENABLED", True)
+    )
 
     # Path konfigurasi
     BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
@@ -167,6 +175,13 @@ class Settings(BaseModel):
     SESSION_TTL_DAYS: int = 30  # 30 hari sesi aktif
     AUTH_TOKEN_TTL_MINUTES: int = 15  # TTL token reset password / verifikasi 15 menit (NFR-SEC-006)
     GOOGLE_CLIENT_ID: str | None = Field(default_factory=lambda: _env_opt_str("GOOGLE_CLIENT_ID"))
+    GOOGLE_CLIENT_SECRET: str | None = Field(
+        default_factory=lambda: _env_opt_str("GOOGLE_CLIENT_SECRET")
+    )
+    GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS: int = Field(
+        default_factory=lambda: _env_int("GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS", 600)
+    )
+    GOOGLE_OAUTH_COOKIE_NAME: str = "satukit_google_oauth_tx"
     BOT_CHALLENGE_SECRET: str = Field(
         default_factory=lambda: _env_str(
             "BOT_CHALLENGE_SECRET", "satukit-bot-challenge-secret-local-2026"
@@ -208,9 +223,11 @@ class Settings(BaseModel):
 
     # Konfigurasi Email Transaksional (Brevo API)
     BREVO_API_KEY: str | None = Field(default_factory=lambda: _env_opt_str("BREVO_API_KEY"))
-    BREVO_SENDER_EMAIL: str | None = Field(default_factory=lambda: _env_opt_str("BREVO_SENDER_EMAIL"))
+    BREVO_SENDER_EMAIL: str | None = Field(
+        default_factory=lambda: _env_opt_str("BREVO_SENDER_EMAIL")
+    )
     BREVO_SENDER_NAME: str = Field(
-        default_factory=lambda: _env_str("BREVO_SENDER_NAME", "Satukit")
+        default_factory=lambda: _env_str("BREVO_SENDER_NAME", "Beresin by Satukit")
     )
 
     # Konfigurasi Backup Terenkripsi Cloudflare R2
@@ -232,9 +249,36 @@ class Settings(BaseModel):
         )
     )
     BACKUP_ENCRYPTION_KEY_FILE: Path | None = Field(
-        default_factory=lambda: Path(_env_str("BACKUP_ENCRYPTION_KEY_FILE", ""))
-        if _env_opt_str("BACKUP_ENCRYPTION_KEY_FILE")
-        else None
+        default_factory=lambda: (
+            Path(_env_str("BACKUP_ENCRYPTION_KEY_FILE", ""))
+            if _env_opt_str("BACKUP_ENCRYPTION_KEY_FILE")
+            else None
+        )
+    )
+
+    # Konfigurasi Compress Video (CR-021)
+    VIDEO_COMPRESSION_MAX_FILE_BYTES: int = 250_000_000
+    VIDEO_COMPRESSION_WORKSPACE_MAX_BYTES: int = 1_342_177_280  # 1.25 GiB
+    VIDEO_COMPRESSION_CHUNK_SIZE: int = 65_536  # 64 KiB
+    VIDEO_COMPRESSION_MAX_DURATION_SECONDS: int = 600
+    VIDEO_COMPRESSION_MAX_WIDTH: int = 3840
+    VIDEO_COMPRESSION_MAX_HEIGHT: int = 2160
+    VIDEO_COMPRESSION_MAX_FPS: int = 60
+    VIDEO_COMPRESSION_TARGET_MAX_DIM: int = 1080
+    VIDEO_COMPRESSION_TARGET_MAX_FPS: int = 30
+    VIDEO_COMPRESSION_HOURLY_JOB_LIMIT: int = 3
+    VIDEO_COMPRESSION_GLOBAL_RUNNING_LIMIT: int = 1
+    VIDEO_COMPRESSION_QUEUE_CAPACITY: int = 2
+    VIDEO_COMPRESSION_TIMEOUT_SECONDS: int = 2700  # 45 menit
+    VIDEO_COMPRESSION_FILE_TTL_SECONDS: int = 900  # 15 menit
+    VIDEO_COMPRESSION_ROW_RETENTION_SECONDS: int = 86400  # 24 jam retensi baris audit/rate-limit
+    VIDEO_COMPRESSION_WORKSPACE_DIR: Path = Field(
+        default_factory=lambda: Path(
+            _env_str(
+                "VIDEO_COMPRESSION_WORKSPACE_DIR",
+                str(Path(tempfile.gettempdir()) / "satukit_video_jobs"),
+            )
+        )
     )
 
     def validate_production(self) -> None:
@@ -258,6 +302,10 @@ class Settings(BaseModel):
             )
         if not self.PUBLIC_BASE_URL.startswith("https://"):
             errors.append("PUBLIC_BASE_URL wajib menggunakan protokol HTTPS di produksi")
+        if not self.GOOGLE_CLIENT_ID:
+            errors.append("GOOGLE_CLIENT_ID wajib diatur di produksi")
+        if not self.GOOGLE_CLIENT_SECRET:
+            errors.append("GOOGLE_CLIENT_SECRET wajib diatur di produksi")
         if errors:
             raise ValueError("Konfigurasi produksi tidak valid:\n- " + "\n- ".join(errors))
 

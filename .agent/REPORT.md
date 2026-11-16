@@ -4,6 +4,1852 @@ Laporan ini mencatat setiap eksekusi task, Planned vs Actual, hasil pengujian, a
 
 ---
 
+## GOOGLE-OIDC-001 — Autentikasi Google OpenID Connect PKCE Backend & Linking/Unlinking Akun — 2026-11-16
+
+**Task:** `GOOGLE-OIDC-001`
+**Requirement:** `CR-026`, `DEC-033`, `BUS-017`, `FR-042`, `NFR-SEC-006`, `NFR-SEC-007`, `BRULE-013`
+
+### Ringkasan
+1. Menambahkan dependensi `google-auth[requests]>=2.38.0,<3.0.0` pada `backend/pyproject.toml`.
+2. Menyusun revisi migrasi skema Alembic `007_google_oidc.py` (`users.avatar_url` dan tabel `oauth_transactions`).
+3. Mengembangkan modul layanan `backend/app/services/google_oidc.py` untuk pembuatan PKCE code verifier/challenge (`S256`), pembangunan URL otorisasi, pertukaran authorization code, validasi ID token Google (issuer, audience, nonce, `email_verified=true`), serta sanitasi URL avatar (`https://*.googleusercontent.com`).
+4. Menyempurnakan `backend/app/services/auth_service.py` untuk pendaftaran/login akun Google, pencegahan auto-merge akun lokal ber-password (`ACCOUNT_MERGE_REQUIRED`), penautan akun dengan verifikasi kata sandi aktif, serta pemutusan akun dengan syarat keberadaan password lokal.
+5. Mengekspos endpoint API backend di `backend/app/api/auth.py`: `GET /api/auth/google/start`, `GET /api/auth/google/callback`, `POST /api/auth/google/link/start`, dan `POST /api/auth/google/unlink`.
+6. Menyesuaikan antarmuka frontend:
+   - `frontend/src/services/auth.ts`: menambahkan interface `OAuthAccount`, field `avatar_url`, helper `startGoogleLink`, `unlinkGoogle`, dan validasi URL avatar.
+   - `frontend/src/components/auth/LoginPage.tsx`: tombol "Lanjutkan dengan Google" / "Daftar dengan Google" dan penanganan error status.
+   - `frontend/src/components/layout/Navbar.tsx`: render avatar Google beratribut `referrerPolicy="no-referrer"`, badge status akun Google, serta dialog konfirmasi kata sandi link & unlink.
+   - `frontend/src/App.tsx`: penguraian hash query `auth_status` dan toast notifikasi integrasi Google.
+7. Memperbarui `deploy/Caddyfile.example` dengan izin CSP `img-src` untuk `https://*.googleusercontent.com` dan `deploy/satukit.env.example` untuk konfigurasi klien Google.
+
+### Kesesuaian dengan Code Plan
+- 100% mematuhi persyaratan: Backend PKCE murni tanpa SDK frontend, tanpa refresh token offline, timing-safe transaction binding via cookie HttpOnly dan DB, penolakan auto-merge, penautan/pemutusan sadar password, dan sanitasi avatar.
+
+### File Dibuat
+- `backend/alembic/versions/007_google_oidc.py`
+- `backend/app/services/google_oidc.py`
+- `backend/tests/test_google_oidc.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `backend/app/db/models.py`
+- `backend/app/db/session.py`
+- `backend/app/db/repositories/auth_repository.py`
+- `backend/app/services/auth_service.py`
+- `backend/app/api/auth.py`
+- `backend/tests/test_auth_api.py`
+- `backend/tests/test_auth_service.py`
+- `backend/tests/test_production_config.py`
+- `frontend/src/services/auth.ts`
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/components/auth/__tests__/LoginPage.test.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/App.tsx`
+- `deploy/Caddyfile.example`
+- `deploy/satukit.env.example`
+- `.agent/TASKS.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Hasil Pengujian & Verifikasi
+- Backend Pytest: `407/407` lulus (termasuk unit tests API, service, repository, OIDC, dan production hardening).
+- Frontend Vitest: `52/52` suite (414 tests) lulus.
+- Frontend Production Build: `tsc -b && vite build` sukses.
+- Backend Ruff Linter: 0 error pada seluruh file terkait.
+- Secret Scanner: 1.652 berkas diperiksa, 0 kebocoran secret ditemukan.
+
+---
+
+## REBRAND-BERESIN-001 — Rebranding Aplikasi ke "Beresin by Satukit" ("Urusan Berkas? Beresin Aja!") — 2026-11-16
+
+**Task:** `REBRAND-BERESIN-001`
+**Requirement:** `CR-025`, `DEC-032`, `NFR-UX-002`, `NFR-COMP-002`
+
+### Ringkasan
+1. Mengintegrasikan aset identitas resmi dari folder `Beresin_Brand_Kit`: logo horizontal, logomark squircle, icon SVG, dan maskot Kitu beresolusi tinggi ke `frontend/src/assets` dan `frontend/public`.
+2. Memperbarui metadata HTML di `frontend/index.html`: title `Beresin by Satukit — Urusan Berkas? Beresin Aja!`, Open Graph title & image, PWA webmanifest, dan theme-color `#0F9D8A`.
+3. Memperbarui landing page & hero di `Dashboard.tsx`: headline *"Urusan Berkas? Beresin Aja!"*, subheadline *"Buat CV, kelola PDF, konversi dokumen, dan siapkan pasfoto dalam satu tempat."*, badge *"Beresin by Satukit"*, balon bicara Kitu *"Halo, aku Kitu! Asisten digitalmu di Beresin by Satukit."*, serta judul seksi *"Fitur Unggulan Beresin"* & *"Cara Menggunakan Beresin"*.
+4. Mengalihkan komponen UI ke identitas Beresin: `BrandLogo.tsx`, `BrandMascot.tsx`, `Navbar.tsx` (topbar logo, aria-label, menu Tentang/Panduan), `Footer.tsx` (`© 2026 Beresin by Satukit · Urusan Berkas? Beresin Aja!`), `LoginPage.tsx` (`Masuk ke Beresin`), template CV `VisualExecutive.tsx` (`Beresin Executive`), dan modal-modal utilitas.
+5. Menyelaraskan teks publik backend: default `PROJECT_NAME="Beresin by Satukit API"` dan `BREVO_SENDER_NAME="Beresin by Satukit"` di `config.py`, template email transaksional di `brevo.py`, watermark/footer laporan ATS di `ats_report_generator.py` dan `pdf_generator.py`, pesan error di `auth_service.py` & `file_inspector.py`, serta template `deploy/satukit.env.example`.
+6. Mempertahankan 100% identifier internal `satukit_*`: IndexedDB `satukit_db`, session cookie `satukit_session`, localStorage `satukit_theme`, `satukit_shortened_links`, database/user PostgreSQL `satukit` / `satukit_user`, AAD `satukit:fileshelf:v1:*`, logger `satukit.*`, test ID (`satukit-horizontal-logo`, `satukit-icon`, `satukit-app-icon`), dan ekstensi berkas `.docbuilder`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, copy, dan invariant teknis 100% sesuai dengan code plan Gerbang 3 `REBRAND-BERESIN-001` yang disetujui.
+
+### File Dibuat
+- `frontend/public/beresin-app-icon.png`
+- `frontend/public/beresin-app-icon.svg`
+- `frontend/public/beresin-logo.png`
+- `frontend/public/manifest.webmanifest`
+- `frontend/public/og-cover.png`
+- `frontend/src/assets/beresin-app-icon.png`
+- `frontend/src/assets/beresin-icon.svg`
+- `frontend/src/assets/beresin-logo.png`
+- `frontend/src/assets/beresin-logo.webp`
+
+### File Diubah
+- `frontend/index.html`
+- `frontend/src/App.tsx`
+- `frontend/src/components/brand/BrandLogo.tsx`
+- `frontend/src/components/brand/BrandMascot.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/components/layout/Navbar.tsx`
+- `frontend/src/components/layout/Footer.tsx`
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/templates/VisualExecutive.tsx`
+- `frontend/src/components/preview/ResumePreview.tsx`
+- `frontend/src/components/files/FileShelfView.tsx`
+- `frontend/src/components/tools/QrCodeGeneratorModal.tsx`
+- `frontend/src/components/pdf-tools/PdfOcrModal.tsx`
+- `frontend/src/components/pdf-tools/PdfSecurityModal.tsx`
+- `frontend/src/components/image-tools/RemoveBackgroundModal.tsx`
+- `frontend/src/components/builder/ImportResumeModal.tsx`
+- `frontend/src/services/apiClient.ts`
+- `frontend/src/services/converter.ts`
+- `frontend/src/services/crypto.ts`
+- `backend/app/core/config.py`
+- `backend/app/services/brevo.py`
+- `backend/app/services/ats_report_generator.py`
+- `backend/app/services/pdf_generator.py`
+- `backend/app/services/auth_service.py`
+- `backend/app/services/file_inspector.py`
+- `deploy/satukit.env.example`
+- Test suites: `brand.test.tsx`, `footer.test.tsx`, `LoginPage.test.tsx`, `navbar_drafts.test.tsx`, `qr_code_generator.test.tsx`, `apiClient.test.ts`, `dashboard.test.tsx`, `app.integration.test.tsx`, `dashboard.spec.ts`, `login_guard.spec.ts`, `test_health.py`, `test_export.py`, `test_ats_report.py`, `test_auth_production_hardening.py`.
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Vitest Full Suite | `npx vitest run` | PASS | `52/52` test suites, `412/412` tests passed (27.25s) |
+| Frontend Oxlint Linter | `npm run lint` | PASS | 0 error |
+| Frontend Production Build | `npm run build` | PASS | `tsc -b && vite build` selesai tanpa error |
+| Backend Pytest Full Suite | `python -m pytest` | PASS | `400/400` tests passed (69.87s) |
+| Playwright E2E Suite | `npx playwright test e2e/dashboard.spec.ts e2e/login_guard.spec.ts e2e/builder.spec.ts` | PASS | `6/6` tests passed multi-viewport |
+| Secret Scanner | `python scripts/scan_secrets.py` | PASS | 1650 files scanned, 0 secrets found |
+
+### Acceptance Criteria
+- [x] Brand resmi Beresin by Satukit aktif di seluruh layer publik visual dan copy.
+- [x] Hero Dashboard menampilkan tagline "Urusan Berkas? Beresin Aja!" dan subheadline resmi.
+- [x] Balon bicara Kitu menampilkan copy asisten digital Beresin by Satukit.
+- [x] 100% identifier teknis `satukit_*`, database, session cookie, dan format berkas dipertahankan tanpa breaking change.
+- [x] Tidak ada klaim palsu pemrosesan lokal pada alat berbasis komputasi server.
+- [x] Seluruh regression test frontend, backend, e2e, dan linter lulus.
+
+---
+
+## BETA-01 — Peluncuran Beta: Penonaktifan 9 Fitur `Coming Soon`, Reorganisasi 7 Kategori, & Blokir API `503 FEATURE_COMING_SOON` — 2026-11-16
+
+**Task:** `BETA-01`
+**Requirement:** `CR-024`, `FR-062`, `NFR-SEC-018`, `THR-049`, `DEC-031`
+
+### Ringkasan
+1. Menonaktifkan 9 fitur berisiko/belum siap untuk peluncuran beta (`Pengunduh Media`, `Blur Background`, `WebP ke JPG`, `OCR PDF`, `Edit PDF`, `Repair PDF`, `Compress Video`, `MP4 ke MP3`, dan placeholder `Video ke Teks`) di `frontend/src/App.tsx` sebagai kartu `Coming Soon` (`disabled`, badge & CTA `Coming Soon`, tanpa badge `Perlu Akun`/`Browser`/`Baru`).
+2. Menata ulang katalog 28 alat ke dalam 7 kategori (`Konversi Dokumen`, `Kelola & Optimasi PDF`, `Ekstraksi & Digitalisasi`, `Keamanan & Tanda Tangan`, `Gambar & Foto`, `Media & Audio`, `Utilitas Digital`) serta memperbarui statistik `Dashboard.tsx` menjadi `19` (`stat-tools-count`, label `Utilitas aktif`) dan `9 Coming Soon` (`stat-tools-coming-soon`).
+3. Menambahkan gate fail-closed `BETA_COMING_SOON_GATES_ENABLED=True` di `backend/app/core/config.py` dan `SecurityMiddleware` (`backend/app/core/middleware.py`) untuk menolak 13 route API fitur yang dinonaktifkan (`/api/media-downloads*`, `/api/video-compressions*`, `/api/pdf-tools/editor/pages`, `/api/pdf-tools/editor/apply`, `/api/pdf-tools/repair`, `/api/pdf-tools/ocr/status`, `/api/pdf-tools/ocr`) dengan HTTP `503` dan `error_code: "FEATURE_COMING_SOON"`, tanpa memblokir `/api/image-tools/remove-background`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `BETA-01`.
+
+### File Dibuat
+- `backend/tests/conftest.py`
+- `backend/tests/test_beta_feature_gates.py`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/components/dashboard/Dashboard.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/src/components/dashboard/__tests__/dashboard.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `frontend/e2e/login_guard.spec.ts`
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `deploy/RUNBOOK.md`
+- `docs/project/PRD.md`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Pytest (Gate + Legacy Suites) | `backend/.venv/Scripts/python -m pytest backend/tests/test_beta_feature_gates.py backend/tests/test_media_downloader.py backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py backend/tests/test_pdf_tools.py -q` | PASS | `84/84` passed (23.41s) |
+| Backend Ruff Linter & Format | `backend/.venv/Scripts/ruff check backend/app/core/config.py backend/app/core/middleware.py backend/tests/conftest.py backend/tests/test_beta_feature_gates.py` | PASS | `All checks passed!` |
+| Frontend Vitest Targeted | `npx vitest run src/__tests__/app.integration.test.tsx src/components/dashboard/__tests__/dashboard.test.tsx` | PASS | `2/2` files, `23/23` tests passed |
+| Frontend Oxlint | `npm run lint` | PASS | `0` error |
+| Frontend Typecheck & Build | `npm run build` | PASS | `tsc -b && vite build` sukses (1.67s) |
+| Playwright E2E | `npx playwright test e2e/dashboard.spec.ts e2e/login_guard.spec.ts` | PASS | `4/4` tests passed (7.2s) |
+
+### Acceptance Criteria
+- [x] Ke-9 fitur target menampilkan badge & CTA `Coming Soon`, tombol `disabled`, dan tidak membuka modal atau mengalihkan ke `#/login`.
+- [x] Katalog `#/tools` dikelompokkan dalam 7 kategori termasuk `Media & Audio`.
+- [x] Statistik Dashboard menampilkan `19` (`stat-tools-count`) dan `9 Coming Soon` (`stat-tools-coming-soon`).
+- [x] Seluruh 13 route API yang di-gate menolak request langsung (anonim maupun terautentikasi) dengan HTTP `503` dan `error_code: "FEATURE_COMING_SOON"`.
+- [x] Endpoint bersama `/api/image-tools/remove-background` dan endpoint saudara aktif (`/api/pdf-tools/compress`) tetap berfungsi normal.
+
+---
+
+## CVR-02 — Promosi Direct PDF Renderer (`PyMuPDF`) ke Produksi untuk Ekspor CV & Laporan ATS — 2026-11-16
+
+**Task:** `CVR-02`
+**Requirement:** `FR-012`, `FR-038`, `NFR-PERF-001`, `NFR-REL-003`, `NFR-SEC-004`, `DEC-029`, `DEC-030`
+
+### Ringkasan
+1. Mengganti implementasi `generate_resume_pdf` di `backend/app/services/pdf_generator.py` dengan renderer langsung `PyMuPDF` (`pymupdf.Story` + `DocumentWriter` + `Shape`) untuk ke-4 template canonical (`ats-clean`, `ats-modern`, `visual-executive` 2-kolom sidebar, `visual-minimal`) tanpa ketergantungan subprocess LibreOffice.
+2. Mengganti implementasi `generate_ats_report_pdf` di `backend/app/services/ats_report_generator.py` dengan renderer langsung `PyMuPDF` yang merender skor, grade, tabel 5 pilar penilaian, rekomendasi, tabel checklist indikator, dan disclaimer, sembari mempertahankan `generate_ats_report_docx` (`python-docx`) untuk `POST /api/ats/export-report-docx`.
+3. Menambahkan pengujian unit dan integrasi endpoint untuk ke-4 template canonical, validasi foto, dan laporan ATS di `backend/tests/test_export.py`, `backend/tests/test_ats_report.py`, dan `backend/tests/test_libreoffice.py`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `CVR-02`.
+
+### File Diubah
+- `backend/app/services/pdf_generator.py`
+- `backend/app/services/ats_report_generator.py`
+- `backend/tests/test_export.py`
+- `backend/tests/test_ats_report.py`
+- `backend/tests/test_libreoffice.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest Suite | `backend/.venv/Scripts/python -m pytest backend/tests/test_export.py backend/tests/test_ats_report.py backend/tests/test_ats.py backend/tests/test_libreoffice.py -v` | PASS | `40/40` passed (7.62s) |
+| Ruff Linter | `backend/.venv/Scripts/ruff check backend/app/services/pdf_generator.py backend/app/services/ats_report_generator.py backend/tests/test_export.py backend/tests/test_ats_report.py backend/tests/test_libreoffice.py` | PASS | `All checks passed!` |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check backend/app/services/pdf_generator.py backend/app/services/ats_report_generator.py backend/tests/test_export.py backend/tests/test_ats_report.py backend/tests/test_libreoffice.py` | PASS | `5 files already formatted` |
+
+### Acceptance Criteria
+- [x] `POST /api/export/pdf` merender 4 template canonical (`ats-clean`, `ats-modern`, `visual-executive`, `visual-minimal`) langsung ke PDF (`%PDF-`) tanpa LibreOffice.
+- [x] `POST /api/ats/export-report-pdf` merender laporan evaluasi ATS langsung ke PDF (`%PDF-`) tanpa LibreOffice.
+- [x] `POST /api/export/docx` dan `POST /api/ats/export-report-docx` tetap menghasilkan berkas `.docx` via `python-docx`.
+- [x] Foto rusak/invalid pada `POST /api/export/pdf` tetap ditolak dengan HTTP 400 (`ValueError`).
+- [x] Seluruh 40 pengujian unit & endpoint lulus dan Ruff 0 error.
+
+---
+
+## CVR-01 — Feasibility Spike Direct PDF Renderer CV & Laporan ATS terhadap Canonical Baseline 4 Template Frontend — 2026-11-16
+
+**Task:** `CVR-01`
+**Requirement:** `FR-012`, `FR-038`, `NFR-PERF-001`, `DEC-029`, `DEC-030`
+
+### Ringkasan
+1. Membuat skrip eksperimen terisolasi `spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py` yang merender keempat template canonical preview frontend (`ats-clean`, `ats-modern`, `visual-executive`, `visual-minimal`) dan laporan evaluasi ATS langsung ke PDF menggunakan `pymupdf.Story` + `pymupdf.DocumentWriter` + `pymupdf.Shape` tanpa LibreOffice dan tanpa menambah dependensi baru.
+2. Membuktikan tata letak multi-kolom untuk `visual-executive` (sidebar kiri 34% berlatar tint aksen + kolom utama kanan 66%), aksen garis vertikal `ats-modern`, header terpusat `ats-clean`, dan tipografi ringkas `visual-minimal`, disertai penyisipan foto tervalidasi `parse_and_validate_photo()` dan sanitasi anti-XSS `html.escape`.
+3. Menemukan perilaku penting `pymupdf.Story`: urutan karakter `"fi"` (seperti pada `"Certified"`) secara otomatis dikonversi menjadi ligatur Unicode `\ufb01` (`ﬁ`), sehingga pemeriksaan ekstraksi teks ATS perlu normalisasi Unicode `NFKC` atau penonaktifan ligatur jika diadopsi ke produksi.
+4. Mencatat hasil evaluasi dan matriks perbandingan ke dalam `DEC-030` di `.agent/DECISIONS.md`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `CVR-01` (kode produksi `POST /api/export/pdf`, `POST /api/export/docx`, dan `POST /api/ats/export-report-pdf` tidak diubah).
+
+### File Dibuat
+- `spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py`
+
+### File Diubah
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Eksekusi Benchmark Spike | `backend/.venv/Scripts/python spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py` | PASS | `SPIKE CVR-01 PASS: {'templates': {'ats-clean': {'avg_ms': 25.03, 'max_ms': 28.11, 'size_bytes': 110749}, 'ats-modern': {'avg_ms': 18.11, 'max_ms': 21.79, 'size_bytes': 110871}, 'visual-executive': {'avg_ms': 17.38, 'max_ms': 18.55, 'size_bytes': 110945}, 'visual-minimal': {'avg_ms': 14.59, 'max_ms': 15.07, 'size_bytes': 110645}}, 'ats_report': {'latency_ms': 3.67, 'size_bytes': 90202}, 'peak_heap_mib': 1.37}` |
+| Ruff Linter | `backend/.venv/Scripts/ruff check spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py` | PASS | `All checks passed!` |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py` | PASS | `1 file already formatted` |
+
+### Acceptance Criteria
+- [x] Ke-4 template canonical (`ats-clean`, `ats-modern`, `visual-executive`, `visual-minimal`) dan laporan ATS berhasil dirender ke PDF valid (`%PDF-`, ukuran halaman A4 `595x842 pt`).
+- [x] Seluruh teks seksi wajib dapat diekstrak kembali untuk parser ATS dan payload `<script>` ter-escape aman.
+- [x] Benchmark latensi (`14.59–25.03 ms` untuk CV, `3.67 ms` untuk ATS) dan peak heap (`1.37 MiB`) tercatat dalam `DEC-030`.
+- [x] Jalur produksi `python-docx` (`POST /api/export/docx`) tidak terpengaruh.
+
+---
+
+## OFF-04 — Observability `/api/health`, Telemetry Konversi Office, dan Pembaruan `deploy/RUNBOOK.md` — 2026-11-16
+
+**Task:** `OFF-04`
+**Requirement:** `NFR-PERF-001`, `NFR-REL-003`, `NFR-SEC-004`, `DEC-029`
+
+### Ringkasan
+1. Menambahkan `get_libreoffice_lease_health` di `backend/app/api/health.py` yang membaca `RuntimeState(key="libreoffice_active_lease")` tanpa membocorkan PID atau path sistem, lalu menyertakannya pada `GET /api/health` di bawah key `libreoffice_worker` (`busy`, `job_type`, `lease_expires_in_seconds`).
+2. Memperbarui `deploy/RUNBOOK.md` bagian Smoke Test dengan verifikasi `libreoffice_worker` dan dokumentasi operasional single-active lease LibreOffice pada VPS 1 vCPU.
+3. Menambahkan pengujian `test_health_reports_libreoffice_lease_status` di `backend/tests/test_libreoffice.py`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `OFF-04`.
+
+### File Diubah
+- `backend/app/api/health.py`
+- `deploy/RUNBOOK.md`
+- `backend/tests/test_libreoffice.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest | `backend/.venv/Scripts/python -m pytest backend/tests/test_libreoffice.py backend/tests/test_health.py -v` | PASS | `16/16` passed (18.43s) |
+| Ruff Linter | `backend/.venv/Scripts/ruff check backend/app/api/health.py backend/tests/test_libreoffice.py` | PASS | `All checks passed!` |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check backend/app/api/health.py backend/tests/test_libreoffice.py` | PASS | `2 files already formatted` |
+
+### Acceptance Criteria
+- [x] `GET /api/health` menampilkan status `libreoffice_worker` (`busy`, `job_type`, `lease_expires_in_seconds`) tanpa PID/path sensitif.
+- [x] `deploy/RUNBOOK.md` memuat verifikasi dan catatan operasional single-active LibreOffice di VPS 1 vCPU.
+- [x] Seluruh unit/API test `test_libreoffice.py` dan `test_health.py` lulus.
+
+---
+
+## OFF-03 — Integrasi Single-Active Office Conversion Facade Sinkron ke 6 Endpoint HTTP & Pembersihan Orphan — 2026-11-16
+
+**Task:** `OFF-03`
+**Requirement:** `NFR-PERF-001`, `NFR-REL-003`, `NFR-SEC-004`, `DEC-029`
+
+### Ringkasan
+1. Memetakan error `CONVERSION_BUSY` / `LibreOfficeBusyError` secara deterministik menjadi HTTP `429 Too Many Requests` pada seluruh 6 endpoint Office:
+   - `POST /api/converter/docx-to-pdf` (`backend/app/api/converter.py`)
+   - `POST /api/converter/presentation-to-pdf` (`backend/app/api/converter.py`)
+   - `POST /api/converter/spreadsheet-to-pdf` (`backend/app/api/converter.py`)
+   - `POST /api/pdf-tools/merge` (`backend/app/services/pdf_tools.py` & `backend/app/api/pdf_tools.py`)
+   - `POST /api/export/pdf` (`backend/app/api/export.py`)
+   - `POST /api/ats/export-report-pdf` (`backend/app/api/ats.py`)
+2. Memperluas `ConversionJobManager.sweep_expired_workspaces` di `backend/app/services/job_manager.py` untuk menyapu direktori temporer OS berawalan `TEMP_DIR_PREFIXES` (`docbuilder_lo_prof_`, `docbuilder_conv_`, `docbuilder_office_`, `docbuilder_pdf_`, `docbuilder_ats_pdf_`) yang berumur `>= ttl_seconds`.
+3. Menambahkan 2 pengujian integrasi/unit di `backend/tests/test_libreoffice.py`:
+   - `test_six_office_endpoints_return_429_when_conversion_busy`
+   - `test_sweeper_cleans_expired_orphan_libreoffice_profiles`
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `OFF-03`.
+
+### File Diubah
+- `backend/app/api/converter.py`
+- `backend/app/services/pdf_tools.py`
+- `backend/app/api/pdf_tools.py`
+- `backend/app/api/export.py`
+- `backend/app/api/ats.py`
+- `backend/app/services/job_manager.py`
+- `backend/tests/test_libreoffice.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest | `backend/.venv/Scripts/python -m pytest backend/tests/test_libreoffice.py backend/tests/test_converter.py backend/tests/test_office_converter.py backend/tests/test_pdf_tools.py -v` | PASS | `78/78` passed (39.30s) |
+| Ruff Linter | `backend/.venv/Scripts/ruff check backend/app/api/converter.py backend/app/api/pdf_tools.py backend/app/services/pdf_tools.py backend/app/api/export.py backend/app/api/ats.py backend/app/services/job_manager.py backend/tests/test_libreoffice.py` | PASS | `All checks passed!` |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check backend/app/api/converter.py backend/app/api/pdf_tools.py backend/app/services/pdf_tools.py backend/app/api/export.py backend/app/api/ats.py backend/app/services/job_manager.py backend/tests/test_libreoffice.py` | PASS | `7 files already formatted` |
+
+### Acceptance Criteria
+- [x] Seluruh 6 endpoint mengembalikan HTTP 429 saat slot konversi LibreOffice sibuk.
+- [x] Kontrak unduhan sinkron 200 OK dan fallback 422 `LIBREOFFICE_NOT_FOUND` tetap utuh.
+- [x] Sweeper menghapus direktori profil/konversi temporer orphan yang melewati TTL tanpa menyentuh direktori baru atau aplikasi lain.
+
+---
+
+## OFF-02 — Lease Database Single-Active Lintas Worker untuk Eksekusi LibreOffice — 2026-11-16
+
+**Task:** `OFF-02`
+**Requirement:** `NFR-PERF-001`, `NFR-REL-003`, `NFR-SEC-004`, `DEC-029`
+
+### Ringkasan
+1. Menambahkan `LibreOfficeBusyError` dan context manager `acquire_libreoffice_slot` di `backend/app/services/libreoffice.py`:
+   - Menggunakan baris `RuntimeState(key="libreoffice_active_lease")` untuk mengunci slot konversi tunggal lintas proses worker Uvicorn (`pg_advisory_xact_lock` + `with_for_update()` pada PostgreSQL, serta `_DB_TX_LOCK` untuk transaksi lokal).
+   - Menolak konversi kedua saat lease masih aktif (`active=True` dan `expires_at > now`) dengan `LibreOfficeBusyError`.
+   - Mengambil alih lease usang secara otomatis bila `expires_at <= now` (recovery pasca worker crash).
+   - Melepaskan lease (`active=False`) pada blok `finally` hanya jika `lease_id` cocok dengan pemilik saat ini.
+2. Mengintegrasikan `acquire_libreoffice_slot` ke dalam `run_libreoffice_conversion` dan memetakan `LibreOfficeBusyError` ke `CONVERSION_BUSY: ...` di `convert_bytes_to_pdf_sandboxed`.
+3. Menambahkan 3 test baru di `backend/tests/test_libreoffice.py`:
+   - `test_convert_bytes_to_pdf_sandboxed_returns_conversion_busy`
+   - `test_libreoffice_lease_single_active_and_release`
+   - `test_libreoffice_lease_reclaims_expired_stale_lock`
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai rencana Gerbang 3 `OFF-02`.
+
+### File Diubah
+- `backend/app/services/libreoffice.py`
+- `backend/tests/test_libreoffice.py`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest | `backend/.venv/Scripts/python -m pytest backend/tests/test_libreoffice.py backend/tests/test_converter.py backend/tests/test_office_converter.py -v` | PASS | `31/31` passed (28.96s) |
+| Ruff Linter | `backend/.venv/Scripts/ruff check backend/app/services/libreoffice.py backend/tests/test_libreoffice.py` | PASS | `All checks passed!` |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check backend/app/services/libreoffice.py backend/tests/test_libreoffice.py` | PASS | `2 files already formatted` |
+
+### Acceptance Criteria
+- [x] Maksimal 1 lease LibreOffice aktif pada `RuntimeState` di satu waktu.
+- [x] Permintaan konkuren saat lease aktif melempar `LibreOfficeBusyError` / `CONVERSION_BUSY`.
+- [x] Lease kadaluarsa (`expires_at <= now`) otomatis diambil alih oleh request baru.
+- [x] Lease dilepas (`active=False`) saat konversi selesai maupun gagal.
+
+---
+
+## OFF-01 — Sentralisasi Helper LibreOffice, Isolasi Profil Per-Job, Process-Tree Termination, & Fail-Closed Win32 Job Object — 2026-11-16
+
+**Task:** `OFF-01`
+**Requirement:** `NFR-PERF-001`, `NFR-REL-003`, `NFR-SEC-004`, `DEC-029`
+
+### Ringkasan
+1. Membuat modul helper terpusat `backend/app/services/libreoffice.py`:
+   - `build_libreoffice_command`: menyusun argumen baris perintah LibreOffice headless dengan `-env:UserInstallation=file://...` unik (`profile_dir.resolve().as_uri()`) serta flag `--headless --invisible --nocrashreport --nodefault --nofirststartwizard --nologo --norestore --nolockcheck`.
+   - `validate_pdf_bytes` & `validate_pdf_file`: memvalidasi keberadaan, ukuran berkas (`>= 5` byte), dan magic header `%PDF-`.
+   - `run_libreoffice_conversion`: mengeksekusi LibreOffice di dalam `run_sandboxed_subprocess` dengan direktori profil temporer terisolasi yang otomatis dibersihkan pasca-eksekusi.
+   - `convert_bytes_to_pdf_sandboxed`: adapter bytes-to-BytesIO untuk ke-5 call site layanan dengan preservasi kode error spesifik (`LIBREOFFICE_NOT_FOUND`, `CONVERSION_ERROR`, `CONVERSION_FAILED`, `REPORT_CONVERSION_FAILED`).
+2. Memperkeras `backend/app/core/sandbox.py`:
+   - Menambahkan `start_new_session=True` pada POSIX (`sys.platform != "win32"`) dan terminasi grup proses bertingkat `os.killpg(pgid, SIGTERM)` -> tunggu 1.5s -> `os.killpg(pgid, SIGKILL)` saat `TimeoutExpired` untuk memastikan child process `soffice.bin` tidak tertinggal sebagai orphan.
+   - Menegakkan fail-closed pada `WindowsJobObject`: melempar `RuntimeError` jika pembuatan Job Object, pengaturan batas memori, atau `AssignProcessToJobObject` gagal.
+3. Memigrasikan 5 call site LibreOffice ke helper terpusat:
+   - `backend/app/services/converter.py` (`convert_docx_to_pdf_sandboxed`)
+   - `backend/app/services/office_converter.py` (`convert_presentation_to_pdf_sandboxed`, `convert_spreadsheet_to_pdf_sandboxed`)
+   - `backend/app/services/pdf_generator.py` (`generate_resume_pdf`)
+   - `backend/app/services/ats_report_generator.py` (`generate_ats_report_pdf`)
+4. Menambahkan unit test baru:
+   - `backend/tests/test_sandbox.py` (6 tests): sanitasi env, eksekusi sukses, timeout, siklus hidup `WindowsJobObject`, fail-closed `assign_process`, dan terminasi process-group POSIX (`os.killpg`).
+   - `backend/tests/test_libreoffice.py` (8 tests): konstruksi flag `-env:UserInstallation`, validasi magic bytes/file PDF, penanganan `LIBREOFFICE_NOT_FOUND`, sukses konversi, kegagalan exit code non-zero, dan helper bytes-to-PDF.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak publik sesuai rencana Gerbang 3 `OFF-01`.
+- Perbedaan verifikasi: `mypy` tidak terpasang di `.venv` lokal (`No module named mypy`); pemeriksaan kualitas kode dan tipe diverifikasi menggunakan `ruff check` dan `ruff format --check` (`PASS`).
+
+### File Dibuat
+- `backend/app/services/libreoffice.py`
+- `backend/tests/test_sandbox.py`
+- `backend/tests/test_libreoffice.py`
+
+### File Diubah
+- `backend/app/core/sandbox.py`
+- `backend/app/services/converter.py`
+- `backend/app/services/office_converter.py`
+- `backend/app/services/pdf_generator.py`
+- `backend/app/services/ats_report_generator.py`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest | `backend/.venv/Scripts/python -m pytest backend/tests/test_sandbox.py backend/tests/test_libreoffice.py backend/tests/test_converter.py backend/tests/test_office_converter.py -v` | PASS | 34/34 tests PASS (28.45s) |
+| Full Backend Pytest | `backend/.venv/Scripts/python -m pytest backend/tests/ -q` | PASS | 375/375 tests PASS (115.76s, 0 regressions) |
+| Ruff Linter | `backend/.venv/Scripts/ruff check backend/app/services/libreoffice.py backend/app/core/sandbox.py ...` | PASS | `All checks passed!` (8 files) |
+| Ruff Format Check | `backend/.venv/Scripts/ruff format --check backend/app/services/libreoffice.py ...` | PASS | `8 files already formatted` |
+| Mypy Typecheck | `backend/.venv/Scripts/python -m mypy ...` | NOT APPLICABLE | Modul `mypy` tidak terinstal pada `.venv` proyek |
+| Git Status Review | `git status --short` | PASS | Seluruh pekerjaan uncommitted terdahulu (OCR, CR-020, video, VTT) terjaga utuh; 0 aksi git mutating |
+
+### Acceptance Criteria
+- [x] Seluruh pemanggilan LibreOffice menyertakan `-env:UserInstallation=file://...` ke direktori profil unik per eksekusi.
+- [x] Direktori profil pengguna dan direktori kerja temporer dibersihkan secara deterministik setelah selesai/gagal.
+- [x] Output konversi divalidasi memiliki ukuran > 0 dan diawali magic bytes `%PDF-`.
+- [x] `run_sandboxed_subprocess` membuat session/process-group baru di POSIX dan menghentikan seluruh pohon proses (`os.killpg` SIGTERM -> SIGKILL) saat timeout.
+- [x] `WindowsJobObject` bersifat fail-closed jika pembuatan atau pendaftaran proses gagal di Windows.
+- [x] Seluruh 5 call site dimigrasikan tanpa memutus kontrak return/error yang ada.
+- [x] Unit test `test_sandbox.py` dan `test_libreoffice.py` lulus 100%, serta regresi penuh backend 375/375 lulus.
+
+### Keputusan dan Technical Debt
+- `DEC-029` tercatat di `.agent/DECISIONS.md`.
+- Koordinasi single-active lintas worker Uvicorn di tingkat database dijadwalkan pada Task `OFF-02` dan `OFF-03`.
+
+### Risiko Tersisa
+- Sebelum `OFF-02` dan `OFF-03` selesai, dua worker Uvicorn masih menggunakan `conversion_job_manager` berbasis memori lokal masing-masing, meskipun korupsi profil bersama telah dicegah oleh `-env:UserInstallation` pada `OFF-01`.
+- Pengujian integrasi LibreOffice aktual di host Linux Ubuntu 1 vCPU berstatus `NOT RUN` di lingkungan dev Windows dan akan dieksekusi pada staging benchmark (`OFF-04`).
+
+---
+
+## VTT-02 — Pipeline Transkripsi, Format Generator, ZIP Packager, & Integrasi Worker — 2026-11-13
+
+**Task:** `VTT-02`
+**Requirement:** `BUS-029`, `FR-061`, `NFR-PERF-010`, `NFR-REL-011`, `NFR-SEC-017`, `NFR-PRIV-003`, `THR-046`, `THR-047`, `THR-048`, `RISK-SEC-028`, `RISK-SEC-030`
+
+### Ringkasan
+1. Mengimplementasikan ekstraksi audio WAV 16kHz mono 16-bit PCM sandboxed di `backend/app/services/video_compressor.py`:
+   - `build_transcription_wav_command`: menyusun argumen FFmpeg `-vn -acodec pcm_s16le -ar 16000 -ac 1` dalam sandbox bwrap/Win32.
+   - `extract_transcription_wav`: mengeksekusi FFmpeg secara terisolasi dengan penanganan progress, batas timeout, pembatalan, dan `terminate_process_group`.
+2. Membangun modul transkripsi mandiri `backend/app/services/transcription_service.py`:
+   - Dataclass `TranscriptionSegment`, `TranscriptionResult`, dan `TranscriptionJobResult`.
+   - Error classes `TranscriptionError` dan `TranscriptionCancelledError`.
+   - Formatters timestamp `format_timestamp_srt` (`HH:MM:SS,mmm`) dan `format_timestamp_txt` (`[MM:SS]`/`[HH:MM:SS]`).
+   - Format generators:
+     - `generate_txt`: menulis berkas `.txt` dengan header metadata, segmen bertimestamp, dan teks lengkap.
+     - `generate_srt`: menulis berkas subtitle SubRip standar valid.
+     - `generate_docx`: menghasilkan dokumen Word terstruktur via pustaka `python-docx` berisi metadata, teks lengkap, dan tabel segmen waktu.
+     - `write_preview_json`: menyimpan pratinjau transkrip ephemeral `preview.json` pada direktori job workspace untuk API status.
+     - `create_transcription_zip`: membundel tepat 3 berkas transkrip ke dalam arsip ZIP flat tanpa path traversal (`arcname`).
+   - Engine loader & inferensi:
+     - `load_whisper_model` & `get_whisper_model`: lazy-import `faster_whisper` dengan konfigurasi CPU int8 dan singleton thread lock.
+     - `transcribe_audio_file`: transkripsi dengan VAD filter, fail-closed deteksi `NO_SPEECH` saat tidak ada ucapan terdeteksi, dan update progres bertahap (35% -> 90%).
+     - `process_transcription_job`: orchestrator end-to-end ekstraksi WAV, transkripsi STT, pembundelan ZIP, penulisan `preview.json`, dan penghapusan segera berkas sementara WAV dan unzipped files.
+3. Mengintegrasikan branch transkripsi pada worker `backend/app/workers/video_worker.py`:
+   - Menangani `job_type == "transcribe"` pada `process_next_video_job` dan `run_video_worker_pass`.
+   - Validasi probe MP4 durasi <= 600s dan keberadaan audio (`NO_AUDIO_STREAM`) via `probe_audio_extraction`.
+   - Menjalankan `process_transcription_job`, memperbarui status job menjadi `succeeded`, menyimpan `output_path` file ZIP, dan menghapus video input seketika.
+4. Menambahkan test suite komprehensif:
+   - `backend/tests/test_transcription_service.py` (12 tests): validasi formatting timestamp, generator TXT, SRT, DOCX, ZIP packager, mock whisper STT, VAD fail-closed `NO_SPEECH`, pembatalan, dan job end-to-end.
+   - `backend/tests/test_transcription_worker.py` (3 tests): lifecycle antrean worker transkripsi hingga `succeeded` beserta isi ZIP dan `preview.json`, penolakan audio-less `NO_AUDIO_STREAM` -> `failed`, dan penolakan audio tanpa ucapan `NO_SPEECH` -> `failed`.
+5. Verifikasi pengujian & kualitas kode:
+   - Pytest `15/15` PASS pada test suite transkripsi baru.
+   - Pytest `57/57` PASS pada seluruh suite video compression & worker (zero regression).
+   - Ruff Linter: `All checks passed!` (0 error).
+   - Secret scan `scripts/scan_secrets.py`: 1.642 berkas dipindai, 0 secrets.
+   - `git status --short`: Seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, fungsi, dan komponen diimplementasikan persis sesuai rencana task `VTT-02` yang disetujui.
+- Tidak ada deviasi material atau breaking change pada alur video kompresi maupun MP3.
+
+### File Dibuat
+- `backend/app/services/transcription_service.py`
+- `backend/tests/test_transcription_service.py`
+- `backend/tests/test_transcription_worker.py`
+
+### File Diubah
+- `backend/app/services/video_compressor.py`
+- `backend/app/workers/video_worker.py`
+- `docs/project/phases/phase-video-to-text.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest Transcription Suite | `pytest backend/tests/test_transcription_*.py -v` | PASS | 15/15 tests PASS |
+| Pytest Video & Worker Suite | `pytest backend/tests/test_video_*.py backend/tests/test_transcription_*.py -v` | PASS | 57/57 tests PASS (zero regression) |
+| Ruff Linter | `ruff check backend/app/services/ backend/app/workers/ backend/tests/` | PASS | `All checks passed!` (0 error) |
+| Secret Scan | `python scripts/scan_secrets.py` | PASS | 1.642 berkas dipindai, 0 secrets |
+| Git Status Integrity | `git status --short` | PASS | Seluruh file uncommitted OCR & CR-020 terjaga utuh; zero mutating Git commands |
+
+### Acceptance Criteria
+- [x] Probing audio fail-closed menolak video tanpa audio dengan `NO_AUDIO_STREAM`.
+- [x] Ekstraksi audio menghasilkan berkas perantara WAV 16kHz mono 16-bit PCM.
+- [x] Engine transkripsi menghasilkan segmen waktu dan teks dalam Bahasa Indonesia atau Inggris; VAD filtering menolak audio tanpa ucapan dengan `NO_SPEECH`.
+- [x] Generator dokumen menghasilkan berkas `.txt` bertimestamp, `.srt` standar SubRip, dan `.docx` rapi via `python-docx`.
+- [x] Generator paket membuat `<stem>_transcript.zip` yang memuat ketiga berkas tersebut secara atomik dan valid.
+- [x] Berkas perantara `.wav` dan file individual segera dibersihkan dari workspace.
+- [x] Berkas `preview.json` ditulis ke workspace untuk kebutuhan pratinjau API.
+- [x] Unit test backend lulus 100%.
+
+### Keputusan dan Technical Debt
+- Menggunakan `python-docx` untuk pembuatan berkas Word yang ringan tanpa dependensi COM/LibreOffice.
+- Engine loader dirancang lazy dengan thread lock singleton agar tidak membebani memori saat worker memproses tugas non-transkripsi.
+- Zero technical debt.
+
+### Risiko Tersisa
+- `RISK-SEC-028` (HIGH): Kebutuhan benchmarking memori model transkripsi CPU lokal di staging Ubuntu sebelum deployment produksi.
+- `RISK-SEC-023` / `Q-007` (HIGH): Benchmark ClamAV > 250 MB dan FFmpeg RAM di VPS Ubuntu staging tetap release-blocking untuk produksi.
+
+### Status
+Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Lanjut ke pengajuan Gerbang 3 untuk **Task `VTT-03`** (Adaptasi Endpoint HTTP API `POST /api/video-compressions`, Pratinjau Ephemeral di Status Polling, Unduhan ZIP Sekali Pakai, & Audit Log Non-PII).
+
+---
+
+## VTT-01 — Migrasi Skema Database & Adaptasi Model/Repository Queue — 2026-11-13
+
+**Task:** `VTT-01`
+**Requirement:** `BUS-029`, `FR-061`, `NFR-REL-011`
+
+### Ringkasan
+1. Menambahkan berkas migrasi database Alembic `backend/alembic/versions/006_video_to_text.py`:
+   - `upgrade()`: Memperluas check constraint `chk_video_jobs_job_type` mencakup `'transcribe'` dan `chk_video_jobs_preset` mencakup opsi bahasa `'auto'`, `'id'`, `'en'` di samping preset kompresi dan audio yang ada.
+   - `downgrade()`: Mengembalikan kedua check constraint ke versi `005_mp4_to_mp3`.
+2. Menyelaraskan model deklaratif SQLAlchemy `VideoCompressionJob` di `backend/app/db/models.py`:
+   - Memperbarui deklarasi `CheckConstraint` untuk `job_type` dan `preset` agar sinkron dengan migrasi `006`.
+3. Mengadaptasi repository antrean `VideoCompressionRepository` di `backend/app/db/repositories/video_compression_repository.py`:
+   - Menambahkan tuple `VALID_TRANSCRIPTION_PRESETS = ("auto", "id", "en")`.
+   - Menambahkan `"transcribe"` ke dalam `VALID_JOB_TYPES`.
+   - Menambahkan validasi preset transkripsi pada `reserve_upload_job`.
+4. Mengembangkan pengujian di `backend/tests/test_video_compression_db.py`:
+   - Menambahkan downgrade step `005_mp4_to_mp3` pada lifecycle migrasi Alembic.
+   - Menambahkan test case `test_repository_reserve_upload_job_transcribe` menguji keberhasilan reservasi job transkripsi dengan preset `auto`, `id`, `en` serta penolakan preset tidak valid dan job type tidak dikenal.
+5. Verifikasi pengujian & kualitas kode:
+   - Pytest `10/10` PASS pada DB/migration tests (`test_video_compression_db.py`, `test_postgres_migration.py`).
+   - Pytest `42/42` PASS pada seluruh suite video compression (upload, db, compressor, worker, api).
+   - Ruff Linter: `All checks passed!` pada seluruh berkas yang dimodifikasi.
+   - Secret scan `scripts/scan_secrets.py`: 1.639 berkas dipindai, 0 secrets.
+   - `git status --short`: Seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `VTT-01` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+
+### File Dibuat
+- `backend/alembic/versions/006_video_to_text.py`
+
+### File Diubah
+- `backend/app/db/models.py`
+- `backend/app/db/repositories/video_compression_repository.py`
+- `backend/tests/test_video_compression_db.py`
+- `docs/project/phases/phase-video-to-text.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Pytest DB & Migration Suite | `pytest backend/tests/test_video_compression_db.py backend/tests/test_postgres_migration.py -v` | PASS | 10/10 tests PASS (upgrade/downgrade Alembic 006 & model checks) |
+| Pytest Video Full Suite | `pytest backend/tests/test_video_*.py -v` | PASS | 42/42 tests PASS (zero regression) |
+| Ruff Linter | `ruff check backend/alembic/versions/006_video_to_text.py backend/app/db/models.py ...` | PASS | `All checks passed!` (0 error) |
+| Secret Scan | `python scripts/scan_secrets.py` | PASS | 1.639 berkas dipindai, 0 secrets |
+| Git Status Integrity | `git status --short` | PASS | Seluruh file uncommitted OCR & CR-020 terjaga utuh; zero mutating Git commands |
+
+### Acceptance Criteria
+- [x] Migrasi `006_video_to_text.py` memperluas check constraint `chk_video_jobs_job_type` untuk mendukung `('compress', 'extract_audio', 'transcribe')` dan `chk_video_jobs_preset` untuk mendukung `('light', 'balanced', 'maximum', '128k', '192k', '320k', 'auto', 'id', 'en')`.
+- [x] Model `VideoCompressionJob` dan repository `reserve_upload_job` mendukung `job_type='transcribe'` dan preset bahasa baru.
+- [x] Constraint konkurensi (1 aktif per user, 1 global running) tetap berlaku bersama untuk seluruh tipe job.
+- [x] Test Alembic downgrade/upgrade dan test repository database lulus 100%.
+
+### Keputusan dan Technical Debt
+- Menggunakan konvensi check constraint yang konsisten dengan migrasi 004 dan 005.
+- Zero technical debt.
+
+### Risiko Tersisa
+- `RISK-SEC-028` (HIGH): Kebutuhan benchmarking memori model transkripsi CPU lokal di staging Ubuntu sebelum deployment produksi.
+- `RISK-SEC-023` / `Q-007` (HIGH): Benchmark ClamAV > 250 MB dan FFmpeg RAM di VPS Ubuntu staging tetap release-blocking untuk produksi.
+
+### Status
+Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Lanjut ke pengajuan Gerbang 3 untuk **Task `VTT-02`** (Pipeline Transkripsi, Dokumen Generator TXT/SRT/DOCX, ZIP Packager, & Integrasi Worker).
+
+---
+
+## VTT-00 — Tata Kelola, Gerbang 2, & Sinkronisasi Dokumen Perancangan — 2026-11-13
+
+**Task:** `VTT-00`
+**Requirement:** `CR-023`, `BUS-029`, `BRULE-018`, `KPI-010`, `FR-061`, `NFR-PERF-010`, `NFR-REL-011`, `NFR-SEC-017`, `NFR-PRIV-003`, `NFR-UX-006`, `NFR-ACC-006`, `THR-046` s/d `THR-048`, `RISK-SEC-028` s/d `RISK-SEC-030`
+
+### Ringkasan
+1. Memperbarui dan menyelaraskan seluruh dokumen perancangan inti proyek untuk fitur **Video ke Teks** (`CR-023`, alat ke-28 Satukit):
+   - `docs/project/BRD.md`: Penambahan `BUS-029`, `BRULE-018`, `KPI-010`, dan `RISK-BUS-007`.
+   - `docs/project/PRD.md`: Penambahan `FR-061` (spesifikasi MP4-only lokal ≤ 250 MB / 600s, dual checkbox konfirmasi hak cipta & izin suara, preset bahasa `auto`/`id`/`en`, fail-closed `NO_AUDIO_STREAM` & `NO_SPEECH`, pratinjau baca-saja penuh, dan unduhan paket ZIP 3-file `.txt`, `.srt`, `.docx`), `NFR-PERF-010`, `NFR-REL-011`, `NFR-SEC-017`, `NFR-PRIV-003`, `NFR-UX-006`, dan `NFR-ACC-006`.
+   - `docs/project/ARCHITECTURE.md`: Penambahan arsitektur §9.4 ekstensi Video ke Teks (skema database bersama `video_compression_jobs`, antrean bersama konkurensi 1 running + 2 waiting, ekstraksi WAV 16kHz mono PCM, engine `faster-whisper` int8 CPU-only, ephemeral preview `preview.json` di workspace, multi-format docx/srt/txt generator, paket ZIP, unduhan sekali pakai TTL 15m, redaksi PII log).
+   - `docs/project/SECURITY.md`: Penambahan model ancaman §3.6 (`THR-046` s/d `THR-048`, `CTRL-046` s/d `CTRL-048`, `RISK-SEC-028` s/d `RISK-SEC-030`) dan pengesahan Security Planning Gate §14.5.
+   - `docs/project/TEST-STRATEGY.md`: Penambahan matriks pengujian §2.10 untuk `CR-023` (`VTT-00` s/d `VTT-05`).
+   - `docs/project/TRACEABILITY.md`: Penambahan pemetaan `BUS-029` -> `FR-061` -> `DEC-028` -> `VTT-00..05` dan ancaman `THR-046..048` -> `RISK-SEC-028..030`.
+   - `docs/project/IMPLEMENTATION-PLAN.md`: Penambahan §8 fase `phase-video-to-text`.
+   - `docs/project/phases/phase-video-to-text.md`: Pembuatan dokumen fase lengkap untuk `VTT-00` s/d `VTT-05`.
+2. Memperbarui tracking proyek:
+   - `.agent/CHANGE-REQUESTS.md`: Pencatatan `CR-023` (Gerbang 2 Disetujui) dan penutupan `CR-022`.
+   - `.agent/DECISIONS.md`: Pencatatan `DEC-028` (Arsitektur STT CPU lokal int8, shared queue, ephemeral preview, dan paket ZIP multi-format).
+   - `.agent/TASKS.md`: Pendaftaran task `VTT-00` s/d `VTT-05`.
+   - `.agent/PROJECT-STATE.md`: Pembaruan status menjadi `READY`, `phase-video-to-text`, `implementation_allowed: true`.
+3. Verifikasi tata kelola:
+   - `scan_secrets.py` memindai 1.638 file: 0 secrets.
+   - `git status --short` mempertahankan seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020`. 0 perintah mutating Git.
+
+### Kesesuaian dengan Code Plan
+- Seluruh dokumen diselaraskan persis sesuai perancangan yang disetujui di Gerbang 1A, Gerbang 1B, dan Gerbang 2.
+- Tidak ada source code aplikasi yang dimodifikasi pada task perancangan ini.
+
+### File Dibuat
+- `docs/project/phases/phase-video-to-text.md`
+
+### File Diubah
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+- `docs/project/IMPLEMENTATION-PLAN.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Secret Scan | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | 0 secret ditemukan di seluruh working tree |
+| Git Status Integrity | `git status --short` | PASS | Seluruh file uncommitted OCR & CR-020 terjaga utuh; zero mutating Git commands |
+
+### Acceptance Criteria
+- [x] Seluruh dokumen perancangan (`BRD.md`, `PRD.md`, `ARCHITECTURE.md`, `SECURITY.md`, `TEST-STRATEGY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`, `phase-video-to-text.md`) terbarui sinkron.
+- [x] Gerbang 2 disetujui secara eksplisit oleh User (Owner).
+- [x] Tracking `.agent/CHANGE-REQUESTS.md`, `.agent/DECISIONS.md`, `.agent/PROJECT-STATE.md`, dan `.agent/TASKS.md` terbarui.
+- [x] Pemindaian rahasia `scan_secrets.py` lulus 0 temuan dan berkas uncommitted OCR terjaga utuh.
+
+### Keputusan dan Technical Debt
+- Keputusan dicatat pada `DEC-028`.
+- Tidak ada technical debt baru.
+
+### Risiko Tersisa
+- `RISK-SEC-028` (HIGH): Resource exhaustion CPU/RAM pada VPS 1 vCPU / 2.2 GiB RAM oleh model transkripsi AI (mitigasi: int8, timeout 15m, single worker).
+- `RISK-SEC-029` (MEDIUM): Kebocoran PII percakapan rapat/wawancara melalui logging atau residu workspace disk (mitigasi: redaksi penuh, ephemeral preview, single-use download).
+- `RISK-SEC-030` (MEDIUM): Worker hang pada audio tanpa ucapan / audio rusak (mitigasi: fail-closed `NO_SPEECH`, process-group kill).
+- `RISK-SEC-023` / `Q-007` (HIGH): Benchmark ClamAV > 250 MB dan FFmpeg RAM di VPS Ubuntu staging tetap release-blocking untuk produksi.
+
+### Status
+Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Lanjut ke pengajuan Gerbang 3 untuk **Task `VTT-01`** (Migrasi Skema Database `006_video_to_text.py`, Model, Repository, dan DB Tests).
+
+---
+
+## MP3-04 — Audit Aksesibilitas WCAG 2.2 AA, Playwright E2E, Regresi Penuh & Penutupan Fase — 2026-11-13
+
+**Task:** `MP3-04`
+**Requirement:** `KPI-009`, `NFR-ACC-005`, `THR-043` s/d `THR-045`, `RISK-SEC-025` s/d `RISK-SEC-027`
+
+### Ringkasan
+1. Menambahkan audit aksesibilitas otomatis pada `frontend/src/components/__tests__/accessibility.test.tsx`:
+   - Menguji komponen `Mp4ToMp3Modal` menggunakan `vitest-axe`.
+   - Hasil: 0 violations, memenuhi standar aksesibilitas WCAG 2.2 AA.
+2. Memperbarui Playwright E2E assertion pada `frontend/e2e/dashboard.spec.ts`:
+   - Menyesuaikan assertion `stat-tools-count` dari `'26'` ke `'27'` sejalan dengan pendaftaran kartu alat ke-27 (`MP4 ke MP3`).
+3. Menjalankan pengujian regresi penuh di backend dan frontend:
+   - Ruff Linter: All checks passed pada seluruh modul video compression dan file test.
+   - Oxlint Linter: 0 error / 0 warning baru pada seluruh berkas frontend MP3.
+   - Pytest Backend: 41/41 video tests PASS, 30/30 core tests PASS (total 71/71 tests PASS).
+   - Vitest Frontend: 37/37 tests PASS (`accessibility.test.tsx`, `mp4_to_mp3.test.tsx`, `compress_video.test.tsx`, `app.integration.test.tsx`).
+   - TypeScript compile & Vite production build: PASS (`tsc -b && vite build` selesai dalam 534ms).
+   - Secret scan `scripts/scan_secrets.py`: 1.637 berkas dipindai, 0 secrets.
+   - Pemeriksaan git status: seluruh file uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh.
+4. Menutup fase `phase-mp4-to-mp3` (`CR-022`) dan mengalihkan status proyek ke `RELEASE_PENDING`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `MP3-04` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+- Seluruh berkas uncommitted OCR dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### File Dibuat
+- Tidak ada.
+
+### File Diubah
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `docs/project/phases/phase-mp4-to-mp3.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest-axe Accessibility Test | `npx vitest run src/components/__tests__/accessibility.test.tsx --maxWorkers=2` | PASS | 9/9 tests PASS (`Mp4ToMp3Modal` bebas pelanggaran aksesibilitas, 0 violations) |
+| Ruff Linter | `python -m ruff check backend/app/api/video_compression.py ...` | PASS | `All checks passed!` (0 error) |
+| Oxlint Linter | `npx oxlint src/components/__tests__/accessibility.test.tsx e2e/dashboard.spec.ts` | PASS | 0 error, 0 warning |
+| Pytest Video Compression Suite | `pytest backend/tests/test_video_*.py` | PASS | 41/41 tests PASS (zero regression) |
+| Pytest Core Regression Suite | `pytest backend/tests/test_auth_api.py backend/tests/test_audit.py backend/tests/test_disk_guard.py backend/tests/test_security.py` | PASS | 30/30 tests PASS (zero regression) |
+| Vitest Targeted & Integration | `npx vitest run src/components/video-tools/__tests__/*.test.tsx src/__tests__/app.integration.test.tsx --maxWorkers=2` | PASS | 37/37 tests PASS |
+| TypeScript & Vite Build | `npm run build` (`tsc -b && vite build`) | PASS | Build sukses (534ms), 0 error tipe |
+| Secret Scan | `python scripts/scan_secrets.py` | PASS | 1.637 file dipindai, 0 secrets |
+| Working Tree Check | `git status --short` (read-only) | PASS | Berkas uncommitted OCR & CR-020 utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] Uji `vitest-axe` menghasilkan 0 violations pada `Mp4ToMp3Modal`.
+- [x] Playwright E2E `dashboard.spec.ts` memverifikasi kartu ke-27 dan `stat-tools-count` = `'27'`.
+- [x] Seluruh suite Pytest, Vitest, Oxlint, Ruff, tsc/vite build, dan `scan_secrets.py` lulus 100%.
+- [x] Dokumentasi fase, state, report, dan task diperbarui sinkron.
+- [x] `RISK-SEC-023` (benchmark staging Ubuntu) tetap dipertahankan sebagai rilis-blocking.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Fase `phase-mp4-to-mp3` (`CR-022`) selesai penuh. Status proyek `RELEASE_PENDING`. Menunggu arahan pengguna untuk proses rilis atau task selanjutnya.
+
+---
+
+## MP3-03 — Frontend UI Modal, Integrasi Katalog Alat ke-27, & Guard Login — 2026-11-13
+
+**Task:** `MP3-03`
+**Requirement:** `BUS-028`, `FR-060`, `NFR-UX-005`, `NFR-ACC-005`
+
+### Ringkasan
+1. Memperluas service client `frontend/src/services/videoCompression.ts`:
+   - Menambahkan tipe `Mp3AudioPreset = '128k' | '192k' | '320k'`.
+   - Mengadaptasi `VideoCompressionJob` agar mencakup opsional `job_type`.
+   - Menambahkan fungsi validator `validateMp4AudioClientFile`: menolak format non-MP4 (hanya `.mp4`), berkas kosong (0 byte), dan ukuran melebihi 250 MB (`250_000_000` byte).
+   - Menambahkan fungsi `uploadMp4ToMp3Stream`: mengirimkan `job_type: 'extract_audio'` dan `owner_confirmed: boolean` via base64url JSON metadata header `X-Video-Metadata` bersama streaming upload `XMLHttpRequest` dan `AbortSignal`.
+2. Membangun antarmuka modal `frontend/src/components/video-tools/Mp4ToMp3Modal.tsx`:
+   - Dialog modal lengkap dengan tombol tutup, dropzone berkas `.mp4`, selektor preset bitrate audio (`128k`, `192k` default, `320k`) berbasis `role="radiogroup"`, checkbox persetujuan kepemilikan/hak cipta wajib, dan panduan ketentuan.
+   - Panel indikator upload progres streaming (`0-100%`) dengan tombol pembatalan upload.
+   - Panel progres pemrosesan worker real-time memantau 4 tahap (`queued` -> `scanning` -> `probing` -> `encoding`) dengan progress bar dan tombol pembatalan job.
+   - Panel hasil sukses ekstraksi MP3 dengan detail nama berkas, ukuran (video -> audio), bitrate, masa berlaku 15 menit, dan tombol unduh audio MP3 sekali pakai yang bertransisi ke status `claimed`.
+   - Penanganan error informatif, khusus untuk kegagalan `NO_AUDIO_STREAM` ("Berkas MP4 tidak mengandung aliran audio untuk diekstrak."), kuota, timeout, dan expired.
+3. Mendaftarkan kartu alat ke-27 di `frontend/src/App.tsx`:
+   - Menambahkan alat ke-27 **MP4 ke MP3** pada kategori `convert` dengan ikon `Music`, badge `Baru`, dan `requiresAuth: true`.
+   - Menghubungkan modal `Mp4ToMp3Modal` dengan state `showMp4ToMp3Modal`.
+   - Memastikan navigasi login guard bekerja: pengguna anonim dialihkan ke `#/login` dengan pesan panduan, sementara pengguna terautentikasi dapat membuka modal secara langsung.
+4. Menulis dan memverifikasi pengujian frontend:
+   - `frontend/src/components/video-tools/__tests__/mp4_to_mp3.test.tsx`: 7 unit/component tests (validasi client, upload stream metadata encoding, rendering modal & preset, penolakan non-mp4, kewajiban checkbox hak cipta, alur sukses upload-polling-download, dan penanganan error `NO_AUDIO_STREAM`).
+   - `frontend/src/__tests__/app.integration.test.tsx`: 11 integration tests (verifikasi kartu alat ke-27 dalam pencarian dan pembukaan modal saat login, serta guard login bagi pengguna anonim).
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `MP3-03` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+- Seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### File Dibuat
+- `frontend/src/components/video-tools/Mp4ToMp3Modal.tsx`
+- `frontend/src/components/video-tools/__tests__/mp4_to_mp3.test.tsx`
+
+### File Diubah
+- `frontend/src/services/videoCompression.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `docs/project/phases/phase-mp4-to-mp3.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Oxlint Linter | `npm run lint` | PASS | `0` error, `0` warning baru pada seluruh berkas MP3-03 |
+| Targeted Vitest Suite | `npx vitest run src/components/video-tools/__tests__/mp4_to_mp3.test.tsx src/__tests__/app.integration.test.tsx --maxWorkers=2` | PASS | `18/18` tests passed (7 mp4_to_mp3, 11 app.integration) |
+| TypeScript & Vite Build | `npm run build` (`tsc -b && vite build`) | PASS | Build sukses (553ms), tidak ada error tipe |
+| Working Tree Check | `git status --short` (read-only) | PASS | Berkas uncommitted OCR & CR-020 utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] Pengguna anonim yang mengklik kartu `MP4 ke MP3` di `#/tools` dialihkan ke `#/login` (`requiresAuth: true`).
+- [x] Modal menyediakan dropzone khusus file `.mp4` (≤ 250 MB), pilihan preset bitrate (128k, 192k default, 320k), dan checkbox konfirmasi kepemilikan audio wajib.
+- [x] Progress upload streaming dan status antrean/pemrosesan ditampilkan secara real-time.
+- [x] Pesan error ramah pengguna saat menghadapi berkas tanpa audio (`NO_AUDIO_STREAM`), kuota penuh, atau timeout.
+- [x] Unduhan otomatis/manual berkas `<stem>_audio.mp3` berhasil.
+
+### Keputusan dan Technical Debt
+- Validasi ekstensi strictly `.mp4` diterapkan di tingkat client sebelum upload dimulai untuk menghemat bandwidth pengguna jika berkas non-mp4 dipilih.
+- Checkbox hak cipta dinonaktifkan secara default dan submit button terkunci sebelum checkbox dicentang, memastikan kepatuhan regulasi hak cipta (`CR-022`, `RISK-SEC-026`).
+
+### Risiko Tersisa
+- Audit aksesibilitas WCAG 2.2 AA (`vitest-axe`) dan penyesuaian Playwright E2E assertion jumlah alat (27) belum dijalankan (`MP3-04`).
+- `RISK-SEC-023` / `Q-007` (benchmark ClamAV > 250 MB & FFmpeg di VPS Ubuntu staging) tetap dipertahankan sebagai prasyarat **release-blocking** sebelum deploy VPS produksi.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan permohonan Gerbang 3 (rencana eksekusi kode) untuk task **`MP3-04`** (Audit Aksesibilitas WCAG 2.2 AA `vitest-axe`, Playwright E2E assertion jumlah alat = 27, regresi penuh backend & frontend, dan penutupan fase `phase-mp4-to-mp3`).
+
+---
+
+## MP3-02 — Adaptasi Endpoint API, Checkbox Hak Cipta, Download Single-Use, & Audit Log — 2026-11-13
+
+**Task:** `MP3-02`
+**Requirement:** `BUS-028`, `BRULE-017`, `FR-060`, `NFR-SEC-017`, `THR-044`, `RISK-SEC-026`
+
+### Ringkasan
+1. Mengadaptasi metadata parser `_parse_video_metadata` pada `backend/app/api/video_compression.py`:
+   - Menerima `job_type="compress"` atau `"extract_audio"`.
+   - Menolak ekstensi selain `.mp4` dengan HTTP 422 (`"Hanya berkas berekstensi .mp4 yang didukung untuk ekstraksi audio MP3."`) jika `job_type="extract_audio"`.
+   - Mewajibkan `owner_confirmed=true` (HTTP 422: `"Konfirmasi kepemilikan atau hak penggunaan audio wajib dicentang."`) untuk ekstraksi audio.
+   - Menghasilkan format output `<stem>_audio.mp3` untuk ekstraksi audio.
+   - Memvalidasi preset bitrate audio (`128k`, `192k` default, `320k`) khusus `job_type="extract_audio"` (HTTP 400 jika tidak valid).
+2. Mengadaptasi alur upload `POST /api/video-compressions`:
+   - Meneruskan `job_type` ke pemanggilan atomik `repo.reserve_upload_job`.
+   - Mencatat `job_type` pada event audit JSONL `video_compression.upload`.
+3. Menyesuaikan serializer `serialize_video_job`:
+   - Mengekspos field `job_type` pada respons API status dan pembuatan job.
+4. Menyesuaikan endpoint download `GET /api/video-compressions/{job_id}/download`:
+   - Menyajikan `Content-Type: audio/mpeg` jika job bertipe `extract_audio` atau berkas berakhiran `.mp3`.
+   - Menyajikan header `Content-Disposition` dengan nama berkas aman `<stem>_audio.mp3`.
+   - Mempertahankan single-use claim atomik dan pembersihan berkas pasca-unduh.
+5. Menambahkan unit & integration test:
+   - `test_video_compression_upload.py`: verifikasi penolakan non-MP4 (HTTP 422), unconfirmed copyright (HTTP 422), invalid preset audio (HTTP 400), invalid job_type (HTTP 400), dan happy path ekstraksi audio 320k (HTTP 202).
+   - `test_video_compression_api.py`: verifikasi field `job_type` pada GET status, header `audio/mpeg` dan nama unduhan pada GET download, pembersihan workspace pasca-unduh, dan penolakan replay unduhan ke-2 (HTTP 409).
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `MP3-02` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+- Seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### File Dibuat
+- Tidak ada (perluasan modul eksisting).
+
+### File Diubah
+- `backend/app/api/video_compression.py`
+- `backend/tests/test_video_compression_upload.py`
+- `backend/tests/test_video_compression_api.py`
+- `docs/project/phases/phase-mp4-to-mp3.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Ruff Linter (File MP3-02 & Test) | `python -m ruff check backend/app/api/video_compression.py backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py` | PASS | `All checks passed!` (0 error) |
+| Targeted Upload & API Tests | `pytest backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py` | PASS | `14/14` tests passed |
+| Full Video Compression Suite | `pytest backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py backend/tests/test_video_compression_db.py backend/tests/test_video_compressor.py backend/tests/test_video_worker.py` | PASS | `41/41` tests passed (zero regression) |
+| Core Regression Tests | `pytest backend/tests/test_auth_api.py backend/tests/test_audit.py backend/tests/test_disk_guard.py backend/tests/test_security.py` | PASS | `30/30` tests passed (zero regression) |
+| Secret Scan | Python script regex scanning | PASS | `0` secrets found |
+| Working Tree Check | `git status` (read-only) | PASS | Berkas uncommitted OCR & CR-020 utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] Header `X-Video-Metadata` menerima `job_type="extract_audio"` dan preset `128k`/`192k`/`320k`.
+- [x] Validasi format menolak selain `.mp4` jika `job_type="extract_audio"` (HTTP 422).
+- [x] Endpoint mewajibkan konfirmasi hak cipta (`owner_confirmed=true`) pada payload metadata (HTTP 422 jika tidak).
+- [x] Download endpoint `/api/video-compressions/{job_id}/download` menyajikan Content-Type `audio/mpeg` dengan header Content-Disposition yang aman.
+- [x] Transisi atomik `succeeded -> claimed` dan penghapusan berkas MP3 pasca-unduh.
+- [x] Audit log JSONL mencatat event `video_compression.upload` (dengan `job_type`) dan `video_compression.download` tanpa data sensitif / nama berkas.
+
+### Keputusan dan Technical Debt
+- Validasi non-MP4 untuk ekstraksi audio dievaluasi sebelum sanitasi umum ekstensi agar menghasilkan HTTP 422 spesifik sesuai spesifikasi requirement daripada 400 generik.
+- Field `job_type` diserialisasi eksplisit pada respons status dan upload agar frontend dapat membedakan alur modal MP4 ke MP3 dengan Kompres Video.
+
+### Risiko Tersisa
+- `RISK-SEC-026` termitigasi di level backend via mandatory `owner_confirmed=true` check.
+- `RISK-SEC-023` / `Q-007` (benchmark staging Ubuntu) tetap release-blocking untuk rilis produksi.
+
+### Dokumentasi Diperbarui
+- `docs/project/phases/phase-mp4-to-mp3.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `MP3-03` (Frontend UI modal `Mp4ToMp3Modal.tsx`, integrasi katalog alat ke-27 di `App.tsx` dengan guard login wajib, dan unit/component tests).
+
+---
+
+## MP3-01 — Logika Ekstraksi Audio FFmpeg, Validasi Stream, & Worker Pipeline — 2026-11-13
+
+**Task:** `MP3-01`
+**Requirement:** `BUS-028`, `FR-060`, `NFR-PERF-009`, `THR-043`, `THR-045`, `RISK-SEC-025`, `RISK-SEC-027`
+
+### Ringkasan
+1. Membangun inspeksi audio `probe_audio_extraction` di `backend/app/services/video_compressor.py`:
+   - Validasi container ketat MP4 (`.mp4` dan format tokens `mp4`/`mov`).
+   - Validasi durasi ≤ 600s (`settings.VIDEO_COMPRESSION_MAX_DURATION_SECONDS`).
+   - Validasi keberadaan stream audio fail-closed: jika tidak ada audio stream, menghasilkan `VideoProbeError("NO_AUDIO_STREAM", "Berkas MP4 tidak mengandung aliran audio untuk diekstrak.")`.
+   - Pemilihan stream default: memprioritaskan stream dengan `disposition.default == 1`, fallback ke stream audio pertama.
+   - Deteksi channel audio: auto-downmix channel > 2 (misal surround 5.1/7.1) ke 2 channel stereo (`target_channels = 2`), atau native channels jika mono/stereo.
+2. Membangun pembentuk argumen `build_audio_ffmpeg_command` dan eksekutor `extract_audio_file`:
+   - Argumen FFmpeg dalam `bubblewrap --unshare-net` sandbox: `libmp3lame`, bitrate CBR sesuai preset (`128k`, `192k`, `320k`), `-vn` (menghapus video/cover art), `-ac <target_channels>`, `-map_metadata -1`, `-map_chapters -1`, `-progress pipe:1`.
+   - Pemantauan progres via stdout pipe `out_time_us=`, hard timeout 10 menit (600s) dengan PGID kill, dan pembatalan reaktif.
+3. Mengadaptasi worker daemon `backend/app/workers/video_worker.py`:
+   - Penanganan percabangan `job.job_type == "extract_audio"`: pemindaian ClamAV streaming 64 KiB sebelum probe, probing audio fail-closed `NO_AUDIO_STREAM`, transcoding ke `output.mp3`, dan penghapusan `input.bin` segera pasca-ekstraksi.
+   - Finalisasi job `succeeded` dengan `output_path`, `output_size_bytes`, `expires_at = done_ts + 900s` (TTL 15m).
+   - Pencatatan event audit JSONL non-PII menyertakan `job_type="extract_audio"`.
+4. Menambahkan test suite komprehensif:
+   - `test_video_compressor.py`: validasi stereo, 5.1 downmix, stream default selection, fail-closed `NO_AUDIO_STREAM`, penolakan non-MP4 `INVALID_CONTAINER`, durasi > 600s, argumen FFmpeg, dan ekstraksi sukses/timeout/cancel/error.
+   - `test_video_worker.py`: integrasi end-to-end pemrosesan job `extract_audio` (succeeded, input dihapus, audit log) dan kegagalan audio-less fail-closed `NO_AUDIO_STREAM` (job failed, workspace dibersihkan, audit log).
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `MP3-01` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+- Seluruh berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) dan `CR-020` terjaga utuh. 0 perintah Git mutating.
+
+### File Dibuat
+- Tidak ada (perluasan modul eksisting).
+
+### File Diubah
+- `backend/app/services/video_compressor.py`
+- `backend/app/workers/video_worker.py`
+- `backend/tests/test_video_compressor.py`
+- `backend/tests/test_video_worker.py`
+- `docs/project/phases/phase-mp4-to-mp3.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Ruff Linter (File MP3-01) | `backend\.venv\Scripts\ruff.exe check backend/app/services/video_compressor.py backend/app/workers/video_worker.py backend/tests/test_video_compressor.py backend/tests/test_video_worker.py` | PASS | `All checks passed!` (0 error) |
+| Unit & Worker Targeted Tests | `backend\.venv\Scripts\pytest.exe backend/tests/test_video_compressor.py backend/tests/test_video_worker.py` | PASS | `20/20` tests passed (13 compressor/audio + 7 worker lifecycle) |
+| Regression DB, Migration, Upload, API | `backend\.venv\Scripts\pytest.exe backend/tests/test_video_compression_db.py backend/tests/test_postgres_migration.py backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py` | PASS | `21/21` tests passed (zero regression) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1635` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | Berkas uncommitted OCR & CR-020 utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] `probe_audio_extraction` memvalidasi container MP4, durasi ≤ 600s, dan menolak MP4 tanpa audio stream dengan error code `NO_AUDIO_STREAM`.
+- [x] Pemilihan stream memilih flag `default` atau stream audio index pertama (`0:a:0`).
+- [x] Audio > 2 channel (misal 5.1/7.1) otomatis di-downmix ke 2 channel stereo (`-ac 2`).
+- [x] `extract_audio_file` mengeksekusi FFmpeg dalam `bubblewrap` sandbox dengan `libmp3lame`, CBR bitrate sesuai preset (`128k`, `192k`, `320k`), `-vn`, `-map_metadata -1 -map_chapters -1`.
+- [x] Output berkas berupa `<stem>_audio.mp3`.
+- [x] Hard timeout ekstraksi 10 menit (600s) dan pembersihan input segera setelah selesai/gagal.
+- [x] Worker `video_worker.py` memproses job bertipe `extract_audio` sesuai alur di atas.
+
+### Keputusan dan Technical Debt
+- Mempertahankan timeout 10 menit (600s) khusus untuk ekstraksi audio sesuai PRD (`NFR-PERF-009`), lebih singkat daripada timeout 45 menit untuk kompresi video.
+- Downmixing audio surround (> 2 channel) dipaksa stereo (`-ac 2`) guna menjamin kompatibilitas pemutar MP3 tanpa distorsi channel.
+
+### Risiko Tersisa
+- `RISK-SEC-026` berstatus `PLANNED`: adaptasi endpoint upload/download dan verifikasi konfirmasi hak cipta akan dituntaskan pada `MP3-02`.
+- `RISK-SEC-023` / `Q-007` (benchmark staging Ubuntu) tetap release-blocking untuk rilis produksi.
+
+### Dokumentasi Diperbarui
+- `docs/project/phases/phase-mp4-to-mp3.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `MP3-02` (Adaptasi endpoint API `POST /api/video-compressions` dengan `job_type="extract_audio"`, validasi ekstensi strictly `.mp4`, verifikasi checkbox hak cipta `owner_confirmed=true`, single-use download berkas MP3, dan pencatatan audit JSONL non-PII).
+
+---
+
+## MP3-00 — Migrasi Skema Database & Adaptasi Model/Repository Queue — 2026-11-13
+
+**Task:** `MP3-00`
+**Requirement:** `BUS-028`, `FR-060`, `NFR-REL-011`
+
+### Ringkasan
+1. Membuat migrasi database Alembic `backend/alembic/versions/005_mp4_to_mp3.py` (down_revision: `"004_video_compression"`):
+   - Menambahkan kolom `job_type VARCHAR(20) DEFAULT 'compress' NOT NULL`.
+   - Menambahkan check constraint `chk_video_jobs_job_type` (`job_type IN ('compress', 'extract_audio')`).
+   - Memperbarui check constraint `chk_video_jobs_preset` menjadi `preset IN ('light', 'balanced', 'maximum', '128k', '192k', '320k')`.
+   - Menggunakan `op.batch_alter_table` untuk kompatibilitas penuh SQLite test suite dan PostgreSQL.
+   - Mengimplementasikan `downgrade()` yang bersih (menghapus kolom `job_type` dan mengembalikan constraint 004).
+2. Memperbarui model deklaratif SQLAlchemy `VideoCompressionJob` di `backend/app/db/models.py`:
+   - Menambahkan kolom `job_type = Column(String(20), nullable=False, default="compress")`.
+   - Mendaftarkan check constraint `chk_video_jobs_job_type` dan memperluas check constraint `chk_video_jobs_preset`.
+3. Mengadaptasi repository antrean `backend/app/db/repositories/video_compression_repository.py`:
+   - Mendefinisikan konstanta `VALID_JOB_TYPES = ("compress", "extract_audio")` dan `VALID_MP3_PRESETS = ("128k", "192k", "320k")`.
+   - Memperbarui `reserve_upload_job(..., job_type="compress")` untuk memvalidasi preset berdasarkan `job_type` dan menyimpannya pada instans model.
+4. Menambahkan pengujian komprehensif pada `backend/tests/test_video_compression_db.py`:
+   - Lifecycle migrasi Alembic 005 (upgrade head, verifikasi kolom `job_type`, downgrade 004, downgrade 003, downgrade base).
+   - Penegakan check constraint untuk `job_type` invalid (terpicu `IntegrityError`) dan preset MP3 valid/invalid.
+   - Reservasi job ekstraksi audio melalui repository `reserve_upload_job(job_type="extract_audio", preset="192k")`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, symbol, dan alur kode diimplementasikan persis sesuai rencana task `MP3-00` yang disetujui.
+- Tidak ada deviasi material atau perubahan kontrak di luar rencana.
+- Seluruh file OCR (`PdfOcrModal.tsx`, `pdf_ocr.test.tsx`), `CR-020`, dan `deploy/RUNBOOK.md` tetap utuh. 0 perintah Git mutating.
+
+### File Dibuat
+- `backend/alembic/versions/005_mp4_to_mp3.py`
+
+### File Diubah
+- `backend/app/db/models.py`
+- `backend/app/db/repositories/video_compression_repository.py`
+- `backend/tests/test_video_compression_db.py`
+- `docs/project/phases/phase-mp4-to-mp3.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Ruff Linter (File MP3-00) | `backend\.venv\Scripts\ruff.exe check backend/alembic/versions/005_mp4_to_mp3.py backend/app/db/models.py backend/app/db/repositories/video_compression_repository.py backend/tests/test_video_compression_db.py` | PASS | `All checks passed!` (0 error) |
+| Targeted DB & Migration Tests | `backend\.venv\Scripts\pytest.exe backend/tests/test_video_compression_db.py` | PASS | `7/7` tests passed (Alembic 005 lifecycle, check constraints, extract_audio reserve) |
+| Postgres Migration Test | `backend\.venv\Scripts\pytest.exe backend/tests/test_postgres_migration.py` | PASS | `2/2` tests passed |
+| Video Compression Full Regress | `backend\.venv\Scripts\pytest.exe backend/tests/test_video_compression_upload.py backend/tests/test_video_compression_api.py backend/tests/test_video_compressor.py backend/tests/test_video_worker.py` | PASS | `27/27` tests passed (zero regression pada modul CR-021) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1635` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | 3 berkas OCR, `CR-020`, dan `RUNBOOK.md` utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] Migrasi `005_mp4_to_mp3.py` menambahkan kolom `job_type VARCHAR(20) DEFAULT 'compress' NOT NULL` dan memperbarui check constraint preset untuk mendukung `('light', 'balanced', 'maximum', '128k', '192k', '320k')`.
+- [x] Model `VideoCompressionJob` dan repository `reserve_upload_job` mendukung parameter `job_type` opsional (default `'compress'`).
+- [x] Constraint konkurensi (1 aktif per user, 1 global running) tetap berlaku bersama untuk kedua tipe job.
+- [x] Test Alembic downgrade/upgrade dan test repository lulus 100%.
+
+### Keputusan dan Technical Debt
+- Menggunakan `op.batch_alter_table` di Alembic 005 agar kompatibel di SQLite dev test dan PostgreSQL VPS produksi.
+- Nilai default `'compress'` menjamin seluruh baris eksisting di database tetap valid dan aman.
+
+### Risiko Tersisa
+- `RISK-SEC-025` s/d `RISK-SEC-027` berstatus `PLANNED`: logika ekstraksi audio, penolakan audio-less, dan adaptasi API akan dituntaskan pada `MP3-01` s/d `MP3-03`.
+- `RISK-SEC-023` / `Q-007` (benchmark staging Ubuntu) tetap release-blocking untuk rilis produksi.
+
+### Dokumentasi Diperbarui
+- `docs/project/phases/phase-mp4-to-mp3.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `MP3-01` (Logika Ekstraksi Audio FFmpeg `libmp3lame`, validasi stream `NO_AUDIO_STREAM`, auto-downmix stereo, dan integrasi daemon `video_worker.py`).
+
+---
+
+## VC-06 — Audit Aksesibilitas WCAG 2.2 AA, Playwright E2E, Regresi Penuh & Penutupan Fase — 2026-11-13
+
+**Task:** `VC-06`
+**Requirement:** `CR-021`, `KPI-008`, `NFR-ACC-004`, `THR-037` s/d `042`, `RISK-SEC-021` s/d `024`
+
+### Ringkasan
+1. Memverifikasi aksesibilitas modal baru `CompressVideoModal` dengan `vitest-axe` pada `frontend/src/components/__tests__/accessibility.test.tsx`: lulus tanpa pelanggaran (0 violations, `8/8` tests PASS).
+2. Memperbarui `frontend/e2e/dashboard.spec.ts` ekspektasi `stat-tools-count` dari `'25'` menjadi `'26'` (kartu alat ke-26 `Compress Video`).
+3. Mendiagnosis dan memperbaiki kegagalan Playwright E2E: rute proxy `frontend/vite.config.ts` sebelumnya menggunakan `'/s'` yang mencocokkan awalan `src/main.tsx` sehingga bundler scripts ter-proxy ke Uvicorn backend dan menghasilkan 404. Prefix diisolasi menjadi `'/s/'` (khusus URL shortener), sehingga Playwright `dashboard.spec.ts` lulus bersih (`1/1` test PASS).
+4. Menjalankan verifikasi regresi penuh end-to-end:
+   - Ruff linter: 0 error pada seluruh berkas backend `CR-021`.
+   - Pytest suite: 337/337 tests PASS (`0:01:56`).
+   - Vitest suite: 51 test files, 404/404 tests PASS (`--maxWorkers=2`).
+   - Oxlint: 0 error pada seluruh kode frontend.
+   - Production Build: `tsc -b && vite build` sukses (dist bersih).
+   - Secret scan: `scripts/scan_secrets.py` memindai 1.631 berkas dengan 0 temuan.
+5. Menutup fase `phase-video-compression` (`VC-00` s/d `VC-06`), mencatat kepatuhan exit criteria, dan mengonfirmasi `RISK-SEC-023` / `Q-007` tetap berstatus release-blocking sebelum deploy produksi ke VPS.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, assertion, dan verifikasi dieksekusi sesuai rencana task `VC-06`.
+- Penyesuaian satu baris non-mutating pada `frontend/vite.config.ts` (`'/s'` -> `'/s/'`) untuk membatasi proxy shortener dan mencegah intercept path bundler frontend.
+- Seluruh berkas OCR (`PdfOcrModal.tsx`, `pdf_ocr.test.tsx`), berkas `CR-020`, dan `deploy/RUNBOOK.md` tetap utuh. Tidak ada perintah mutating Git yang dijalankan.
+
+### File Dibuat
+- (Tidak ada)
+
+### File Diubah
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `frontend/vite.config.ts`
+- `docs/project/phases/phase-video-compression.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Vitest Accessibility WCAG 2.2 AA | `npm --prefix frontend run test -- accessibility.test.tsx` | PASS | `8/8` tests passed (0 axe violations) |
+| Playwright E2E Dashboard | `npm --prefix frontend run test:e2e -- e2e/dashboard.spec.ts` | PASS | `1/1` test passed (`stat-tools-count` = `'26'`, multi-viewport, contrast) |
+| Backend Ruff Linter | `backend\.venv\Scripts\ruff.exe check backend/app/services/video_compressor.py backend/app/workers/video_worker.py backend/app/api/video_compression.py backend/app/db/repositories/video_compression_repository.py` | PASS | All checks passed (`0` error) |
+| Backend Pytest Full Suite | `backend\.venv\Scripts\pytest.exe backend/tests` | PASS | `337/337` tests passed |
+| Frontend Vitest Full Suite | `npm --prefix frontend run test -- --maxWorkers=2` | PASS | `51/51` test files, `404/404` tests passed |
+| Frontend Oxlint | `npm --prefix frontend run lint` | PASS | `0` error |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` sukses |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1631` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | 3 berkas OCR, `CR-020`, dan `RUNBOOK.md` utuh; 0 mutating Git commands |
+
+### Acceptance Criteria
+- [x] `vitest-axe` 0 violations pada `CompressVideoModal`
+- [x] Playwright E2E `stat-tools-count` `'26'` lolos pada multi-viewport
+- [x] Seluruh suite Pytest (337), Vitest (404), Ruff, Oxlint, build, dan secret scan PASS 100%
+- [x] Seluruh exit criteria `phase-video-compression` terpenuhi di lingkungan dev lokal
+- [x] `RISK-SEC-023` / `Q-007` (benchmark ClamAV > 250 MB & FFmpeg di host Ubuntu staging) tetap open dan release-blocking
+
+### Keputusan dan Technical Debt
+- Perbaikan prefix proxy `/s/` di `vite.config.ts` mencegah tabrakan nama dengan rute statis vite dev server `/src/...`.
+
+### Risiko Tersisa
+- `RISK-SEC-023` / `Q-007` (owner: User (Owner)): Benchmark performa & resource ClamAV + FFmpeg pada VPS Ubuntu staging 1 vCPU / 2.2 GiB RAM tetap wajib dilakukan sebelum rilis produksi.
+
+### Dokumentasi Diperbarui
+- `docs/project/phases/phase-video-compression.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Lanjutkan ke `CR-022` (MP4 ke MP3): lakukan Product Discovery, susun PRD (`FR-060`), dan minta persetujuan Gerbang 1B.
+
+---
+
+## VC-05 — Frontend Client Streaming, Modal Compress Video & Guard Login `App.tsx` — 2026-11-12
+
+**Task:** `VC-05`
+**Requirement:** `FR-059`, `NFR-UX-004`, `NFR-ACC-004`, `THR-040`, `RISK-SEC-022`
+
+### Ringkasan
+1. Membangun client API streaming `frontend/src/services/videoCompression.ts`: validasi klien (`MAX_VIDEO_FILE_BYTES = 250_000_000`, ekstensi `.mp4`/`.mov`/`.webm`, file > 0 byte), unggah raw stream `XMLHttpRequest` (`Content-Type: application/octet-stream`, `X-Video-Metadata` base64url, `X-CSRF-Token`, progres unggah, `AbortSignal`, penanganan `429 Retry-After` & reset CSRF pada `401`), polling status (`getVideoCompressionJob`), pembatalan (`cancelVideoCompressionJob`), dan unduhan sekali pakai (`downloadCompressedVideo` membaca `Content-Disposition` UTF-8 & header `X-Original-Size`/`X-Output-Size`).
+2. Membangun antarmuka `frontend/src/components/video-tools/CompressVideoModal.tsx`: dropzone lokal + input file, pemilih 3 preset (`Ringan`, `Seimbang` default, `Maksimum`) dalam `radiogroup`, panel progres unggah & tombol batal, panel progres 4 tahap worker (`queued`, `scanning`, `probing`, `encoding`) + tombol batal, panel sukses single-use download + info penghematan ukuran/resolusi + reset, serta penanganan khusus `OUTPUT_NOT_SMALLER` dengan tombol pindah preset lebih kuat (`Pilih Preset Seimbang` / `Pilih Preset Maksimum`).
+3. Mendaftarkan kartu alat ke-26 **Compress Video** pada `TOOLS` di `frontend/src/App.tsx` (`category: 'convert'`, `isNew: true`, `requiresAuth: true`) beserta helper `toolRequiresAuth()` untuk `handleExecuteTool`, badge `Perlu Akun`, dan teks CTA agar `Compress Video` mewajibkan login sementara `DOCX ke PDF` tetap terbuka bagi pengguna anonim, lalu memasang `<CompressVideoModal />`.
+4. Menambahkan suite unit & komponen `frontend/src/components/video-tools/__tests__/compress_video.test.tsx` (`10/10` test) dan memperbarui `frontend/src/__tests__/app.integration.test.tsx` (`11/11` test) untuk pencarian/buka/tutup modal terautentikasi serta redirect `#/login` bagi pengguna anonim.
+
+### Kesesuaian dengan Code Plan
+- Seluruh file, simbol, kontrak API, dan skenario uji sesuai code plan `VC-05` yang disetujui pengguna (`oke eksekusi`).
+- Penyesuaian minor sesuai kondisi aktual codebase:
+  - Menggunakan ikon `Film` dari `lucide-react` v1.59.0 (`FileVideo` tidak tersedia di deklarasi paket).
+  - Menyesuaikan kelas kontras badge & tombol saran preset (`bg-amber-700 hover:bg-amber-800 text-white` dan `dark:bg-teal-700`) demi kepatuhan kontras WCAG AA sebelum audit `VC-06`.
+  - Pada iterasi test pertama `compress_video.test.tsx`, 2 test gagal karena `handleSubmit` langsung memicu `pollJobStatus()` sesaat setelah unggah selesai dan `fireEvent.keyDown` membutuhkan flush `act()` untuk passive `useEffect`; urutan mock polling dan `act()` disesuaikan sehingga seluruh `10/10` test deterministik tanpa real sleep.
+- Status rollback bersih (berkas baru `videoCompression.ts`, `CompressVideoModal.tsx`, `compress_video.test.tsx`, serta perubahan terisolasi di `App.tsx` dan `app.integration.test.tsx`).
+
+### File Dibuat
+- `frontend/src/services/videoCompression.ts`
+- `frontend/src/components/video-tools/CompressVideoModal.tsx`
+- `frontend/src/components/video-tools/__tests__/compress_video.test.tsx`
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Oxlint (5 berkas VC-05) | `npx oxlint src/services/videoCompression.ts src/components/video-tools/CompressVideoModal.tsx src/components/video-tools/__tests__/compress_video.test.tsx src/__tests__/app.integration.test.tsx src/App.tsx` | PASS | `0` error pada file baru/diubah (`1` warning pre-existing di `src/App.tsx:674` di luar scope `CR-021`) |
+| Full Oxlint | `npm --prefix frontend run lint` | PASS | `0` error (`21` warning pre-existing di berkas lama di luar `CR-021`) |
+| Targeted Vitest (`VC-05`) | `npm --prefix frontend run test -- src/components/video-tools/__tests__/compress_video.test.tsx src/__tests__/app.integration.test.tsx` | PASS | `2/2` files, `21/21` tests passed (`10/10` `compress_video.test.tsx`, `11/11` `app.integration.test.tsx`) |
+| Full Vitest Suite | `npm --prefix frontend run test` | PASS | `51/51` test files, `403/403` tests passed |
+| TypeScript & Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` sukses (`2146` modules transformed, `2.42s`) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1629` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | `deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`, & `CR-020` utuh; 0 Git mutating commands |
+
+### Acceptance Criteria
+- [x] Pengguna anonim yang mengklik kartu `Compress Video` di `#/tools` dialihkan ke `#/login` (tidak ikut bypass `category === 'convert'`), sementara `DOCX ke PDF` tetap terbuka tanpa login
+- [x] Modal mendukung 3 preset (`Ringan`, `Seimbang`, `Maksimum`), validasi ekstensi/0 B/250.000.000 B client-side, progres unggahan & abort, polling status 4 tahap, pembatalan job aktif, unduhan sekali pakai, dan tombol saran preset pada `OUTPUT_NOT_SMALLER`
+
+### Keputusan dan Technical Debt
+- Audit aksesibilitas `vitest-axe` untuk `CompressVideoModal` dan pembaruan Playwright E2E `stat-tools-count` (`'25'` -> `'26'`) dijalankan pada task penutup `VC-06`.
+
+### Risiko Tersisa
+- `RISK-SEC-022` (regresi aksesibilitas & E2E frontend) ditutup di `VC-06`; `RISK-SEC-023` (`Q-007`, owner: User (Owner)) tetap **release-blocking** sebelum rilis produksi hingga benchmark staging Ubuntu selesai.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/phases/phase-video-compression.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-06` (`frontend/src/components/__tests__/accessibility.test.tsx`, `frontend/e2e/dashboard.spec.ts` `stat-tools-count` `'26'`, regresi penuh backend/frontend/lint/build/secret scan, dan penutupan fase `CR-021`).
+
+---
+
+## VC-04 — Artefak Deployment VPS & Reverse Proxy Override — 2026-11-12
+
+**Task:** `VC-04`
+**Requirement:** `KPI-008`, `NFR-SEC-016`, `THR-039`, `THR-042`, `CTRL-039`, `CTRL-042`, `RISK-SEC-023`
+
+### Ringkasan
+1. Membuat unit systemd terpisah `deploy/satukit-video-worker.service` untuk menjalankan `python -m app.workers.video_worker` sebagai user non-root `satukit` dengan containment resource VPS 1 vCPU / 2.2 GiB RAM (`CPUQuota=75%`, `MemoryHigh=700M`, `MemoryMax=950M`, `TasksMax=48`), `ProtectSystem=strict`, `PrivateTmp=true`, `NoNewPrivileges=true`, dan `ReadWritePaths=/var/lib/satukit/video_jobs /var/www/satukit/backend/logs /tmp`.
+2. Memperbarui `deploy/Caddyfile.example` dengan named matcher `@videoUpload` (`method POST`, `path /api/video-compressions` -> `max_size 260MB`) dan matcher pengecualian `@defaultBodyLimit` (`not { method POST; path /api/video-compressions }` -> `max_size 35MB`) sehingga seluruh rute lain tetap mempertahankan batas global 35 MB.
+3. Membuat panduan `deploy/VIDEO-COMPRESSION.md` tanpa menyentuh `deploy/RUNBOOK.md` (menjaga perubahan OCR tetap utuh), mencakup instalasi paket `apt` (`ffmpeg`, `clamav-daemon`, `clamav-freshclam`, `bubblewrap`), konfigurasi `clamd.conf` (`StreamMaxLength 300M`, `MaxFileSize 300M`), direktori workspace bersama `/var/lib/satukit/video_jobs` (`0700`) agar kompatibel dengan `PrivateTmp=true`, pengecekan AppArmor userns Ubuntu 24.04 untuk `bwrap`, serta checklist verifikasi staging `RISK-SEC-023` (`Q-007`).
+
+### Kesesuaian dengan Code Plan
+- Seluruh berkas dan perubahan sesuai code plan `VC-04` yang disetujui pengguna (`oke eksekusi`).
+- `deploy/RUNBOOK.md` dan 2 berkas OCR lain tetap utuh tanpa modifikasi.
+- Status rollback bersih (2 berkas baru `deploy/satukit-video-worker.service` & `deploy/VIDEO-COMPRESSION.md`, serta pembaruan blok `request_body` di `deploy/Caddyfile.example`).
+
+### File Dibuat
+- `deploy/satukit-video-worker.service`
+- `deploy/VIDEO-COMPRESSION.md`
+
+### File Diubah
+- `deploy/Caddyfile.example`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Static Config Review | Inspeksi `deploy/Caddyfile.example`, `deploy/satukit-video-worker.service`, `deploy/VIDEO-COMPRESSION.md` | PASS | `@defaultBodyLimit` menjaga `35MB` global; `@videoUpload` hanya `POST /api/video-compressions` `260MB`; `PrivateTmp` + `/var/lib/satukit/video_jobs` tersinkron |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1626` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | `deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`, & `CR-020` utuh; 0 Git mutating commands |
+| Staging Daemon/Proxy Tools | `caddy validate` & `systemd-analyze verify` | NOT RUN (Windows dev) | Menunggu eksekusi di host Ubuntu staging (`RISK-SEC-023` / `Q-007`) |
+
+### Acceptance Criteria
+- [x] `deploy/satukit-video-worker.service` terdefinisi dengan isolasi user non-root & batas resource VPS 1 vCPU / 2.2 GiB RAM
+- [x] `deploy/Caddyfile.example` menjaga batas `35MB` untuk seluruh rute lain dan memberi override `260MB` hanya pada `POST /api/video-compressions`
+- [x] `deploy/VIDEO-COMPRESSION.md` mendokumentasikan paket `apt`, `StreamMaxLength`, workspace bersama lintas `PrivateTmp=true`, AppArmor `bwrap`, dan checklist `Q-007` tanpa mengubah `deploy/RUNBOOK.md`
+
+### Keputusan dan Technical Debt
+- Validasi runtime `caddy validate`, `systemd-analyze verify`, profil AppArmor userns `bwrap`, serta benchmark ClamAV `StreamMaxLength` > 250 MB dan FFmpeg RAM belum dapat dijalankan di Windows dev dan menjadi prasyarat staging Ubuntu (`RISK-SEC-023`).
+
+### Risiko Tersisa
+- `RISK-SEC-023` (`Q-007`, owner: User (Owner)) tetap **release-blocking** sebelum rilis produksi.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/phases/phase-video-compression.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-05` (`frontend/src/services/videoCompression.ts`, `frontend/src/components/video-tools/CompressVideoModal.tsx`, registrasi kartu ke-26 `Compress Video` di `frontend/src/App.tsx` dengan guard login wajib, serta unit & app integration tests).
+
+---
+
+## VC-03 — Endpoint Status, Single-Use Download, Cancel & Telemetry `/api/health` — 2026-11-12
+
+**Task:** `VC-03`
+**Requirement:** `FR-059`, `NFR-REL-010`, `NFR-SEC-016`, `NFR-PRIV-002`, `THR-039` s/d `THR-042`, `RISK-SEC-022`, `RISK-SEC-024`
+
+### Ringkasan
+1. Melengkapi `VideoCompressionRepository` (`backend/app/db/repositories/video_compression_repository.py`) dengan `InvalidJobStateError(status_code, reason)` (`409` untuk `already_claimed`/`not_ready`/`not_cancellable`, `410` untuk `expired`), `mark_job_expired()`, `clear_claimed_job_paths()`, dan `cancel_job_for_user()` (membatalkan job aktif di bawah lock antrean sambil mempertahankan baris `cancelled` demi histori rate limit 60 menit).
+2. Menambahkan endpoint `GET /api/video-compressions/{job_id}`, `GET /api/video-compressions/{job_id}/download` (`succeeded -> claimed`, streaming chunk 64 KiB, `Content-Disposition` UTF-8 ter-sanitasi, `Cache-Control: private, no-store, no-cache, must-revalidate`, penutupan handle file sebelum pembersihan direktori workspace & path DB di `finally:`, plus audit JSONL non-PII), serta `DELETE /api/video-compressions/{job_id}` pada `backend/app/api/video_compression.py`.
+3. Menambahkan telemetry `ffmpeg_available`, `ffprobe_available`, serta `video_worker` heartbeat (`healthy`/`stale`/`unavailable` dengan ambang `VIDEO_WORKER_HEARTBEAT_STALE_SECONDS = 60.0` dan `set_health_engine_override()`) pada `GET /api/health` di `backend/app/api/health.py` tanpa mengekspos path filesystem internal biner maupun workspace.
+
+### Kesesuaian dengan Code Plan
+- File, symbol, kontrak endpoint, dan command eksekusi sesuai code plan `VC-03` yang disetujui pengguna (`oke eksekusi`).
+- Catatan perubahan dari rencana awal:
+  - `backend/app/main.py` tidak dimodifikasi karena `video_compression_router` dan `expose_headers` CORS (`Content-Disposition`, `X-Job-ID`, `X-Original-Size`, `X-Output-Size`) sudah terpasang sejak `VC-01`.
+  - Pada percobaan eksekusi pertama, `_safe_mark_job_expired(job_id)` dipanggil di dalam blok `with get_video_compression_session() as session:` saat menangani `InvalidJobStateError(reason="expired")`, sehingga sesi kedua SQLite terblokir lock `timeout=30` dan `test_single_use_download_streams_cleans_workspace_and_handles_edge_states` gagal (`'succeeded' != 'expired'`). Penanganan `InvalidJobStateError` dipindahkan ke luar blok `with get_video_compression_session()` agar sesi pertama tertutup dan melepaskan lock sebelum `_safe_mark_job_expired(job_id)` dijalankan; setelah perbaikan, seluruh `48/48` test PASS dalam `10.14s`.
+- Status rollback bersih (penambahan method repository, 3 route pada `video_compression.py`, field health baru, dan 2 suite test tanpa perubahan skema DB).
+
+### File Dibuat
+- `backend/tests/test_video_compression_api.py`
+
+### File Diubah
+- `backend/app/db/repositories/video_compression_repository.py`
+- `backend/app/api/video_compression.py`
+- `backend/app/api/health.py`
+- `backend/tests/test_health.py`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Ruff (5 berkas VC-03) | `backend\.venv\Scripts\ruff.exe check backend/app/db/repositories/video_compression_repository.py backend/app/api/video_compression.py backend/app/api/health.py backend/tests/test_video_compression_api.py backend/tests/test_health.py` | PASS | `All checks passed!` (`0` error) |
+| Pytest API, Health & Regresi Keamanan/Config | `backend\.venv\Scripts\pytest.exe -v backend/tests/test_video_compression_api.py backend/tests/test_health.py backend/tests/test_video_compression_db.py backend/tests/test_video_compression_upload.py backend/tests/test_video_worker.py backend/tests/test_security.py backend/tests/test_audit.py backend/tests/test_sqlite_retirement.py backend/tests/test_production_config.py` | PASS | `48/48 passed` (`6/6` `test_video_compression_api.py`, `2/2` `test_health.py`, `6/6` DB, `6/6` upload, `5/5` worker, `8/8` security, `10/10` audit, `1/1` sqlite, `4/4` prod) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1625` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | `deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`, & `CR-020` utuh; 0 Git mutating commands |
+
+### Acceptance Criteria
+- [x] Guard auth 401/403 (termasuk `email_verified` produksi), Origin allowlist, dan CSRF 403 teruji pada `GET /{job_id}`, `GET /{job_id}/download`, dan `DELETE /{job_id}`
+- [x] Anti-BOLA HTTP 404 lintas `user_id` teruji tanpa memodifikasi atau membeberkan tugas milik pemilik asli
+- [x] Single-use atomic claim `succeeded -> claimed` teruji untuk multi-chunk streaming (> 64 KiB), concurrent race `[200, 409]`, replay `409`, TTL expired `410` + pembaruan status DB `expired`, dan file missing `410`
+- [x] Pembatalan `DELETE /{job_id}` membersihkan `running_lock` & workspace, menolak status terminal `409`, dan mempertahankan histori untuk rate limit 3/jam
+- [x] Audit trail JSONL non-PII bebas nama berkas, path workspace, dan IP mentah; `GET /api/health` mengekspos `ffmpeg_available`, `ffprobe_available`, serta status `video_worker` (`unavailable`/`healthy`/`stale`) tanpa path internal
+
+### Keputusan dan Technical Debt
+- Uji rasio concurrency double-download (`ThreadPoolExecutor(2)`) dan conditional `UPDATE` dieksekusi di atas SQLite lokal `timeout=30`; eksekusi nyata terhadap PostgreSQL + staging Ubuntu (`ffmpeg`/`ffprobe`/`bwrap`/`clamd`) tetap bagian dari `RISK-SEC-023` (`Q-007`).
+- `full ruff check backend` masih menyimpan error pre-existing di luar `CR-020`/`CR-021`; seluruh file baru/diubah wajib `0` error.
+
+### Risiko Tersisa
+- `RISK-SEC-023` (`Q-007`, owner: User (Owner)) tetap **release-blocking** sebelum rilis produksi: benchmark empiris ClamAV `StreamMaxLength` (> 250 MB) dan RAM `ffmpeg` di Ubuntu staging.
+- `RISK-SEC-022` & `RISK-SEC-023` pada konfigurasi reverse proxy Caddy, systemd worker service, frontend modal, dan guard login `App.tsx` ditangani pada `VC-04` s/d `VC-06`.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/phases/phase-video-compression.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-04` (artefak deployment `deploy/satukit-video-worker.service`, override matcher `POST /api/video-compressions` pada `deploy/Caddyfile.example` tanpa mengubah batas global 35 MB, dan `deploy/VIDEO-COMPRESSION.md`) atau `VC-05` (frontend client, modal, & guard login `App.tsx`).
+
+---
+
+## VC-02 — Layanan Kompresor FFmpeg/ClamAV/Bubblewrap & Worker Systemd — 2026-11-12
+
+**Task:** `VC-02`
+**Requirement:** `FR-059`, `NFR-PERF-008`, `NFR-REL-010`, `NFR-SEC-016`, `NFR-PRIV-002`, `THR-037` s/d `THR-041`, `RISK-SEC-021`, `RISK-SEC-022`, `RISK-SEC-024`
+
+### Ringkasan
+1. Mengupgrade `ClamAVScanner` pada `backend/app/services/file_scanner.py` dengan `_scan_stream()`, `scan_file()` streaming `INSTREAM` chunk 64 KiB tanpa `file.read()` utuh, pengecekan `"FOUND"` sebelum suffix `": OK"`, `ensure_fresh_signatures()` (`zVERSION\0` + fallback mtime `daily/main.{cld,cvd}` `<= 86400s`), serta `MockClamAVScanner.scan_file()` dengan overlap window.
+2. Membangun layanan `backend/app/services/video_compressor.py` untuk pemindaian pra-probe fail-closed, wrapper `bubblewrap` (`--tmpfs /tmp` sebelum `--ro-bind`/`--bind <job_dir> <job_dir>`, `--unshare-net --unshare-ipc --unshare-pid --die-with-parent`, `SANDBOX_UNAVAILABLE` fail-closed di Linux produksi), validasi `ffprobe` (MP4/MOV/WebM + codec WebM `vp8`/`vp9`/`av1`, rotasi <= 4K, `<= 600s`, `<= 60` FPS), single-pass H.264 `libx264 -preset veryfast -threads 1` (`light`/`balanced`/`maximum`), `-map_metadata -1 -map_chapters -1 -movflags +faststart`, tanpa upscale (`<= 1080p`/`30 FPS`), pantau `-progress pipe:1`, terminasi process-group (`os.killpg` `SIGTERM` -> 3s -> `SIGKILL`), hard timeout `2700s`, serta kebijakan `OUTPUT_NOT_SMALLER`.
+3. Membangun daemon worker `backend/app/workers/video_worker.py` dengan transaksi singkat per fase (`scanning` -> `probing` -> `encoding`), heartbeat non-path `RuntimeState(key="video_worker_heartbeat")`, pemulihan job macet `recover_stale_running_jobs` (`WORKER_INTERRUPTED`), penghapusan `input.bin` segera pasca-encode, dan `sweep_expired_and_terminal_jobs` (TTL 15m `succeeded -> expired`, grace `60s` `claimed`, stale `uploading > 1j`, orphan dir `> 60s`, retensi terminal `> 24j` demi histori rate-limit 60m).
+
+### Kesesuaian dengan Code Plan
+- File, symbol, kontrak internal, dependency, dan command eksekusi sesuai code plan `VC-02` yang disetujui pengguna (`oke eksekusi`).
+- Penyesuaian implementasi & test lokal:
+  - Pada `video_compressor.py`, pemanggilan `on_progress` akhir dilakukan setelah thread pembaca stdout selesai join agar pembaruan progres terakhir tidak terlewat.
+  - Pada host Windows lokal, penulisan `EICAR_SIGNATURE` asli ke disk memicu Windows Defender mengunci berkas (`PermissionError`), sehingga `test_video_compressor.py` mem-patch `app.services.file_scanner.EICAR_SIGNATURE` dan memakai test double `_InfectedScanner` di `test_video_worker.py`.
+  - Cabang POSIX `os.killpg` diuji dengan mengganti objek `app.services.video_compressor.os` memakai `SimpleNamespace` (tanpa memutasi modul `os` global).
+- Status rollback bersih (seluruh modul baru/terisolasi tanpa mengubah skema DB maupun mengaktifkan unit systemd produksi).
+
+### File Dibuat
+- `backend/app/services/video_compressor.py`
+- `backend/app/workers/video_worker.py`
+- `backend/tests/test_video_compressor.py`
+- `backend/tests/test_video_worker.py`
+
+### File Diubah
+- `backend/app/services/file_scanner.py`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Ruff (5 berkas VC-02) | `backend\.venv\Scripts\ruff.exe check backend/app/services/file_scanner.py backend/app/services/video_compressor.py backend/app/workers/video_worker.py backend/tests/test_video_compressor.py backend/tests/test_video_worker.py` | PASS | `All checks passed!` (`0` error) |
+| Pytest Compressor, Worker & Regresi File Shelf | `backend\.venv\Scripts\pytest.exe -v backend/tests/test_video_compressor.py backend/tests/test_video_worker.py backend/tests/test_file_worker.py backend/tests/test_file_shelf_comprehensive.py` | PASS | `33/33 passed` (`10/10` `test_video_compressor.py`, `5/5` `test_video_worker.py`, `7/7` `test_file_worker.py`, `11/11` `test_file_shelf_comprehensive.py`) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1624` files scanned, `0` secrets found |
+
+### Acceptance Criteria
+- [x] `ClamAVScanner.scan_file()` men-stream `INSTREAM` 64 KiB + cek kesegaran signature `<= 24 jam` dan dieksekusi sebelum `ffprobe`
+- [x] `video_compressor.py` memvalidasi MP4/MOV/WebM (`vp8`/`vp9`/`av1`), <= 4K/600s/60fps, single-pass 3 preset tanpa upscale, strip metadata/chapter, hapus output `OUTPUT_NOT_SMALLER`, bwrap sandbox, dan PGID kill 45m
+- [x] `video_worker.py` menjalankan startup recovery, heartbeat non-path di `runtime_state`, penghapusan input pasca-encode, dan sweeper TTL 15m/claimed/orphan/retensi 24j
+- [x] Regresi `file_worker` & `file_shelf` PASS (`18/18`), `3` berkas OCR & `CR-020` utuh tanpa perintah Git mutating
+
+### Keputusan dan Technical Debt
+- Eksekusi nyata binary `ffmpeg`/`ffprobe`/`bwrap`/`clamd` tidak tersedia di host dev Windows sehingga perilaku subprocess/sandbox/ClamAV diuji via `socketpair()`, stub `Popen`, dan `SimpleNamespace` POSIX (`Q-007` / `RISK-SEC-023`).
+- `full ruff check backend` masih menyimpan error pre-existing di berkas lama di luar `CR-020`/`CR-021`; seluruh berkas baru/diubah wajib `0` error.
+
+### Risiko Tersisa
+- `RISK-SEC-023` (`Q-007`, owner: User (Owner)) tetap **release-blocking** sebelum rilis produksi: wajib uji empiris ClamAV `StreamMaxLength` (> 250 MB) dan konsumsi RAM `ffmpeg` di Ubuntu staging.
+- `RISK-SEC-022` & `RISK-SEC-024` bagian endpoint status/download/cancel, telemetry `/api/health`, Caddy override, dan frontend guard ditangani di `VC-03` s/d `VC-06`.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/phases/phase-video-compression.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-03` (`GET /api/video-compressions/{job_id}`, `GET .../download` single-use claim, `DELETE ...` cancel, audit JSONL non-PII, dan telemetry `/api/health` untuk `ffmpeg`/`ffprobe` + heartbeat worker tanpa path internal).
+
+---
+
+## VC-01 — Skema PostgreSQL, Repository Antrean, Settings & Streaming Upload — 2026-11-12
+
+**Task:** `VC-01`
+**Requirement:** `FR-059`, `NFR-REL-010`, `NFR-SEC-016`, `THR-037`, `THR-039`, `THR-040`, `RISK-SEC-021`
+
+### Ringkasan
+1. Menambahkan konfigurasi `Settings.VIDEO_COMPRESSION_*` pada `backend/app/core/config.py` (`250_000_000` byte maks unggahan, `1_342_177_280` byte / `1.25 GiB` batas workspace global, chunk `65_536` byte, `3` job/jam, antrean `1+2`, timeout `2700s`, TTL `900s`, retensi baris `86400s`).
+2. Membangun model `VideoCompressionJob` pada `backend/app/db/models.py` dan migration Alembic `backend/alembic/versions/004_video_compression.py` (`down_revision = "003_file_shelf"`) lengkap dengan `CheckConstraint` (`status`, `preset`, `running_lock`, `input_size_bytes >= 0`) dan partial unique index kompatibel PostgreSQL & SQLite (`uq_video_jobs_active_per_user`, `uq_video_jobs_global_running`).
+3. Mengimplementasikan `VideoCompressionRepository` pada `backend/app/db/repositories/video_compression_repository.py` dengan `pg_advisory_xact_lock`, reservasi atomik `uploading` (cek aktif per akun, rolling 60 menit akun & IP, antrean global `1+2`, cap workspace `1.25 GiB`), `finalize_upload_queued`, `discard_uploading_job`, `claim_next_queued_job` (`FOR UPDATE SKIP LOCKED`), `get_job_for_user`, dan `claim_succeeded_job_for_download` (`succeeded -> claimed`).
+4. Membangun router streaming `POST /api/video-compressions` pada `backend/app/api/video_compression.py` dan mendaftarkannya pada `backend/app/main.py`: membaca `request.stream()` per chunk langsung ke disk (`0700`/`0600`) tanpa memanggil `request.body()`, menegakkan auth + email verified (produksi) + CSRF + Origin allowlist + `X-Video-Metadata` base64url + disk guard >= 80%, pembersihan orphan berkas/baris saat batal/gagal/melebihi batas, serta pencatatan audit JSONL non-PII tanpa nama berkas atau path.
+
+### Kesesuaian dengan Code Plan
+- File, symbol, kontrak API, dan skema sesuai code plan `VC-01` yang disetujui; seluruh 8 berkas backend yang dibuat/diubah lolos Ruff 0 error.
+- Penyesuaian pengujian lokal: pada host dev Windows drive C: melampaui ambang `>= 80%` `disk_guard`, sehingga fixture test upload mem-stub `app.core.disk_guard.get_disk_space_info` sehat sebagai default dan tetap menguji skenario `507` kritis; client uji memakai `TestClient(app, client=("127.0.0.1", 50000))` agar `get_client_ip()` membaca `X-Forwarded-For` sesuai kontrak proxy loopback; uji guest dev memakai `session_manager.session_token` (`401`) dan inspeksi AST `ast.Call` memverifikasi nol panggilan `request.body()`.
+- Status rollback tetap bersih (migration `004_video_compression.py` diuji `upgrade -> head`, `downgrade -> 003_file_shelf`, dan `downgrade -> base`).
+
+### File Dibuat
+- `backend/alembic/versions/004_video_compression.py`
+- `backend/app/db/repositories/video_compression_repository.py`
+- `backend/app/api/video_compression.py`
+- `backend/tests/test_video_compression_db.py`
+- `backend/tests/test_video_compression_upload.py`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/db/models.py`
+- `backend/app/main.py`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Ruff (8 berkas VC-01) | `backend\.venv\Scripts\ruff.exe check backend/app/core/config.py backend/app/db/models.py backend/alembic/versions/004_video_compression.py backend/app/db/repositories/video_compression_repository.py backend/app/api/video_compression.py backend/app/main.py backend/tests/test_video_compression_db.py backend/tests/test_video_compression_upload.py` | PASS | `All checks passed!` (`0` error) |
+| Pytest DB, Upload & Postgres | `backend\.venv\Scripts\pytest.exe backend/tests/test_video_compression_db.py backend/tests/test_video_compression_upload.py backend/tests/test_postgres_migration.py backend/tests/test_postgres_setup.py` | PASS | `18/18 passed` (`6/6` `test_video_compression_db.py`, `6/6` `test_video_compression_upload.py`, `2/2` `test_postgres_migration.py`, `4/4` `test_postgres_setup.py`) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1620` files scanned, `0` secrets found |
+
+### Acceptance Criteria
+- [x] Tidak ada pemanggilan `request.body()` pada route upload video (terverifikasi via AST `ast.Call`)
+- [x] Migration `004` berantai dari `003_file_shelf` dan lolos `upgrade`/`downgrade`; unit & integration test Pytest + Ruff PASS
+- [x] `3` berkas OCR dan perubahan `CR-020` tetap utuh tanpa perintah Git mutating
+
+### Keputusan dan Technical Debt
+- Uji `FOR UPDATE SKIP LOCKED` dieksekusi dengan kompilasi dialect PostgreSQL (`postgresql.dialect()`) serta simulasi fungsional SQLite; eksekusi langsung terhadap PostgreSQL server + staging Ubuntu tetap bagian dari `Q-007` (`RISK-SEC-023`).
+- `full ruff check backend` masih memiliki error pre-existing di luar `CR-020`/`CR-021`; seluruh file baru/diubah wajib `0` error Ruff.
+
+### Risiko Tersisa
+- `RISK-SEC-021` ter-mitigasi di lapisan HTTP streaming & PostgreSQL guard, namun sisi ClamAV streaming (`scan_file`) dan worker (`ffmpeg`/`bwrap`) baru diimplementasikan di `VC-02`.
+- `RISK-SEC-023` (`Q-007`) tetap release-blocking sebelum rilis produksi.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/phases/phase-video-compression.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-02` (upgrade `ClamAVScanner.scan_file()` streaming 64 KiB, layanan `video_compressor.py`, daemon `app.workers.video_worker`, serta unit & worker tests).
+
+---
+
+## VC-00 — Tata Kelola, Dokumen Proyek & Sinkronisasi Fase Compress Video (`CR-021`) — 2026-11-12
+
+**Task:** `VC-00`
+**Requirement:** `CR-021`, `BUS-027`, `BRULE-016`, `KPI-008`, `RISK-BUS-05`, `FR-059`, `NFR-PERF-008`, `NFR-REL-010`, `NFR-SEC-016`, `NFR-PRIV-002`, `NFR-UX-004`, `NFR-ACC-004`, `DEC-026`, `THR-037` s/d `THR-042`, `CTRL-037` s/d `CTRL-042`, `RISK-SEC-021` s/d `RISK-SEC-024`, `Q-007`
+
+### Ringkasan
+1. Melengkapi sinkronisasi dokumen proyek untuk fitur **Compress Video (`CR-021`)** di `docs/project/BRD.md`, `docs/project/PRD.md`, `docs/project/ARCHITECTURE.md` (§9), `docs/project/SECURITY.md` (`THR-037`–`042`, `CTRL-037`–`042`, `RISK-SEC-021`–`024`, §14.3), `docs/project/TEST-STRATEGY.md` (§2.8), `docs/project/TRACEABILITY.md`, `docs/project/IMPLEMENTATION-PLAN.md` (§6), dan membuat dokumen fase `docs/project/phases/phase-video-compression.md` (`VC-00` s/d `VC-06`).
+2. Menyinergikan tracking `.agent/CHANGE-REQUESTS.md` (`CR-021`), `.agent/DECISIONS.md` (`DEC-026`), `.agent/OPEN-QUESTIONS.md` (`Q-007`), `.agent/TASKS.md` (`VC-00` s/d `VC-06`), `.agent/REPORT.md`, dan `.agent/PROJECT-STATE.md`.
+3. Memverifikasi kebersihan secret dan keutuhan 3 berkas uncommitted OCR serta seluruh berkas `CR-020`.
+
+### Kesesuaian dengan Code Plan
+- Task `VC-00` dieksekusi sesuai persetujuan Gerbang 2 + eksekusi awal `VC-00`; hanya memodifikasi/membuat dokumen proyek dan file tracking `.agent/*` tanpa menyentuh source code aplikasi maupun 3 berkas OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`).
+- Status rollback tetap bersih (dokumen/tracking terisolasi dan dapat ditinjau via `git diff`).
+
+### File Dibuat
+- `docs/project/phases/phase-video-compression.md`
+
+### File Diubah
+- `docs/project/BRD.md` (diselesaikan pada langkah awal `VC-00`)
+- `docs/project/PRD.md` (diselesaikan pada langkah awal `VC-00`)
+- `docs/project/ARCHITECTURE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TEST-STRATEGY.md`
+- `docs/project/TRACEABILITY.md`
+- `docs/project/IMPLEMENTATION-PLAN.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/DECISIONS.md`
+- `.agent/OPEN-QUESTIONS.md`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Audit Konflik ID | `grep` pada `docs/project` & `.agent` | PASS | Seluruh ID baru (`CR-021`, `BUS-027`, `FR-059`, `DEC-026`, `THR-037`–`042`, `RISK-SEC-021`–`024`, `Q-007`, `VC-00`–`06`) bebas konflik |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1615` files scanned, `0` secrets found |
+| Working Tree Check | `git status --short` | PASS | 3 berkas OCR & berkas `CR-020` tetap utuh; 0 file kode tersentuh di `VC-00` |
+
+### Acceptance Criteria
+- [x] Seluruh dokumen inti (`BRD`, `PRD`, `ARCHITECTURE`, `SECURITY`, `TEST-STRATEGY`, `TRACEABILITY`, `IMPLEMENTATION-PLAN`, `phase-video-compression.md`) selaras dengan keputusan `CR-021` dan `DEC-026`
+- [x] Tracking `.agent/*` (`CHANGE-REQUESTS`, `DECISIONS`, `OPEN-QUESTIONS`, `TASKS`, `REPORT`, `PROJECT-STATE`) mutakhir dan konsisten
+- [x] Kebijakan keamanan & status release-blocking `RISK-SEC-023` (`Q-007` benchmark Ubuntu staging ClamAV + FFmpeg) terdokumentasi eksplisit
+- [x] 3 berkas uncommitted OCR dan hasil kerja `CR-020` tetap utuh tanpa perubahan maupun perintah Git mutating
+
+### Keputusan dan Technical Debt
+- `DEC-026` disahkan sebagai acuan arsitektur & parameter kompresi `CR-021`.
+- `Q-007` ditambahkan sebagai pertanyaan terbuka release-blocking untuk benchmark Ubuntu staging.
+
+### Risiko Tersisa
+- `RISK-SEC-021` s/d `RISK-SEC-024` masih berstatus `PLANNED` / `OPEN` karena kode implementasi baru dikerjakan mulai `VC-01` s/d `VC-06`; khususnya `RISK-SEC-023` (`Q-007`) memblokir rilis produksi sampai benchmark di Ubuntu staging dieksekusi.
+
+### Dokumentasi Diperbarui
+- `docs/project/BRD.md`, `PRD.md`, `ARCHITECTURE.md`, `SECURITY.md`, `TEST-STRATEGY.md`, `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md`, `phases/phase-video-compression.md`, `.agent/CHANGE-REQUESTS.md`, `DECISIONS.md`, `OPEN-QUESTIONS.md`, `TASKS.md`, `REPORT.md`, `PROJECT-STATE.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+- Ajukan persetujuan Gerbang 3 untuk task `VC-01` (migration Alembic `004_video_compression.py`, model SQLAlchemy, repository PostgreSQL, konfigurasi `Settings`, dan endpoint raw streaming upload `POST /api/video-compressions`).
+
+---
+
+## RW-06 — Audit Aksesibilitas WCAG 2.2 AA, Regresi Penuh, Secret Scan & Penutupan Dokumen CR-020 — 2026-11-12
+
+**Task:** `RW-06`
+**Requirement:** `CR-020`, `BUS-026`, `BRULE-015`, `FR-058`, `NFR-UX-001`, `THR-032` s/d `THR-036`, `CTRL-032` s/d `CTRL-036`, `RISK-SEC-017` s/d `RISK-SEC-020`
+
+### Ringkasan
+1. Menambahkan `WatermarkRemovalModal` (`isOpen={true}`, `onClose={vi.fn()}`) ke suite audit aksesibilitas `frontend/src/components/__tests__/accessibility.test.tsx` (`vitest-axe` WCAG 2.2 AA).
+2. Menjalankan verifikasi penuh pada backend & frontend (full Pytest, targeted Ruff CR-020 & full Ruff backend, full Vitest, Oxlint, `tsc -b && vite build`, dan `scripts/scan_secrets.py`).
+3. Menyinergikan akhir `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `.agent/CHANGE-REQUESTS.md`, `docs/project/SECURITY.md`, dan `docs/project/TRACEABILITY.md` sembari menjaga 3 berkas perubahan OCR tetap utuh dan tidak di-commit.
+
+### Kesesuaian dengan Code Plan
+- File, symbol, dan perintah sesuai code plan `RW-06` yang disetujui; satu tambahan verifikasi non-mutating dijalankan (`ruff check` khusus berkas `CR-020`) untuk memastikan `0` error pada kode baru sementara `ruff check backend` penuh mencatat `91` error pre-existing pada berkas backend lama di luar scope.
+- Nilai status rollback/cleanup tetap valid (hanya 1 test komponen aksesibilitas dan file tracking/docs yang diubah; 3 berkas OCR di working tree tidak tersentuh).
+
+### File Dibuat
+- Tidak ada
+
+### File Diubah
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Audit Aksesibilitas `vitest-axe` | `npx vitest run src/components/__tests__/accessibility.test.tsx` | PASS | `1/1` file (`7/7` tests PASS, `0` WCAG 2.2 AA violations termasuk `<WatermarkRemovalModal isOpen={true} />`) |
+| Full Backend Pytest | `backend\.venv\Scripts\pytest.exe backend/tests` | PASS | `303/303` passed (72.25s; termasuk `12/12` `CR-020` & `45/45` `test_pdf_tools.py` dengan `"Tesseract OCR tidak ditemukan"` tetap utuh) |
+| Ruff Check (File CR-020) | `backend\.venv\Scripts\ruff.exe check backend/app/services/watermark_remover.py backend/app/api/watermark_removal.py backend/app/main.py backend/tests/test_watermark_remover_analyzer.py backend/tests/test_watermark_removal_api.py` | PASS | `All checks passed!` (0 errors pada berkas `CR-020`) |
+| Ruff Check (Full Backend) | `backend\.venv\Scripts\ruff.exe check backend` | FAIL (pre-existing di luar scope) | Exit `1`: `91` error pre-existing di berkas lama (`auth.py`, `health.py`, `media_downloader.py`, `config.py`, `rate_limiter.py`, `auth_repository.py`, `auth_service.py`, `brevo.py`, `scripts/*`, `test_media_downloader.py`, `test_security.py`); `0` error di berkas `CR-020` |
+| Full Frontend Vitest | `npm --prefix frontend test` | PASS | `50/50` files, `392/392` tests PASS |
+| Oxlint (Full Frontend) | `npm --prefix frontend run lint` | PASS | Exit `0`, `0` errors (`21` warning pre-existing di file non-CR-020 & `src/App.tsx:658`; `0` warning di `accessibility.test.tsx` dan seluruh berkas `CR-020`) |
+| TypeScript + Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` PASS (`2144` modul, `2.34s`, `dist/assets/index-BHFjWD5_.js` `1,037.87 kB`) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | `1614` files scanned, `0` secrets found |
+| Working Tree OCR Check | `git status --short` | PASS | `deploy/RUNBOOK.md`, `frontend/src/components/pdf-tools/PdfOcrModal.tsx`, `frontend/src/components/pdf-tools/__tests__/pdf_ocr.test.tsx` tetap utuh dan uncommitted |
+
+### Acceptance Criteria
+- [x] `<WatermarkRemovalModal isOpen={true} onClose={vi.fn()} />` lolos audit `vitest-axe` WCAG 2.2 AA (`0` violations)
+- [x] Regresi penuh backend (`303/303` Pytest) dan frontend (`392/392` Vitest, `50` file) lulus seluruhnya tanpa regresi OCR (`"Tesseract OCR tidak ditemukan"` tetap utuh)
+- [x] Seluruh berkas `CR-020` bebas error/warning Ruff & Oxlint; `tsc -b && vite build` dan `scripts/scan_secrets.py` (`0` secrets) lulus
+- [x] Dokumen tracking & security (`TASKS.md`, `REPORT.md`, `PROJECT-STATE.md`, `CHANGE-REQUESTS.md`, `SECURITY.md`, `TRACEABILITY.md`) mutakhir dan konsisten
+- [x] 3 berkas uncommitted OCR tidak disentuh dan tidak di-commit/push
+
+### Keputusan dan Technical Debt
+- Tidak ada `DEC-*` baru pada `RW-06` (`DEC-025` tetap berlaku).
+- Pre-existing lint debt: `ruff check backend` memiliki `91` temuan lama di luar `CR-020`, dan `oxlint` memiliki `21` warning pre-existing di luar `CR-020` (tidak diubah di `RW-06` untuk menjaga scope).
+- Test schema batas stroke/point (`> MAX_STROKES_PER_PAGE` / `> MAX_POINTS_PER_STROKE`) ditegakkan di Pydantic `PageRemovalInstruction`/`BrushStroke` namun belum memiliki assertion unit khusus overflow count.
+
+### Risiko Tersisa
+- **OCR Tesseract Host:** Binary Tesseract absen di host Windows lokal; perilaku fallback manual terverifikasi penuh, sedangkan jalur OCR aktif baru teruji lewat mock `pymupdf.Pixmap.pdfocr_tobytes`. (`User (Owner)`, status `MITIGATED — closure pending owner approval`, review `2027-02-12`).
+- **Playwright Browser E2E:** Sesuai scope disetujui `RW-06`, pengujian live browser E2E belum dieksekusi setelah penambahan `Hapus Watermark` ke 25 alat.
+- **Closure Risiko Security:** `RISK-SEC-017` s/d `RISK-SEC-020` berstatus `MITIGATED`; penutupan formal menunggu review & approval `User (Owner)`.
+
+### Dokumentasi Diperbarui
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/CHANGE-REQUESTS.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+1. Review dan setujui penutupan formal `RISK-SEC-017` s/d `RISK-SEC-020` (serta `RISK-SEC-001`/`RISK-SEC-002`) atau jalankan Playwright E2E live browser bila diinginkan sebelum rilis.
+2. Putuskan apakah perubahan `CR-020` siap di-commit terpisah dari 3 berkas OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`).
+
+---
+
+## RW-05 — Integrasi Kartu Mandiri `#/tools`, Login Guard & Test Integrasi `App.tsx` — 2026-11-12
+
+**Task:** `RW-05`
+**Requirement:** `BUS-026`, `BRULE-015`, `FR-058`, `THR-034`, `CTRL-034`, `RISK-SEC-017`
+
+### Ringkasan
+1. Menambahkan kartu mandiri **Hapus Watermark** ke katalog `TOOLS` di `frontend/src/App.tsx` (kategori `organize`, ikon `Eraser`, label `Baru`, tanpa `isBrowserOnly` agar `handleExecuteTool` menegakkan wajib login + menampilkan lencana `Perlu Akun` bagi pengguna anonim) serta memasang `<WatermarkRemovalModal isOpen={showWatermarkRemovalModal} onClose={...} />`.
+2. Memperbarui `frontend/src/__tests__/app.integration.test.tsx`:
+   - Menambahkan verifikasi pencarian `'hapus watermark'`, pembukaan `tool-card-hapus-watermark`, dan penutupan `btn-close-watermark-removal` bagi pengguna terautentikasi (serta menunggu `nav-user-profile` siap agar tidak terjadi race dengan `getCurrentUser()` asinkron).
+   - Menambahkan test baru yang memastikan pengguna anonim melihat lencana `Perlu Akun` + `Masuk untuk membuka` dan dialihkan ke `#/login` beserta pesan guard tanpa membuka modal saat mengklik `Hapus Watermark`.
+3. Memperbarui ekspektasi jumlah alat pada `frontend/e2e/dashboard.spec.ts` dari `'24'` menjadi `'25'` (`stat-tools-count`).
+
+### Kesesuaian dengan Code Plan
+- File, symbol, perilaku, dan perintah verifikasi sesuai code plan `RW-05` yang disetujui. Penambahan `waitFor` pada `nav-user-profile` / `btn-nav-login` di `app.integration.test.tsx` memastikan sesi uji asinkron selesai sebelum memicu klik alat berotorisasi.
+
+### File Dibuat
+- Tidak ada
+
+### File Diubah
+- `frontend/src/App.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Vitest App Integration | `npx vitest run src/__tests__/app.integration.test.tsx` | PASS | 10/10 tests PASS (pencarian/buka/tutup modal `Hapus Watermark` user login, lencana `Perlu Akun` & redirect `#/login` user anonim, 0 React `act(...)` warning) |
+| Oxlint | `npx oxlint src/App.tsx src/__tests__/app.integration.test.tsx e2e/dashboard.spec.ts` | PASS | 0 errors (1 warning pre-existing di luar diff pada `src/App.tsx:658`) |
+| TypeScript Typecheck | `npx tsc -b --noEmit` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Kartu mandiri `Hapus Watermark` tampil di `#/tools` (kategori `Kelola & Optimasi PDF`), dapat dicari, dan membuka `WatermarkRemovalModal` bagi pengguna login
+- [x] Pengguna anonim melihat status `Perlu Akun` dan dialihkan ke `#/login` dengan pesan guard saat memilih `Hapus Watermark`
+- [x] Jumlah alat dinamis tercatat 25 pada `TOOLS` dan `frontend/e2e/dashboard.spec.ts`
+
+### Risiko Tersisa
+- Audit `vitest-axe` WCAG 2.2 AA untuk `WatermarkRemovalModal`, full regression suite backend/frontend, build produksi Vite, dan `scan_secrets.py` belum dijalankan hingga **`RW-06`** disetujui.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan dan setujui code plan task **`RW-06`** (audit `vitest-axe` di `frontend/src/components/__tests__/accessibility.test.tsx`, full Pytest + Vitest, Ruff, Oxlint, `npm run build`, `scripts/scan_secrets.py`, dan penutupan dokumen proyek).
+
+---
+
+## RW-04 — Client API, Modal Hapus Watermark, Canvas Mask Editor & Review Before/After — 2026-11-12
+
+**Task:** `RW-04`
+**Requirement:** `BUS-026`, `BRULE-015`, `FR-058`, `NFR-UX-001`, `THR-034`, `THR-036`, `RISK-SEC-019`, `RISK-SEC-020`
+
+### Ringkasan
+1. Mengimplementasikan `frontend/src/services/watermarkRemoval.ts`:
+   - Helper pure state & koordinat: `validateWatermarkClientFile` (PDF/JPG/JPEG/PNG <= 25 MB, >0B), `clientToNormalizedPoint` (`0..1`), `createInitialPageStates`, `pushPageMaskEdit` (batas stroke/titik & riwayat 30 langkah), `undoPageMask`, `redoPageMask`, `resetPageMask`, `buildRemovalManifest`, `getPdfRasterTargetPages`, dan `computeManifestSignature`.
+   - Client API terautentikasi (`apiFetch`): `analyzeWatermarkDocument`, `previewWatermarkRemoval`, `applyWatermarkRemoval`, serta `downloadWatermarkBlob`.
+2. Mengimplementasikan `frontend/src/components/pdf-tools/WatermarkRemovalModal.tsx`:
+   - Tahap upload & konfirmasi wajib hak kepemilikan/izin modifikasi serta toggle OCR lokal opsional (mode fallback non-blocking saat Tesseract absen/gagal).
+   - Editor mask per halaman: daftar kandidat (badge Struktural vs Raster), kanvas HTML5 `<canvas>` overlay pointer event (`add`/`erase`), slider ukuran kuas, Undo/Redo/Reset, dan navigasi antarhalaman PDF.
+   - Gate pratinjau Before/After wajib (mode Slider & Berdampingan) yang otomatis invalidasi saat mask diubah pasca-review, serta `alertdialog` konfirmasi eksplisit sebelum rasterisasi PDF `150 DPI` (`dialog-confirm-pdf-raster`).
+3. Menulis 8 unit & component tests pada `frontend/src/components/pdf-tools/__tests__/watermark_removal.test.tsx`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, dan perilaku sesuai code plan `RW-04` yang disetujui; penyempurnaan di `WatermarkRemovalModal.tsx` memisahkan `WatermarkRemovalDialogContent` saat `isOpen=true` serta menurunkan `confirmPdfRasterization` dari `confirmedRasterKey === rasterScopeKey` agar bebas peringatan Oxlint `set-state-in-effect` sambil mempertahankan perilaku reset penuh.
+
+### File Dibuat
+- `frontend/src/services/watermarkRemoval.ts`
+- `frontend/src/components/pdf-tools/WatermarkRemovalModal.tsx`
+- `frontend/src/components/pdf-tools/__tests__/watermark_removal.test.tsx`
+
+### File Diubah
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Vitest UI & Helpers | `npx vitest run src/components/pdf-tools/__tests__/watermark_removal.test.tsx` | PASS | 8/8 tests PASS (`watermarkRemoval` helpers, owner confirm, fallback OCR notice, brush add/erase, undo/redo/reset, preview invalidation, PDF raster dialog cancel/confirm & structural-only bypass, candidate toggle, pagination, side-by-side compare) |
+| Oxlint (File RW-04) | `npx oxlint src/components/pdf-tools/WatermarkRemovalModal.tsx src/services/watermarkRemoval.ts src/components/pdf-tools/__tests__/watermark_removal.test.tsx` | PASS | 0 errors, 0 warnings |
+| TypeScript Typecheck | `npx tsc -b --noEmit` | PASS | 0 errors |
+
+### Acceptance Criteria
+- [x] Unggah dibatasi PDF, JPG/JPEG, PNG <= 25 MB & konfirmasi kepemilikan wajib sebelum analisis
+- [x] Mode fallback OCR non-blocking tampil saat OCR tidak aktif; daftar kandidat & kuas tambah/hapus `0..1` beroperasi penuh dengan Undo/Redo/Reset
+- [x] Unduh terkunci hingga pratinjau Before/After terbaru ditinjau dan otomatis terkunci kembali saat mask diubah
+- [x] Dialog konfirmasi eksplisit muncul sebelum meraster halaman PDF target, sementara mode struktural murni berjalan tanpa rasterisasi
+
+### Risiko Tersisa
+- Kartu alat mandiri `Hapus Watermark` belum terhubung di `App.tsx` `#/tools` dan belum diverifikasi dengan login guard (`RW-05`) serta audit `vitest-axe` / build penuh (`RW-06`).
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan code plan task **`RW-05`** (integrasi kartu mandiri `Hapus Watermark` pada `frontend/src/App.tsx`, guard wajib login pada `handleExecuteTool`, pembaruan `frontend/src/__tests__/app.integration.test.tsx` & referensi jumlah alat di test terkait).
+
+---
+
+## RW-03 — Mesin OpenCV Preview/Apply, Penghapusan Struktural PDF, Endpoint API & CORS — 2026-11-12
+
+**Task:** `RW-03`
+**Requirement:** `BUS-026`, `BRULE-015`, `FR-058`, `THR-032` s/d `THR-036`, `RISK-SEC-017`, `RISK-SEC-018`
+
+### Ringkasan
+1. Melengkapi `backend/app/services/watermark_remover.py` dengan mesin eksekusi stateless in-memory:
+   - `_decode_image_arrays`: dekode citra JPG/PNG tervalidasi pasca EXIF transpose, mempertahankan kanal alpha PNG secara terpisah (`alpha_or_none`).
+   - `_build_binary_mask`: meraster `selected_boxes` dengan dilasi `DEFAULT_BRUSH_DILATE_PX` (`3 px`) lalu memutar ulang goresan kuas `add`/`erase` secara kronologis (`cv2.LINE_8`).
+   - `_inpaint_bgr`, `_encode_clean_image_bytes`, `_encode_preview_data_url`: menjalankan `cv2.inpaint(..., cv2.INPAINT_TELEA)` pada kanal BGR saja, menggabungkan ulang kanal alpha PNG asli identik byte-per-byte, serta menghapus seluruh metadata EXIF/GPS pada output JPG/PNG dan preview.
+   - `preview_watermark_removal` & `apply_watermark_removal`: penghapusan struktural annotation/stamp PDF tanpa meraster halaman, serta rekonstruksi PDF hybrid selektif (hanya halaman target raster yang dirender `150 DPI` dan di-inpaint; halaman non-target dipertahankan vektor murni).
+2. Mengimplementasikan router `backend/app/api/watermark_removal.py`:
+   - Endpoint `POST /api/watermark-removal/analyze`, `/preview`, dan `/apply` dengan upload streaming berbatas 25 MB (HTTP 413), batas payload manifest JSON 2 MB, eksekusi di dalam `ConversionJobManager` (HTTP 429 saat sibuk), fail-closed HTTP 422, serta `audit_logger.record` non-PII (tanpa nama berkas/teks dokumen).
+3. Mendaftarkan `watermark_removal_router` dan `expose_headers` CORS (`X-Structural-Pages`, `X-Rasterized-Pages`, `X-Annots-Removed`) di `backend/app/main.py`.
+4. Memverifikasi 6/6 test API, keamanan auth/Origin/CSRF/prod-verified, CORS, 413/429/422, integritas hybrid PDF/PNG alpha/EXIF, dan audit log pada `backend/tests/test_watermark_removal_api.py`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak API sesuai code plan `RW-03` yang disetujui; penyesuaian test pada `test_cors_exposes_watermark_headers_and_handles_limits_busy` memeriksa `Access-Control-Expose-Headers` pada response `POST` ber-`Origin` (perilaku aktual Starlette `CORSMiddleware`) dan wrapping baris untuk memenuhi batas Ruff 100 kolom.
+
+### File Dibuat
+- `backend/app/api/watermark_removal.py`
+- `backend/tests/test_watermark_removal_api.py`
+
+### File Diubah
+- `backend/app/services/watermark_remover.py`
+- `backend/app/main.py`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest Analyzer + API & Security | `backend\.venv\Scripts\pytest.exe backend/tests/test_watermark_remover_analyzer.py backend/tests/test_watermark_removal_api.py` | PASS | 12/12 tests PASS (`6` analyzer + `6` API: auth/Origin/CSRF/prod-verified, CORS expose headers, 413/429/422, structural PDF & hybrid vector preservation, PNG alpha exact + brush add/erase replay, JPEG EXIF stripped + audit log bebas filename) |
+| Ruff Lint | `backend\.venv\Scripts\ruff.exe check backend/app/services/watermark_remover.py backend/app/api/watermark_removal.py backend/app/main.py backend/tests/test_watermark_removal_api.py` | PASS | All checks passed (0 errors) |
+
+### Acceptance Criteria
+- [x] Endpoint `/api/watermark-removal/{analyze,preview,apply}` aktif, terproteksi `SecurityMiddleware` (401 anonim, 403 origin/CSRF/unverified prod), dan tercatat audit non-PII
+- [x] Penghapusan struktural annotation PDF mempertahankan vektor 100%; PDF hybrid hanya meraster halaman target (`150 DPI`) dan mempertahankan halaman non-target tetap vektor
+- [x] Output PNG RGBA mempertahankan kanal alpha asli identik byte-per-byte; output JPG/PNG bersih bebas metadata EXIF/GPS
+- [x] CORS mengekspos header diagnostik (`X-Structural-Pages`, `X-Rasterized-Pages`, `X-Annots-Removed`) serta batas 25 MB (`413`) & `JobBusyError` (`429`) terverifikasi
+
+### Risiko Tersisa
+- Binary Tesseract OCR tetap tidak tersedia di host Windows lokal (`unavailable`); perilaku fallback manual berjalan sesuai `DEC-025`.
+- Antarmuka modal/canvas mask editor (`RW-04`) dan kartu mandiri `#/tools` (`RW-05`) belum dibuat; eksekusi end-to-end penuh bersama frontend dilakukan setelah `RW-04`–`RW-06`.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan code plan task **`RW-04`** (client API `frontend/src/services/watermarkRemoval.ts`, modal interaktif `frontend/src/components/pdf-tools/WatermarkRemovalModal.tsx`, canvas editor kuas tambah/hapus koordinat ternormalisasi `0..1`, undo/redo/reset, before/after review, dialog konfirmasi rasterisasi PDF, serta unit/canvas tests Vitest).
+
+---
+
+## RW-02 — Pin `opencv-python-headless`, Layanan Analyzer & Validasi Manifest `watermark_remover.py` — 2026-11-12
+
+**Task:** `RW-02`
+**Requirement:** `BUS-026`, `BRULE-015`, `FR-058`, `THR-032`, `THR-033`, `RISK-SEC-019`
+
+### Ringkasan
+1. Menambahkan `opencv-python-headless>=4.10.0,<6.0.0` sebagai dependency langsung pada `backend/pyproject.toml`.
+2. Mengimplementasikan `backend/app/services/watermark_remover.py`:
+   - Skema Pydantic `NormalizedPoint`, `NormalizedBox`, `BrushStroke`, `PageRemovalInstruction`, dan `WatermarkRemovalManifest` (validasi koordinat `0..1`, anti-`NaN`/`Inf`, batas stroke/titik, wajib `owner_confirmed=True`, `file_sha256` 64-hex).
+   - Fungsi `analyze_watermark_document(...)`: validasi magic bytes PDF/JPG/PNG, batas 25 MB, `MAX_PIXELS = 50_000_000`, anti-APNG, penolakan fail-closed PDF encrypted, 0 halaman, `>50` halaman, dan `has_digital_signature`, pembuatan preview bersih bebas EXIF, deteksi struktural annotation (`Stamp`/`Watermark`/`FreeText`), teks/gambar berulang sesuai heuristik `DEC-025`, serta OCR opsional non-blocking via `get_tesseract_status()`.
+   - Fungsi `validate_manifest_against_document(...)`: pencocokan `file_sha256`, verifikasi `annot_xref` per halaman PDF, dan kewajiban `confirm_pdf_rasterization=True` jika ada halaman PDF non-annotation yang perlu diraster ulang.
+3. Membuat dan memverifikasi unit & negative security test `backend/tests/test_watermark_remover_analyzer.py`.
+
+### Kesesuaian dengan Code Plan
+- File, symbol, kontrak, dan perintah eksekusi sesuai code plan `RW-02` (penambahan test repeated_image, APNG, dan mock decompression bomb di `test_watermark_remover_analyzer.py`, serta wrapping baris agar memenuhi batas Ruff 100 kolom).
+
+### File Dibuat
+- `backend/app/services/watermark_remover.py`
+- `backend/tests/test_watermark_remover_analyzer.py`
+
+### File Diubah
+- `backend/pyproject.toml`
+- `.agent/TASKS.md`
+- `.agent/REPORT.md`
+- `.agent/PROJECT-STATE.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Targeted Pytest Analyzer & Security | `backend\.venv\Scripts\pytest.exe backend/tests/test_watermark_remover_analyzer.py` | PASS | 6/6 tests PASS (struktural annotation/repeated text/image, OCR mock & failure fallback, encrypted/signed/>50 hal/APNG/pixel bomb/NaN/SHA/xref) |
+| Ruff Lint | `backend\.venv\Scripts\ruff.exe check backend/app/services/watermark_remover.py backend/tests/test_watermark_remover_analyzer.py` | PASS | All checks passed (0 errors) |
+
+### Acceptance Criteria
+- [x] `opencv-python-headless` terpin di `backend/pyproject.toml`
+- [x] Analyzer PDF/JPG/PNG mendeteksi kandidat struktural tanpa false positive teks body dan aman jika OCR tidak tersedia
+- [x] Penolakan fail-closed teruji untuk encrypted PDF, signed PDF, >50 halaman, APNG, pixel bomb, >25 MB, `owner_confirmed=False`, dan koordinat cacat
+- [x] Manifest binding `file_sha256`, validasi `annot_xref`, dan wajib `confirm_pdf_rasterization` saat PDF diraster terverifikasi
+
+### Risiko Tersisa
+- Endpoint HTTP dan eksekutor OpenCV `cv2.inpaint` belum tersedia sampai `RW-03` disetujui dan diimplementasikan.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan code plan task **`RW-03`** (mesin preview/apply `cv2.INPAINT_TELEA` radius=5, penghapusan struktural annotation, PDF selektif 150 DPI, preservasi alpha PNG, EXIF stripping, endpoint `/api/watermark-removal/{analyze,preview,apply}` dengan `ConversionJobManager` & audit JSONL).
+
+---
+
+## RW-01 — Sinkronisasi Governance CR-020 & Feasibility Spike Corpus Hapus Watermark — 2026-11-12
+
+**Task:** `RW-01`
+**Requirement:** `CR-020`, `BUS-026`, `BRULE-015`, `FR-058`, `THR-032` s/d `THR-036`
+
+### Ringkasan
+1. Menyinkronkan dokumentasi perubahan scope fitur **Hapus Watermark** (`CR-020`, `BUS-026`, `BRULE-015`, `FR-058`, `THR-032..036`, `RISK-SEC-017..020`, `RW-01` s/d `RW-06`) pada artefak governance tanpa mengubah 3 file perubahan OCR yang tetap dibiarkan di working tree.
+2. Membangun generator corpus sintetis (`spikes/watermark-eval/generate_samples.py`) yang menghasilkan 13 sampel terkontrol ke folder terabaikan Git `temp_workspace/watermark-spike-out/samples/` (annotation PDF, teks berulang, hasil `watermark_pdf` teks & logo Satukit, logo berulang, scan raster teks & logo, JPG ber-EXIF, PNG RGB, PNG RGBA transparan, serta PDF encrypted & `PDF_WIDGET_TYPE_SIGNATURE`).
+3. Mengeksekusi evaluator (`spikes/watermark-eval/eval_watermark.py`) dan mencatat keputusan empiris `DEC-025`:
+   - `inpaintRadius = 5` (`cv2.INPAINT_TELEA`) terpilih (mean PSNR `30.65 dB`, mean durasi `284.17 ms`) dibanding radius `3` (`30.07 dB` / `128.68 ms`) dan `7` (`30.89 dB` / `542.62 ms`).
+   - Rasterisasi PDF target `150 DPI` (`40.97 MiB` python peak, `976.90 ms`/2 halaman) lebih aman untuk VPS 2.2 GiB dibanding `200 DPI` (`72.07 MiB`, `1678.04 ms`).
+   - Penyaringan heuristik teks watermark memangkas false positive baris dokumen biasa dari `32` menjadi `0` sambil mempertahankan recall 100% pada sampel teks/logo berulang dan `watermark_pdf` mosaic Satukit.
+   - Verifikasi struktur/keamanan: annotation PDF dihapus `18.79 ms` (`0` halaman diraster), halaman non-target PDF hybrid tetap vektor 100%, alpha PNG utuh identik byte-per-byte, EXIF gambar terhapus, PDF encrypted & signed ditolak fail-closed, dan ketiadaan Tesseract lokal (`No tessdata specified and Tesseract is not installed`) terkelola non-blocking.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan perintah sesuai code plan `RW-01` yang disetujui; penyempurnaan lokal pada `eval_watermark.py` memperbaiki pembacaan `GetProcessMemoryInfo` 64-bit Windows serta menambahkan heuristik penyaring teks watermark untuk menghilangkan false positive baris tabel/body.
+
+### File Dibuat
+- `spikes/watermark-eval/generate_samples.py`
+- `spikes/watermark-eval/eval_watermark.py`
+- `spikes/watermark-eval/benchmark_summary.json`
+
+### File Diubah
+- `.agent/CHANGE-REQUESTS.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/DECISIONS.md`
+- `.agent/REPORT.md`
+- `docs/project/BRD.md`
+- `docs/project/PRD.md`
+- `docs/project/SECURITY.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Generator Corpus Sintetis | `backend\.venv\Scripts\python.exe spikes/watermark-eval/generate_samples.py` | PASS | 13 sampel + manifest ditulis ke `temp_workspace/watermark-spike-out/samples/` |
+| Evaluator Spike Watermark | `backend\.venv\Scripts\python.exe spikes/watermark-eval/eval_watermark.py` | PASS | Semua 8 assertion `true`; `max_tracemalloc_peak_mib = 41.03`, `max_process_peak_rss_mib = 363.53`; output di `spikes/watermark-eval/benchmark_summary.json`; catatan OCR lokal `tesseract_local_available = false` (BLOCKED lokal, mode fallback terverifikasi) |
+| Secret Scan | `backend\.venv\Scripts\python.exe scripts/scan_secrets.py` | PASS | 1.607 file dipindai, 0 secret ditemukan |
+
+### Acceptance Criteria
+- [x] `CR-020`, `BUS-026`, `FR-058`, `THR-032..036`, `RISK-SEC-017..020`, dan task `RW-01..06` tersinkronisasi
+- [x] Pengujian deteksi struktural PDF, scaling mask `0..1` (IoU `0.982–0.998`), `cv2.INPAINT_TELEA`, alpha PNG, EXIF strip, PDF hybrid, serta durasi & peak memory terekam di `benchmark_summary.json`
+- [x] Fail-closed encrypted/signed PDF dan fallback OCR non-blocking terverifikasi
+- [x] `DEC-025` tercatat di `.agent/DECISIONS.md` dan bebas secret (`scan_secrets.py`)
+
+### Risiko Tersisa
+- Binary Tesseract OCR belum terpasang di host Windows lokal; pengujian deteksi OCR teks aktual masih `BLOCKED` secara lokal dan hanya menguji cabang fallback `available=false` + mock koordinat `0..1`.
+- Uji memakai corpus sintetis; performa pada foto/scan dunia nyata ber-noise tinggi perlu diverifikasi jika pengguna menyuplai sampel nyata.
+
+### Status
+✅ Selesai dan terverifikasi
+
+### Rekomendasi Berikutnya
+Ajukan code plan task **`RW-02`** (pin direct dependency `opencv-python-headless` di `backend/pyproject.toml`, modul `watermark_remover.py` analyzer PDF/JPG/PNG, validasi manifest `0..1`, SHA-256 binding, fail-closed encrypted/signed & batas 50 halaman interaktif).
+
+---
+
 ## FS-09 — Pengujian Komprehensif 10 Kelompok Matriks Upload, Anti-BOLA, Rate Limit, & Audit Akhir — 2026-11-11
 
 **Task:** `FS-09`

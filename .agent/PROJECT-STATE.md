@@ -1,7 +1,7 @@
 # Project State
 
 ```yaml
-project_name: "Satukit (sebelumnya Doc-builder)"
+project_name: "Beresin by Satukit (sebelumnya Satukit / Doc-builder)"
 complexity: "complex"
 provisional_security_risk_level: "HIGH"
 security_risk_level: "HIGH"
@@ -10,23 +10,188 @@ data_owner: "User (Owner)"
 security_risk_approved_by: "User (Owner)"
 security_risk_approved_at: "2026-11-08"
 security_gate_status: "APPROVED"
-security_gate_evidence_ref: "docs/project/SECURITY.md#14-checklist-security-planning-gate-gerbang-2-online"
-security_review_due: "2026-11-15"
+security_gate_evidence_ref: "docs/project/SECURITY.md#145-checklist-security-planning-gate--fitur-video-ke-teks-cr-023--gerbang-2-disetujui-2026-11-13"
+security_review_due: "2026-11-20"
 remediation_gate_status: "NOT_REQUIRED"
 remediation_allowed: false
 remediation_task: null
-status: "RELEASED"
+status: "READY"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
-current_phase: "phase-file-shelf"
+current_phase: "phase-google-oidc"
 current_task: null
-last_completed_task: "FS-09"
+last_completed_task: "GOOGLE-OIDC-001"
 blocked_reason: null
-last_updated: "2026-11-11"
+last_updated: "2026-11-16"
 ```
 
 ## Ringkasan Fokus
+Task **`GOOGLE-OIDC-001`** (`CR-026`, `DEC-033` — Autentikasi Google OpenID Connect PKCE Backend & Linking/Unlinking Aman Akun Password) **telah selesai dan terverifikasi**:
+
+1. **Task `GOOGLE-OIDC-001` Selesai & Terverifikasi (Google OIDC PKCE Backend & Account Linking/Unlinking):**
+   - Mengimplementasikan alur Google OpenID Connect Authorization Code + PKCE (`S256`) backend murni menggunakan pustaka `google-auth[requests]` tanpa SDK frontend.
+   - Mengikat transaksi state dan nonce ke timing-safe hash rahasia via cookie HttpOnly `satukit_google_oauth_tx` (TTL 300s) dan tabel PostgreSQL `oauth_transactions` (Alembic `007_google_oidc.py`).
+   - Menerapkan penegakan anti-auto-merge (`ACCOUNT_MERGE_REQUIRED`) untuk mencegah pengambilalihan akun lokal ber-password.
+   - Menyediakan alur penautan (`/api/auth/google/link/start`) dan pemutusan (`/api/auth/google/unlink`) akun Google yang aman dengan kewajiban login, validasi CSRF, verifikasi password aktif saat ini, dan jaminan akun memiliki password lokal sebelum tautan diputus.
+   - Menambahkan kolom `users.avatar_url`, memvalidasi hanya host HTTPS `*.googleusercontent.com`, dan merender dengan `referrerPolicy="no-referrer"` di frontend Navbar.
+   - Menambahkan izin `https://*.googleusercontent.com` pada direktif CSP `img-src` reverse proxy Caddy.
+   - Hasil verifikasi: `407/407` Pytest backend PASS, `52/52` Vitest test suites (414 tests) PASS, `npm run build` Vite production PASS, Ruff check 0 error, dan `scan_secrets.py` (1652 files) 0 hardcoded secrets.
+
+Task **`REBRAND-BERESIN-001`** (`CR-025`, `DEC-032` — Rebranding Resmi ke **Beresin by Satukit** dengan Tagline **"Urusan Berkas? Beresin Aja!"**) **telah selesai dan terverifikasi**:
+
+1. **Task `REBRAND-BERESIN-001` Selesai & Terverifikasi (Rebranding Visual & Copy Publik ke Beresin by Satukit):**
+   - Mengintegrasikan aset resmi dari `Beresin_Brand_Kit`: logo horizontal, logomark squircle, icon SVG, dan maskot Kitu.
+   - Memperbarui metadata HTML, Open Graph, PWA webmanifest, dan theme color (`#0F9D8A`).
+   - Memperbarui copy landing/hero: headline *"Urusan Berkas? Beresin Aja!"*, subheadline *"Buat CV, kelola PDF, konversi dokumen, dan siapkan pasfoto dalam satu tempat."*, serta balon bicara Kitu *"Halo, aku Kitu! Asisten digitalmu di Beresin by Satukit."*.
+   - Mengalihkan branding Navbar, Footer, template CV (Beresin Executive), modal utilitas, dan halaman login (`Masuk ke Beresin`).
+   - Menyelaraskan string publik backend: default `PROJECT_NAME="Beresin by Satukit API"`, `BREVO_SENDER_NAME="Beresin by Satukit"`, template email verifikasi/reset kata sandi, dan header/footer laporan ATS.
+   - Mempertahankan 100% identifier operasional internal (`satukit_*`, IndexedDB `satukit_db`, session cookie `satukit_session`, format `.docbuilder`).
+   - Hasil verifikasi: `52/52` Vitest test suites (412 tests) PASS, `400/400` Pytest backend PASS, `6/6` Playwright E2E PASS, Oxlint 0 error, Vite production build PASS, dan `scan_secrets.py` (1650 files) 0 hardcoded secrets.
+
+Task **`BETA-01`** (`CR-024` — Peluncuran Beta: Penonaktifan 9 Fitur Berisiko/Belum Siap sebagai `Coming Soon`, Reorganisasi 7 Kategori `Media & Audio`, & Blokir Endpoint API `503 FEATURE_COMING_SOON`) serta seluruh task pada `phase-office-hardening` (`OFF-01`–`OFF-04`, `CVR-01`, `CVR-02`) **telah selesai dan terverifikasi**:
+
+1. **Task `BETA-01` Selesai & Terverifikasi (Gate Peluncuran Beta UI `Coming Soon`, 7 Kategori, & Middleware `503 FEATURE_COMING_SOON`):**
+   - Menonaktifkan 9 fitur di `frontend/src/App.tsx` (`Pengunduh Media`, `Blur Background`, `WebP ke JPG`, `OCR PDF`, `Edit PDF`, `Repair PDF`, `Compress Video`, `MP4 ke MP3`, `Video ke Teks`) dengan status `comingSoon: true`, atribut tombol native `disabled`, guard `handleExecuteTool`, serta badge dan CTA `Coming Soon` (tanpa badge `Perlu Akun`/`Browser`/`Baru`).
+   - Menata ulang katalog 28 alat ke dalam 7 kategori (`Konversi Dokumen`, `Kelola & Optimasi PDF`, `Ekstraksi & Digitalisasi`, `Keamanan & Tanda Tangan`, `Gambar & Foto`, `Media & Audio`, `Utilitas Digital`) dan memperbarui `Dashboard.tsx` menjadi `19` (`stat-tools-count`, label `Utilitas aktif`) dan `9 Coming Soon` (`stat-tools-coming-soon`).
+   - Memblokir akses langsung ke 13 route API fitur berisiko melalui `BETA_COMING_SOON_GATES_ENABLED=True` di `SecurityMiddleware` (`backend/app/core/middleware.py`) dengan HTTP `503` dan `error_code: "FEATURE_COMING_SOON"`, sambil menjaga `/api/image-tools/remove-background` dan `/api/pdf-tools/compress` tetap aktif.
+   - Hasil verifikasi: `84/84` Pytest PASS, Ruff check & format `0` error, `23/23` Vitest PASS, Oxlint `0` error, `tsc -b && vite build` PASS, dan `4/4` Playwright E2E PASS (`dashboard.spec.ts`, `login_guard.spec.ts`).
+
+2. **Task `CVR-02` Selesai & Terverifikasi (Promosi Direct PDF Renderer `PyMuPDF` ke Produksi untuk `POST /api/export/pdf` & `POST /api/ats/export-report-pdf`):**
+   - Mengganti implementasi `generate_resume_pdf` di `backend/app/services/pdf_generator.py` dengan renderer langsung `PyMuPDF` (`pymupdf.Story` + `DocumentWriter` + `Shape`) untuk ke-4 template canonical (`ats-clean`, `ats-modern`, `visual-executive` 2-kolom sidebar, `visual-minimal`) dengan dukungan penuh `sectionOrder`, `resumeLanguage` (`id`/`en`), `fontFamily` (`sans`/`serif`/`mono`), `websites` maks 3 + fallback `website`, `achievements` + fallback `description`, `customSections`, sanitasi HTML anti-XSS, dan validasi foto `parse_and_validate_photo()`.
+   - Mengganti implementasi `generate_ats_report_pdf` di `backend/app/services/ats_report_generator.py` dengan renderer langsung `PyMuPDF` yang mencakup judul/subjudul, skor & grade, tabel 5 pilar penilaian, rekomendasi, tabel checklist indikator, dan disclaimer, sembari mempertahankan `generate_ats_report_docx` (`python-docx`) untuk ekspor DOCX.
+   - Memperbarui test suite di `backend/tests/test_export.py`, `backend/tests/test_ats_report.py`, dan `backend/tests/test_libreoffice.py`.
+   - Hasil verifikasi: `40/40` Pytest PASS, Ruff check & format `0` error pada 5 berkas.
+
+2. **Task `CVR-01` Selesai & Terverifikasi (Feasibility Spike Direct PDF Renderer CV & Laporan ATS terhadap Canonical Baseline 4 Template Frontend):**
+   - Membuat skrip eksperimen `spikes/cv-pdf-renderer/eval_cv_pdf_renderer.py` menggunakan `PyMuPDF` (`pymupdf.Story` + `DocumentWriter` + `Shape`) tanpa menambah dependensi baru dan tanpa mengubah kontrak produksi `POST /api/export/docx` (`python-docx`).
+   - Memverifikasi ke-4 template canonical (`ats-clean` avg `25.03 ms`, `ats-modern` avg `18.11 ms`, `visual-executive` 2-kolom sidebar avg `17.38 ms`, `visual-minimal` avg `14.59 ms`) dan laporan ATS (`3.67 ms`) dengan peak Python heap `1.37 MiB`, sanitasi HTML anti-XSS, dan validasi foto `parse_and_validate_photo()`.
+   - Mencatat keputusan arsitektur `DEC-030` di `.agent/DECISIONS.md` (termasuk temuan ligatur Unicode `\ufb01` pada `pymupdf.Story`).
+
+2. **Task `OFF-04` Selesai & Terverifikasi (Observability `/api/health`, Telemetry Konversi Office, & Pembaruan `deploy/RUNBOOK.md`):**
+   - Menambahkan `get_libreoffice_lease_health` dan field `libreoffice_worker` (`busy`, `job_type`, `lease_expires_in_seconds`) pada `GET /api/health` tanpa membocorkan PID atau path filesystem.
+   - Memperbarui `deploy/RUNBOOK.md` dengan verifikasi & catatan operasional single-active lease LibreOffice pada VPS 1 vCPU.
+   - Menambahkan test `test_health_reports_libreoffice_lease_status` di `backend/tests/test_libreoffice.py`.
+   - Hasil verifikasi: `16/16` Pytest PASS (`test_libreoffice.py` & `test_health.py`), Ruff check & format `0` error.
+
+2. **Task `OFF-03` Selesai & Terverifikasi (Integrasi HTTP 429 Single-Active Facade pada 6 Endpoint & Pembersihan Orphan Profil):**
+   - Memetakan `CONVERSION_BUSY` / `LibreOfficeBusyError` ke HTTP `429 Too Many Requests` pada ke-6 endpoint (`POST /api/converter/docx-to-pdf`, `POST /api/converter/presentation-to-pdf`, `POST /api/converter/spreadsheet-to-pdf`, `POST /api/pdf-tools/merge`, `POST /api/export/pdf`, `POST /api/ats/export-report-pdf`).
+   - Memperluas `ConversionJobManager.sweep_expired_workspaces` untuk ikut menyapu direktori temporer OS berawalan `TEMP_DIR_PREFIXES` (`docbuilder_lo_prof_`, `docbuilder_conv_`, `docbuilder_office_`, `docbuilder_pdf_`, `docbuilder_ats_pdf_`) yang melewati TTL.
+   - Menambahkan test `test_six_office_endpoints_return_429_when_conversion_busy` dan `test_sweeper_cleans_expired_orphan_libreoffice_profiles` di `backend/tests/test_libreoffice.py`.
+   - Hasil verifikasi: `78/78` Pytest PASS, Ruff check & format `0` error (`7` file).
+   - Siap melanjutkan ke Gerbang 3 untuk **Task `OFF-04`** (Telemetri health LibreOffice & pembaruan `deploy/RUNBOOK.md`).
+
+2. **Task `OFF-02` Selesai & Terverifikasi (Lease Database Single-Active Lintas Worker untuk Eksekusi LibreOffice):**
+   - Menambahkan `LibreOfficeBusyError` dan context manager `acquire_libreoffice_slot` di `backend/app/services/libreoffice.py` berbasis tabel `RuntimeState` (`key="libreoffice_active_lease"`) dengan `pg_advisory_xact_lock` pada PostgreSQL, auto-expiry lease kadaluarsa (`expires_at = now + ttl_sec`), dan fallback in-process lock untuk unit test tanpa DB.
+   - Mengintegrasikan `acquire_libreoffice_slot` secara otomatis ke dalam `run_libreoffice_conversion` dan memetakan `LibreOfficeBusyError` ke kode `CONVERSION_BUSY: ...` pada `convert_bytes_to_pdf_sandboxed`.
+   - Menambahkan 3 pengujian baru di `backend/tests/test_libreoffice.py` (`test_convert_bytes_to_pdf_sandboxed_returns_conversion_busy`, `test_libreoffice_lease_single_active_and_release`, `test_libreoffice_lease_reclaims_expired_stale_lock`).
+   - Hasil verifikasi: `31/31` Pytest PASS (`test_libreoffice.py`, `test_converter.py`, `test_office_converter.py`), Ruff check & format `0` error.
+   - Siap melanjutkan ke Gerbang 3 untuk **Task `OFF-03`** (Integrasi HTTP 429 Single-Active Facade pada 6 Endpoint Konversi/Ekspor Office & Pembersihan Orphan Profil).
+
+2. **Task `OFF-01` Selesai & Terverifikasi (Sentralisasi Helper LibreOffice, Isolasi Profil Per-Job, Process-Tree Termination, & Fail-Closed Win32 Job Object):**
+   - Membuat modul terpusat `backend/app/services/libreoffice.py`:
+     - `build_libreoffice_command`: menyusun argumen baris perintah LibreOffice headless dengan `-env:UserInstallation=file://...` unik per eksekusi (`--headless --invisible --nocrashreport --nodefault --nofirststartwizard --nologo --norestore --nolockcheck`).
+     - `validate_pdf_bytes` & `validate_pdf_file`: memvalidasi keberadaan, ukuran berkas, dan magic header `%PDF-`.
+     - `run_libreoffice_conversion` & `convert_bytes_to_pdf_sandboxed`: mengeksekusi konversi dalam sandbox dengan pembersihan deterministik direktori profil pengguna.
+   - Memperkeras `backend/app/core/sandbox.py`:
+     - Menegakkan `start_new_session=True` pada POSIX serta eskalasi `os.killpg(pgid, SIGTERM)` -> `SIGKILL` saat timeout agar child process `soffice.bin` tidak tertinggal sebagai zombie/orphan.
+     - Menegakkan fail-closed pada `WindowsJobObject` (`CreateJobObjectW`, `SetInformationJobObject`, `AssignProcessToJobObject`).
+   - Memigrasikan seluruh 5 call site LibreOffice (`converter.py`, `office_converter.py`, `pdf_generator.py`, `ats_report_generator.py`) ke helper terpusat tanpa mengubah tanda tangan fungsi atau kode error publik.
+   - Menambahkan unit tests `backend/tests/test_sandbox.py` (6 tests) dan `backend/tests/test_libreoffice.py` (8 tests).
+   - Hasil verifikasi: `34/34` targeted Pytest PASS, `375/375` full backend Pytest PASS (zero regression), Ruff check & format `0` error pada 8 berkas.
+   - Siap melanjutkan ke Gerbang 3 untuk **Task `OFF-02`** (Skema Database & Repository Single-Active Office Conversion Lock/Queue Lintas Worker Uvicorn).
+
+1. **Task `VTT-02` Selesai & Terverifikasi (Ekstraksi WAV, Engine Transkripsi faster-whisper, Format Generator, ZIP Packager, & Integrasi Worker):**
+   - Menambahkan helper ekstraksi audio WAV 16kHz mono 16-bit PCM sandboxed (`build_transcription_wav_command` dan `extract_transcription_wav`) di `backend/app/services/video_compressor.py`.
+   - Mengembangkan service transkripsi mandiri `backend/app/services/transcription_service.py`:
+     - Loader model faster-whisper (CTranslate2 int8 CPU) dengan thread lock singleton dan lazy-import.
+     - Fungsi transkripsi `transcribe_audio_file` dengan VAD filter, fail-closed deteksi ketiadaan ucapan `NO_SPEECH`, dan penanganan pembatalan `TranscriptionCancelledError`.
+     - Generator format transkrip: `generate_txt` (bertimestamp), `generate_srt` (standar SubRip), dan `generate_docx` (dokumen Word rapi via `python-docx`).
+     - Pratinjau transkrip ephemeral `write_preview_json` di direktori workspace (`preview.json`).
+     - Generator paket arsip `create_transcription_zip` yang mengemas persis 3 berkas (`.txt`, `.srt`, `.docx`) secara flat tanpa path traversal.
+     - Orchestrator `process_transcription_job` yang mengekstrak WAV, menjalankan STT, mengemas ZIP, menulis `preview.json`, dan membersihkan file sementara WAV & unzipped artifacts.
+   - Mengintegrasikan branch `job_type == "transcribe"` pada worker `backend/app/workers/video_worker.py`:
+     - Probing via `probe_audio_extraction` (durasi <= 600s, fail-closed `NO_AUDIO_STREAM`).
+     - Transisi status `scanning` -> `probing` -> `encoding` -> `succeeded`.
+     - Output ZIP disimpan pada `output_path`, ukuran berkas dicatat, input video dihapus seketika.
+   - Menambahkan pengujian komprehensif:
+     - `backend/tests/test_transcription_service.py` (12 unit tests): formatting timestamp, generator TXT/SRT/DOCX, ZIP packaging, mock whisper inference, penolakan NO_SPEECH, cancel handling, dan end-to-end service job.
+     - `backend/tests/test_transcription_worker.py` (3 lifecycle tests): sukses transkripsi antrean worker hingga status `succeeded`, fail-closed penolakan audio-less `NO_AUDIO_STREAM` -> `failed`, dan penolakan audio tanpa ucapan `NO_SPEECH` -> `failed`.
+   - Hasil verifikasi: `15/15` tests PASS pada suite transkripsi baru, `57/57` tests PASS pada seluruh suite video & worker (zero regression), Ruff linter 0 error, dan `scan_secrets.py` 0 secret pada 1.642 berkas.
+   - Siap melanjutkan ke Gerbang 3 untuk **Task `VTT-03`** (Adaptasi Endpoint HTTP API, Pratinjau Ephemeral, Unduhan ZIP Sekali Pakai, & Audit Non-PII).
+
+2. **Task `VTT-01` Selesai & Terverifikasi (Migrasi Skema Database & Adaptasi Model/Repository Queue):**
+   - Menambahkan migrasi Alembic `backend/alembic/versions/006_video_to_text.py` (`down_revision = "005_mp4_to_mp3"`): memperluas check constraint `chk_video_jobs_job_type` mencakup `'transcribe'` dan `chk_video_jobs_preset` mencakup opsi bahasa `'auto'`, `'id'`, `'en'`.
+   - Menyelaraskan model SQLAlchemy `VideoCompressionJob` di `backend/app/db/models.py`.
+   - Mengadaptasi `VideoCompressionRepository` di `backend/app/db/repositories/video_compression_repository.py`: menambahkan konstanta `VALID_TRANSCRIPTION_PRESETS = ("auto", "id", "en")`, memperluas `VALID_JOB_TYPES`, dan memvalidasi `reserve_upload_job` untuk transkripsi.
+   - Menambahkan dan memperbarui pengujian di `backend/tests/test_video_compression_db.py`: verifikasi upgrade/downgrade Alembic `006`, reservasi job transkripsi valid, serta penolakan preset/job_type yang tidak sah.
+   - Hasil verifikasi: Pytest `10/10` PASS pada DB/migrasi, `42/42` PASS pada seluruh suite video compression (zero regression), Ruff linter 0 error, dan `scan_secrets.py` 0 secret pada 1.639 berkas.
+   - Siap melanjutkan ke Gerbang 3 untuk **Task `VTT-02`** (Pipeline Transkripsi, Dokumen Generator, ZIP Packager, & Integrasi Worker).
+
+2. **Task `VTT-00` Selesai & Terverifikasi (Tata Kelola, Gerbang 2, & Sinkronisasi Dokumen Perancangan):**
+   - Dokumen perancangan inti diperbarui sinkron: `BRD.md` (`BUS-029`, `BRULE-018`, `KPI-010`, `RISK-BUS-007`), `PRD.md` (`FR-061`, `NFR-PERF-010`, `NFR-REL-011`, `NFR-SEC-017`, `NFR-PRIV-003`, `NFR-UX-006`, `NFR-ACC-006`), `ARCHITECTURE.md` (§9.4), `SECURITY.md` (`THR-046`–`048`, `CTRL-046`–`048`, `RISK-SEC-028`–`030`, §14.5), `TEST-STRATEGY.md` (§2.10), `TRACEABILITY.md`, `IMPLEMENTATION-PLAN.md` (§8), dan `phase-video-to-text.md`.
+   - File tracking agen diperbarui: `.agent/CHANGE-REQUESTS.md` (`CR-023`), `.agent/DECISIONS.md` (`DEC-028`), `.agent/TASKS.md` (`VTT-00` s/d `VTT-05`), `.agent/REPORT.md`, dan `.agent/PROJECT-STATE.md`.
+   - Gerbang 2 disetujui secara formal oleh User (Owner); `RISK-SEC-023` / `Q-007` (benchmark ClamAV > 250 MB & FFmpeg di VPS Ubuntu staging) tetap dipertahankan sebagai prasyarat **release-blocking** sebelum deploy VPS produksi.
+   - Status beralih ke `READY` dan `implementation_allowed: true` untuk memproses task `VTT-01` via Gerbang 3.
+
+2. **Fase Sebelumnya `phase-mp4-to-mp3` (`CR-022`) Selesai & Terverifikasi:**
+   - Seluruh task `MP3-00` s/d `MP3-04` telah selesai dan teruji (`41/41` Pytest video, `30/30` core, `37/37` Vitest, `vitest-axe` 0 violations, Playwright count 27, secret scan 0).
+
+1. **Task `MP3-04` Selesai & Terverifikasi (Audit Aksesibilitas WCAG 2.2 AA, Playwright E2E, Regresi Penuh & Penutupan Fase):**
+   - Audit Aksesibilitas WCAG 2.2 AA (`frontend/src/components/__tests__/accessibility.test.tsx`):
+     - Menambahkan pengujian `Mp4ToMp3Modal` dengan library `vitest-axe`.
+     - Hasil: `0` violations (`results.violations == []`).
+   - Playwright E2E Test (`frontend/e2e/dashboard.spec.ts`):
+     - Memperbarui verifikasi kartu alat terhubung pada Dashboard menjadi 27 utilitas (`stat-tools-count` = `'27'`).
+   - Pengujian & Verifikasi Menyeluruh:
+     - Ruff `All checks passed!` pada seluruh berkas backend video compression dan suite pengujian.
+     - Oxlint `0` error / `0` warning baru pada seluruh berkas frontend yang dimodifikasi.
+     - Pytest `41/41` PASS pada seluruh suite video compression (upload, api, db, compressor, worker).
+     - Pytest `30/30` PASS pada core auth, audit, disk_guard, dan security test suite.
+     - Vitest targeted & accessibility `37/37` PASS (`mp4_to_mp3.test.tsx`, `compress_video.test.tsx`, `accessibility.test.tsx`, `app.integration.test.tsx`).
+     - TypeScript compile & Vite build `tsc -b && vite build` PASS (534ms).
+     - Secret scan `scripts/scan_secrets.py` memindai 1.637 file: `0` secrets.
+     - `git status --short` mempertahankan seluruh berkas uncommitted OCR & CR-020.
+   - `RISK-SEC-023` / `Q-007` (benchmark ClamAV > 250 MB & FFmpeg di VPS Ubuntu staging) dipertahankan sebagai prasyarat **release-blocking** sebelum deploy VPS produksi.
+
+2. **Status Fase:**
+   - Seluruh exit criteria fase `phase-mp4-to-mp3` telah terpenuhi.
+   - Siap menunggu instruksi pengguna untuk langkah rilis atau kebutuhan berikutnya.
+2. **Task `VC-04` Selesai & Terverifikasi:**
+   - Menambahkan unit `deploy/satukit-video-worker.service` (`User=satukit`, `CPUQuota=75%`, `MemoryHigh=700M`, `MemoryMax=950M`, `ProtectSystem=strict`, `PrivateTmp=true`, `ReadWritePaths=/var/lib/satukit/video_jobs ...`), memperbarui `deploy/Caddyfile.example` (`@videoUpload` `POST /api/video-compressions` `260MB` dan `@defaultBodyLimit` `35MB` untuk seluruh rute lain), serta menambahkan `deploy/VIDEO-COMPRESSION.md` (paket `apt`, `clamd.conf` `StreamMaxLength 300M`, direktori bersama `/var/lib/satukit/video_jobs`, catatan AppArmor `bwrap`, & checklist `Q-007`) tanpa menyentuh `deploy/RUNBOOK.md`.
+   - **Verifikasi `VC-04`:** Review konfigurasi statis PASS, `scripts/scan_secrets.py` (`1626` file, `0` secrets), dan `git status --short` menjaga 3 berkas OCR & `CR-020` utuh (`caddy validate` & `systemd-analyze verify` menunggu host Ubuntu staging sesuai `RISK-SEC-023`).
+2. **Task `VC-03` Selesai & Terverifikasi:**
+   - Melengkapi `VideoCompressionRepository` (`InvalidJobStateError(status_code, reason)`, `mark_job_expired()`, `clear_claimed_job_paths()`, `cancel_job_for_user()`), router `GET /api/video-compressions/{job_id}`, `GET /api/video-compressions/{job_id}/download` (`succeeded -> claimed`, streaming chunk 64 KiB + cleanup file/path di `finally:`, rollback-free `mark_job_expired` di luar blok sesi, audit JSONL non-PII), `DELETE /api/video-compressions/{job_id}`, serta telemetry `ffmpeg_available`/`ffprobe_available` + heartbeat `video_worker` tanpa path internal pada `GET /api/health` (`backend/app/api/health.py`). `backend/app/main.py` tidak perlu diubah karena router & `expose_headers` CORS sudah terpasang di `VC-01`.
+   - **Verifikasi `VC-03`:** Ruff targeted (`5` berkas) `All checks passed!`, Pytest `48/48 PASS` (`6/6` `test_video_compression_api.py`, `2/2` `test_health.py`, `6/6` DB, `6/6` upload, `5/5` worker, `8/8` security, `10/10` audit, `1/1` sqlite, `4/4` prod), `scripts/scan_secrets.py` (`1625` file, `0` secrets), dan `git status --short` menjaga 3 berkas OCR & `CR-020` tetap utuh.
+2. **Task `VC-02` Selesai & Terverifikasi:**
+   - Mengupgrade `ClamAVScanner.scan_file()` & `ensure_fresh_signatures()` di `backend/app/services/file_scanner.py` (streaming `INSTREAM` 64 KiB, pengecekan `"FOUND"` sebelum `": OK"`, kesegaran signature `<= 24 jam`), membangun layanan `backend/app/services/video_compressor.py` (`bwrap` `--tmpfs /tmp` sebelum bind, validasi `ffprobe` MP4/MOV/WebM + rotasi <= 4K/600s/60fps, single-pass H.264 `libx264 -preset veryfast -threads 1` 3 preset tanpa upscale, `-map_metadata -1 -map_chapters -1`, PGID kill, timeout 45m, `OUTPUT_NOT_SMALLER`), serta daemon `backend/app/workers/video_worker.py` (transaksi pendek, recovery job macet `WORKER_INTERRUPTED`, heartbeat non-path `video_worker_heartbeat`, dan sweeper TTL 15m/retensi 24j).
+   - **Verifikasi `VC-02`:** Ruff targeted (`5` berkas) `All checks passed!`, Pytest `33/33 PASS` (`10/10` `test_video_compressor.py`, `5/5` `test_video_worker.py`, `7/7` `test_file_worker.py`, `11/11` `test_file_shelf_comprehensive.py`), dan `scripts/scan_secrets.py` (`1624` file, `0` secrets).
+   - **Batasan & keutuhan tree:** Host Windows dev tidak memiliki binary `ffmpeg`/`ffprobe`/`bwrap`/`clamd` (`RISK-SEC-023` / `Q-007` tetap release-blocking untuk benchmark staging Ubuntu); `3` berkas OCR & `CR-020` tetap utuh.
+2. **Task `VC-01` Selesai & Terverifikasi:**
+   - Mengimplementasikan `Settings.VIDEO_COMPRESSION_*` (`backend/app/core/config.py`), model `VideoCompressionJob` (`backend/app/db/models.py`), migration Alembic `004_video_compression.py` (`down_revision = "003_file_shelf"`), `VideoCompressionRepository` atomik (`pg_advisory_xact_lock`, partial unique index PostgreSQL/SQLite, `FOR UPDATE SKIP LOCKED`, `claim_succeeded_job_for_download`), serta router streaming upload `POST /api/video-compressions` (`backend/app/api/video_compression.py` + `backend/app/main.py`) tanpa memanggil `request.body()`.
+   - **Verifikasi `VC-01`:** Ruff targeted (`8` file) `All checks passed!`, Pytest `18/18 PASS` (`6/6` `test_video_compression_db.py`, `6/6` `test_video_compression_upload.py`, `2/2` `test_postgres_migration.py`, `4/4` `test_postgres_setup.py`), dan `scripts/scan_secrets.py` (`1620` file, `0` secrets).
+   - **Keutuhan tree & batasan diketahui:** `3` berkas OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) serta `CR-020` tetap utuh; drive C: Windows dev melampaui 80% disk guard sehingga fixture test API mem-stub `get_disk_space_info` sehat sebagai default sebelum menguji penolakan `507`.
+3. **Task `VC-00` Selesai & Terverifikasi:**
+   - Menyinergikan tata kelola dan dokumen arsitektur/produk/keamanan/pengujian untuk `CR-021` dengan ID bebas konflik: `docs/project/BRD.md` (`BUS-027`, `BRULE-016`, `KPI-008`, `RISK-BUS-05`), `docs/project/PRD.md` (`FR-059`, `NFR-PERF-008`, `NFR-REL-010`, `NFR-SEC-016`, `NFR-PRIV-002`, `NFR-UX-004`, `NFR-ACC-004`), `docs/project/ARCHITECTURE.md` (§9), `docs/project/SECURITY.md` (`THR-037`–`042`, `CTRL-037`–`042`, `RISK-SEC-021`–`024`, §14.3), `docs/project/TEST-STRATEGY.md` (§2.8), `docs/project/TRACEABILITY.md`, `docs/project/IMPLEMENTATION-PLAN.md` (§6), dan `docs/project/phases/phase-video-compression.md`.
+   - Menyinergikan `.agent/CHANGE-REQUESTS.md` (`CR-021`), `.agent/DECISIONS.md` (`DEC-026`), `.agent/OPEN-QUESTIONS.md` (`Q-007`), `.agent/TASKS.md` (`VC-00` s/d `VC-06`), `.agent/REPORT.md`, dan `.agent/PROJECT-STATE.md`.
+   - **Verifikasi `VC-00`:** `scripts/scan_secrets.py` (`1615` file, `0` secrets) dan `git status --short` memastikan 3 berkas uncommitted OCR (`deploy/RUNBOOK.md`, `PdfOcrModal.tsx`, `pdf_ocr.test.tsx`) serta seluruh berkas `CR-020` tetap utuh.
+   - **Batasan & Blocker Rilis Tercatat:** Host dev Windows tidak memiliki `ffmpeg`/`ffprobe`; benchmark empiris ClamAV `StreamMaxLength` (> 250 MB) + konsumsi RAM `ffmpeg` di Ubuntu staging (`RISK-SEC-023` / `Q-007`) menjadi prasyarat release-blocking sebelum produksi.
+5. **Task `VC-00` s/d `VC-05`:** Lapisan backend, artefak deployment VPS, dan UI frontend beserta guard login telah selesai; **Langkah Berikutnya:** Pengajuan dan persetujuan **Gerbang 3 untuk `VC-06`** (audit aksesibilitas `vitest-axe` WCAG 2.2 AA untuk `CompressVideoModal`, update `frontend/e2e/dashboard.spec.ts` `stat-tools-count` `'26'`, regresi penuh, dan penutupan fase `CR-021`).
+
+Fase `phase-watermark-removal` (Fitur Hapus Watermark PDF, JPG/JPEG, dan PNG — `CR-020`, `BUS-026`, `FR-058`) **selesai dan terverifikasi (`RW-01` s/d `RW-06`)**:
+1. **Task `RW-06` Selesai & Terverifikasi:**
+   - Menambahkan `<WatermarkRemovalModal isOpen={true} onClose={vi.fn()} />` ke `frontend/src/components/__tests__/accessibility.test.tsx`: **7/7 tests PASS (0 pelanggaran WCAG 2.2 AA `vitest-axe`)**.
+   - **Regresi penuh & kualitas kode:** `303/303` Pytest PASS (termasuk 12/12 `CR-020` & 45/45 `test_pdf_tools.py`), `392/392` Vitest PASS (50 file), Ruff `All checks passed!` pada seluruh berkas `CR-020` (catatan jujur: `ruff check backend` penuh masih mencatat 91 error pre-existing di berkas lama di luar `CR-020`), Oxlint `0` error (`21` warning pre-existing di luar `CR-020`, `0` warning di file `CR-020`), `tsc -b && vite build` PASS (`2.34s`), dan `scripts/scan_secrets.py` PASS (`1614` file, `0` secrets).
+   - Menyinergikan akhir `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `.agent/CHANGE-REQUESTS.md`, `docs/project/SECURITY.md` (`RISK-SEC-017`–`020`, §14.2), dan `docs/project/TRACEABILITY.md`.
+   - **Batasan yang diketahui:** Binary Tesseract belum terpasang di host Windows lokal (mode fallback manual teruji penuh, OCR live hanya diuji via mock `pymupdf.Pixmap.pdfocr_tobytes`) dan Playwright live browser E2E belum dijalankan pada `RW-06`.
+2. **Task `RW-05` Selesai:** Kartu mandiri `Hapus Watermark` (kategori `organize`, 25 alat total) + login guard `#/login` (`10/10` `app.integration.test.tsx` PASS, `dashboard.spec.ts` `'25'`).
+3. **Task `RW-04` Selesai:** Client API & modal `WatermarkRemovalModal.tsx` (`8/8` `watermark_removal.test.tsx` PASS).
+4. **Task `RW-03` Selesai:** Mesin OpenCV preview/apply (`cv2.INPAINT_TELEA` radius=5), penghapusan struktural annotation PDF, rekonstruksi PDF hybrid (`150 DPI`), preservasi alpha PNG, stripping EXIF/GPS, endpoint `/api/watermark-removal/{analyze,preview,apply}` & header CORS.
+5. **Task `RW-02` Selesai:** Pin `opencv-python-headless` di `backend/pyproject.toml` dan layanan analyzer/manifest `0..1`.
+6. **Task `RW-01` Selesai (`DEC-025`):** Feasibility spike corpus & benchmark empiris (`INPAINT_TELEA radius=5`, `PDF 150 DPI`).
+7. **Working tree OCR:** 3 berkas perubahan OCR (`deploy/RUNBOOK.md`, `frontend/src/components/pdf-tools/PdfOcrModal.tsx`, `frontend/src/components/pdf-tools/__tests__/pdf_ocr.test.tsx`) tetap dibiarkan di working tree tanpa diubah atau di-commit, serta `"Tesseract OCR tidak ditemukan"` dipertahankan di `backend/tests/test_pdf_tools.py`.
+8. **Langkah Berikutnya:** Review owner untuk penutupan formal `RISK-SEC-017`–`RISK-SEC-020` (serta `RISK-SEC-001`–`002`), atau melanjutkan backlog yang belum siap (`TASK-11.3`, `TASK-11.4`, `TASK-13.2`, `TASK-14.1`, `TASK-14.2`) / commit Git atas instruksi eksplisit pengguna.
+
 Fase `phase-file-shelf` (Fitur Rak Berkas Privat Per Akun / File Shelf) **selesai dan terverifikasi penuh (FS-00 s/d FS-09)**:
 1. **Pengujian Komprehensif Matriks Upload & Keamanan (`FS-09`):**
    - File `backend/tests/test_file_shelf_comprehensive.py`: 11/11 tests PASS mencakup 10 kelompok matriks upload (format didukung PDF/DOCX/XLSX/PPTX/JPG/PNG/WebP/MD, penolakan format dilarang arsip/SVG/biner, penolakan bom dekompresi/XML defusedxml, makro VBA & script PDF, file terenkripsi password, malformed & polyglot, pelestarian byte EXIF foto statis vs tolak animasi, pemindaian ClamAV fail-closed, batas ukuran 25MB & kuota 5 slot & hard ceiling R2 7GB, batas konkurensi in-flight & rolling rate limits).

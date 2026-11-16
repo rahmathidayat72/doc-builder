@@ -9,10 +9,33 @@ import {
   FileText,
   Info,
   RefreshCw,
-  ExternalLink,
   Check,
 } from 'lucide-react'
 import { getOcrStatus, ocrPdf, type PdfToolResult } from '../../services/pdfTools'
+
+function isLanguageAvailable(lang: string, availableLanguages: string[]): boolean {
+  if (availableLanguages.length === 0) return true
+  if (lang === 'ind+eng') {
+    return availableLanguages.includes('ind') && availableLanguages.includes('eng')
+  }
+  return availableLanguages.includes(lang)
+}
+
+function pickFallbackLanguage(availableLanguages: string[]): string {
+  if (availableLanguages.length === 0) return 'ind+eng'
+  if (availableLanguages.includes('ind') && availableLanguages.includes('eng')) return 'ind+eng'
+  if (availableLanguages.includes('ind')) return 'ind'
+  if (availableLanguages.includes('eng')) return 'eng'
+  return 'ind+eng'
+}
+
+function formatOcrErrorMessage(rawMessage?: string): string {
+  if (!rawMessage) return 'Gagal menerapkan OCR pada berkas PDF.'
+  if (/tesseract ocr tidak ditemukan|instal tesseract/i.test(rawMessage)) {
+    return 'Layanan OCR server sedang tidak tersedia atau dalam pemeliharaan. Silakan coba beberapa saat lagi.'
+  }
+  return rawMessage
+}
 
 interface PdfOcrModalProps {
   isOpen: boolean
@@ -51,6 +74,11 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
     const status = await getOcrStatus()
     if (!isMountedRef.current) return
     setOcrStatus(status)
+    if (status?.available && Array.isArray(status.languages) && status.languages.length > 0) {
+      setLanguage(prev =>
+        isLanguageAvailable(prev, status.languages) ? prev : pickFallbackLanguage(status.languages)
+      )
+    }
     setIsCheckingStatus(false)
   }
 
@@ -119,9 +147,15 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
         ocrPages: res.ocrPages,
       })
     } else {
-      setErrorMessage(res.message || 'Gagal menerapkan OCR pada berkas PDF.')
+      setErrorMessage(formatOcrErrorMessage(res.message))
     }
   }
+
+  const availableLanguages = ocrStatus?.available ? ocrStatus.languages : []
+  const hasLangInfo = Boolean(ocrStatus?.available && availableLanguages.length > 0)
+  const indAvailable = !hasLangInfo || availableLanguages.includes('ind')
+  const engAvailable = !hasLangInfo || availableLanguages.includes('eng')
+  const bothAvailable = indAvailable && engAvailable
 
   return (
     <div
@@ -159,53 +193,35 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-          {/* Tesseract Status Check Card */}
+          {/* Server OCR Status Check Card */}
           {ocrStatus && !ocrStatus.available ? (
             <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-3" data-testid="card-ocr-not-available">
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <h4 className="text-xs font-bold text-amber-900">
-                    Engine Tesseract OCR Belum Terdeteksi
+                    Layanan OCR Sedang Tidak Tersedia
                   </h4>
                   <p className="text-2xs text-amber-800 leading-relaxed">
-                    Fitur OCR PDF memerlukan perangkat lunak <strong>Tesseract OCR</strong> terpasang di server untuk membaca teks dari gambar pindaian secara privat.
+                    Pemrosesan OCR PDF berjalan sepenuhnya di server Beresin tanpa perlu memasang aplikasi di perangkat Anda. Saat ini layanan OCR server sedang dalam pemeliharaan atau belum aktif.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white/80 border border-amber-200/80 rounded-xl p-3 space-y-2 text-2xs text-slate-700">
-                <span className="font-bold text-slate-800 block">Panduan Instalasi Gratis:</span>
-                <ul className="space-y-1.5 list-disc list-inside">
-                  <li>
-                    <strong>Windows:</strong> Unduh dan pasang installer Tesseract dari{' '}
-                    <a
-                      href="https://github.com/UB-Mannheim/tesseract/wiki"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-700 font-semibold underline inline-flex items-center gap-0.5"
-                    >
-                      UB-Mannheim Tesseract <ExternalLink className="w-3 h-3" />
-                    </a>. Centang bahasa Indonesia (*ind*) saat instalasi.
-                  </li>
-                  <li>
-                    <strong>Linux (Ubuntu/Debian):</strong> Jalankan perintah{' '}
-                    <code className="bg-slate-100 px-1 py-0.5 rounded text-3xs font-mono">
-                      sudo apt install tesseract-ocr tesseract-ocr-ind
-                    </code>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-3xs text-amber-700">
-                  Setelah instalasi selesai, klik tombol periksa status di bawah.
-                </span>
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg text-2xs font-semibold transition"
+                  data-testid="btn-close-ocr-unavailable"
+                >
+                  Tutup
+                </button>
                 <button
                   type="button"
                   onClick={checkStatus}
                   disabled={isCheckingStatus}
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white rounded-lg text-2xs font-bold flex items-center gap-1.5 transition"
+                  className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 active:bg-amber-900 disabled:opacity-60 text-white rounded-lg text-2xs font-bold flex items-center gap-1.5 transition"
                   data-testid="btn-recheck-ocr"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isCheckingStatus ? 'animate-spin' : ''}`} />
@@ -215,22 +231,29 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Engine Ready Badge */}
-              <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between text-2xs text-emerald-900" data-testid="badge-ocr-ready">
-                <div className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Engine Tesseract OCR server aktif dan siap digunakan.</span>
+              {/* Engine Status Badge */}
+              {ocrStatus === null ? (
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2 text-2xs text-slate-700" data-testid="badge-ocr-checking">
+                  <Loader2 className="w-4 h-4 text-slate-500 animate-spin shrink-0" />
+                  <span>Memeriksa kesiapan layanan OCR server...</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={checkStatus}
-                  disabled={isCheckingStatus}
-                  aria-label="Segarkan status OCR"
-                  className="text-emerald-700 hover:text-emerald-900 p-1"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
+              ) : (
+                <div className="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl flex items-center justify-between text-2xs text-emerald-900" data-testid="badge-ocr-ready">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Layanan OCR server aktif dan siap digunakan.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={checkStatus}
+                    disabled={isCheckingStatus}
+                    aria-label="Segarkan status OCR"
+                    className="text-emerald-700 hover:text-emerald-900 p-1"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              )}
 
               {/* Language Selection */}
               <div>
@@ -244,12 +267,20 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 transition"
                   data-testid="select-ocr-lang"
                 >
-                  <option value="ind+eng">Bahasa Indonesia + English (ind+eng)</option>
-                  <option value="ind">Bahasa Indonesia (ind)</option>
-                  <option value="eng">English (eng)</option>
+                  <option value="ind+eng" disabled={!bothAvailable}>
+                    Bahasa Indonesia + English (ind+eng)
+                  </option>
+                  <option value="ind" disabled={!indAvailable}>
+                    Bahasa Indonesia (ind)
+                  </option>
+                  <option value="eng" disabled={!engAvailable}>
+                    English (eng)
+                  </option>
                 </select>
-                <p className="text-3xs text-slate-400 mt-1">
-                  Pilih bahasa utama dokumen untuk meningkatkan akurasi pengenalan karakter teks.
+                <p className="text-3xs text-slate-500 mt-1">
+                  {hasLangInfo && (!indAvailable || !engAvailable)
+                    ? 'Sebagian paket bahasa belum aktif di server; opsi yang tersedia dipilih otomatis.'
+                    : 'Pilih bahasa utama dokumen untuk meningkatkan akurasi pengenalan karakter teks.'}
                 </p>
               </div>
 
@@ -339,7 +370,7 @@ export const PdfOcrModal: React.FC<PdfOcrModalProps> = ({
               <button
                 type="button"
                 onClick={handleOcrSubmit}
-                disabled={isLoading || !file || (ocrStatus !== null && !ocrStatus.available)}
+                disabled={isLoading || !file || !ocrStatus?.available}
                 className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2"
                 data-testid="btn-submit-ocr"
               >

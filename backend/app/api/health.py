@@ -1,26 +1,124 @@
 import os
 import shutil
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Response
+from sqlalchemy import Engine, text
 
 from app.core.config import settings
 from app.core.disk_guard import get_disk_space_info
+from app.db.models import RuntimeState
+from app.db.postgres import get_db_session
+from app.services.video_compressor import detect_ffmpeg_binaries
+from app.workers.video_worker import HEARTBEAT_STATE_KEY
 
 router = APIRouter(tags=["Health"])
+
+VIDEO_WORKER_HEARTBEAT_STALE_SECONDS = 60.0
+LIBREOFFICE_LEASE_STATE_KEY = "libreoffice_active_lease"
+_ENGINE_OVERRIDE: Engine | None = None
+
+
+def set_health_engine_override(eng: Engine | None) -> None:
+    """Mengatur engine database override untuk pengujian terisolasi."""
+    global _ENGINE_OVERRIDE
+    _ENGINE_OVERRIDE = eng
 
 
 def check_database() -> bool:
     """Memeriksa konektivitas basis data PostgreSQL."""
     try:
-        from sqlalchemy import text
         from app.db.postgres import engine
 
-        with engine.connect() as conn:
+        target_engine = _ENGINE_OVERRIDE or engine
+        with target_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True
     except Exception:
         return False
+
+
+def get_video_worker_health(
+    *,
+    db_ok: bool,
+    now: float | None = None,
+) -> dict[str, object]:
+    """Mengambil kesegaran heartbeat worker video tanpa path filesystem internal."""
+    fallback: dict[str, object] = {
+        "status": "unavailable",
+        "fresh": False,
+        "worker_status": None,
+        "has_active_job": False,
+        "last_heartbeat_at": None,
+        "age_seconds": None,
+    }
+    if not db_ok and _ENGINE_OVERRIDE is None:
+        return fallback
+
+    try:
+        with get_db_session(engine_override=_ENGINE_OVERRIDE) as session:
+            state = session.get(RuntimeState, HEARTBEAT_STATE_KEY)
+            if state is None:
+                return fallback
+            raw_val = state.value if isinstance(state.value, dict) else {}
+            raw_ts = raw_val.get("last_heartbeat_at", state.updated_at)
+            try:
+                last_hb = float(raw_ts)
+            except (TypeError, ValueError):
+                last_hb = float(state.updated_at)
+
+            raw_status = raw_val.get("status")
+            worker_status = raw_status if raw_status in ("idle", "processing") else "unknown"
+            has_active_job = bool(raw_val.get("has_active_job", False))
+    except Exception:
+        return fallback
+
+    ts = time.time() if now is None else now
+    age_seconds = max(0.0, round(ts - last_hb, 2))
+    is_fresh = age_seconds <= VIDEO_WORKER_HEARTBEAT_STALE_SECONDS
+    return {
+        "status": "healthy" if is_fresh else "stale",
+        "fresh": is_fresh,
+        "worker_status": worker_status,
+        "has_active_job": has_active_job,
+        "last_heartbeat_at": last_hb,
+        "age_seconds": age_seconds,
+    }
+
+
+def get_libreoffice_lease_health(
+    *,
+    db_ok: bool,
+    now: float | None = None,
+) -> dict[str, object]:
+    """Mengambil status lease tunggal LibreOffice tanpa membocorkan PID atau path."""
+    fallback: dict[str, object] = {
+        "busy": False,
+        "job_type": None,
+        "lease_expires_in_seconds": None,
+    }
+    if not db_ok and _ENGINE_OVERRIDE is None:
+        return fallback
+
+    try:
+        with get_db_session(engine_override=_ENGINE_OVERRIDE) as session:
+            state = session.get(RuntimeState, LIBREOFFICE_LEASE_STATE_KEY)
+            if state is None or not isinstance(state.value, dict):
+                return fallback
+            active = bool(state.value.get("active", False))
+            expires_at = float(state.value.get("expires_at", 0.0))
+            ts = time.time() if now is None else now
+            if not active or expires_at <= ts:
+                return fallback
+            job_type = str(state.value.get("job_type") or "pdf_conversion")
+            return {
+                "busy": True,
+                "job_type": job_type,
+                "lease_expires_in_seconds": round(expires_at - ts, 2),
+            }
+    except Exception:
+        return fallback
 
 
 def detect_libreoffice() -> tuple[bool, str | None]:
@@ -66,8 +164,11 @@ def detect_libreoffice() -> tuple[bool, str | None]:
 @router.get("/health")
 def get_health(response: Response):
     lo_available, lo_path = detect_libreoffice()
+    ffmpeg_bin, ffprobe_bin = detect_ffmpeg_binaries()
     disk_info = get_disk_space_info()
     db_ok = check_database()
+    worker_health = get_video_worker_health(db_ok=db_ok)
+    lo_lease_health = get_libreoffice_lease_health(db_ok=db_ok)
 
     is_healthy = db_ok
     if not is_healthy and settings.IS_PRODUCTION:
@@ -86,5 +187,9 @@ def get_health(response: Response):
         "database_connected": db_ok,
         "libreoffice_available": lo_available,
         "libreoffice_path": None if settings.IS_PRODUCTION else lo_path,
+        "libreoffice_worker": lo_lease_health,
+        "ffmpeg_available": ffmpeg_bin is not None,
+        "ffprobe_available": ffprobe_bin is not None,
+        "video_worker": worker_health,
         "disk": disk_info.to_dict(),
     }

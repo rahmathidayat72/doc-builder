@@ -41,7 +41,7 @@ export const BrandMascot: React.FC<BrandMascotProps> = ({
   variant = 'hero',
   size = 'md',
   className = '',
-  alt = 'Kitu — Maskot Resmi Satukit',
+  alt = 'Kitu — Asisten Digital Beresin by Satukit',
   priority = false,
   caption,
   interactive = false,

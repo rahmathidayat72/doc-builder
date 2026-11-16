@@ -6,8 +6,8 @@
 - **Data Owner:** User (Owner Proyek)
 - **Approval Authority:** User (Owner Proyek)
 - **Tanggal Evaluasi Awal:** 2026-10-20
-- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol dan risk register; 2026-10-27 — implementasi audit trail JSONL; 2026-11-08 — Ekspansi model ancaman komprehensif untuk transformasi online VPS multi-user: otentikasi Email/Password & Google OAuth, pencegahan account takeover, pembatasan kuota CV 30 hari, backup terenkripsi Cloudflare R2 (7 hari), isolasi ML worker U2NetP (concurrency 1, antrean max 2, timeout 30s), anti-SSRF pada URL Shortener Cloudflare Workers + D1, dan disk fail-closed; 2026-11-11 — Penutupan entry point publik Google Auth dan Shortener Management (AUTH-ACCESS-001, DEC-023).
-- **Status Gate:** PENDING (Evaluasi Gerbang 2 untuk rilis Online v2.0).
+- **Revisi Dokumentasi:** 2026-10-24 — koreksi kontrol dan risk register; 2026-10-27 — implementasi audit trail JSONL; 2026-11-08 — Ekspansi model ancaman komprehensif untuk transformasi online VPS multi-user: otentikasi Email/Password & Google OAuth, pencegahan account takeover, pembatasan kuota CV 30 hari, backup terenkripsi Cloudflare R2 (7 hari), isolasi ML worker U2NetP (concurrency 1, antrean max 2, timeout 30s), anti-SSRF pada URL Shortener Cloudflare Workers + D1, dan disk fail-closed; 2026-11-11 — Penutupan entry point publik Google Auth dan Shortener Management (AUTH-ACCESS-001, DEC-023); 2026-11-12 — Verifikasi lengkap `CR-020` Hapus Watermark (`RW-01` s/d `RW-06`, `THR-032` s/d `036`, `RISK-SEC-017` s/d `020` berstatus MITIGATED pending owner closure approval) dan persetujuan Gerbang 2 `CR-021` Compress Video (`THR-037` s/d `042`, `RISK-SEC-021` s/d `024`); 2026-11-13 — Evaluasi model ancaman & kontrol `CR-022` MP4 ke MP3 (`THR-043` s/d `045`, `RISK-SEC-025` s/d `027`); 2026-11-13 — Evaluasi model ancaman & kontrol `CR-023` Video ke Teks (`THR-046` s/d `048`, `RISK-SEC-028` s/d `030`).
+- **Status Gate:** APPROVED (Gerbang 2 Video ke Teks disetujui untuk implementasi; rilis produksi tetap diblokir oleh prasyarat benchmark VPS staging `RISK-SEC-023` / `Q-007`).
 - **Release Gate Berikutnya:** PENDING — Seluruh kontrol baru wajib divalidasi dan diuji sebelum rilis publik.
 
 ## 2. Aset Kritis dan Klasifikasi Data
@@ -77,6 +77,39 @@ Status bukti yang dipakai:
 | `THR-029` | File mentah tertinggal di direktori karantina lokal | `CTRL-029` | Preventive & Responsive | Karantina permission `0600`; pembersihan otomatis pasca-enkripsi atau saat reject; sweeper orphan background tiap 15 menit. |
 | `THR-030` | Akumulasi berkas lama melebihi masa retensi | `CTRL-030` | Preventive | Sweeper otomatis membersihkan berkas yang berusia >30 hari sejak `available_at`; job penghapusan asinkron R2 diselesaikan <24 jam. |
 | `THR-031` | Berkas terenkripsi/terproteksi password menyembunyikan malware | `CTRL-031` | Preventive | Tolak seluruh berkas PDF/Office yang terproteksi password atau terenkripsi menggunakan `msoffcrypto-tool` dan PyMuPDF metadata check. |
+
+### 3.3 Model Ancaman & Kontrol Hapus Watermark (`CR-020`)
+| Threat ID | Skenario Ancaman | Kontrol Terkait | Tipe Kontrol | Mitigasi / Penanganan |
+|---|---|---|---|---|
+| `THR-032` | DoS CPU/RAM via pixel bomb, payload stroke mask berlebihan, atau analisis PDF berhalaman masif | `CTRL-032` | Preventive | Validasi `MAX_PIXELS`, batas upload 25 MB, analisis interaktif PDF maks 50 halaman, batas stroke/titik manifest ternormalisasi `0..1`, serta antrean tunggal `ConversionJobManager` (`concurrency = 1`). |
+| `THR-033` | Perusakan integritas PDF bertanda tangan digital, bypass PDF terenkripsi, atau manipulasi `xref` lintas berkas | `CTRL-033` | Preventive | Penolakan fail-closed PDF terenkripsi & `has_digital_signature`; pengikatan manifest pada `file_sha256` berkas aktif dan validasi `xref` milik halaman/annotation sah. |
+| `THR-034` | Penyalahgunaan hak cipta atau penghapusan cap air dokumen pihak ketiga tanpa otorisasi | `CTRL-034` | Preventive & Detective | Akses wajib login (sesi + CSRF + verifikasi email di prod), konfirmasi eksplisit kepemilikan/izin di UI & API (`owner_confirmed`), serta audit event JSONL tanpa menyimpan nama file atau payload dokumen (`RISK-SEC-017`). |
+| `THR-035` | Kebocoran metadata lokasi/perangkat EXIF/GPS pada gambar JPG/PNG hasil unduhan | `CTRL-035` | Preventive | Re-encode output raster bersih tanpa menyalin blok EXIF/GPS asli secara default (`RISK-SEC-018`). |
+| `THR-036` | Penghapusan isi sah dokumen atau hilangnya teks selectable PDF secara tidak sengaja | `CTRL-036` | Preventive | Tidak ada auto-apply; kandidat wajib dipilih per halaman dengan koreksi mask manual, review before/after sebelum unduh, dan konfirmasi eksplisit sebelum meraster halaman PDF terpilih (`RISK-SEC-019`, `RISK-SEC-020`). |
+
+### 3.4 Model Ancaman & Kontrol Compress Video (`CR-021`)
+| Threat ID | Skenario Ancaman | Kontrol Terkait | Tipe Kontrol | Mitigasi / Penanganan |
+|---|---|---|---|---|
+| `THR-037` | Memory exhaustion / OOM VPS 2.2 GiB akibat buffering payload video 250 MB atau full-read ClamAV | `CTRL-037` | Preventive | Upload streaming chunk `request.stream()` langsung ke disk `0600` (tanpa `request.body()`), ClamAV streaming `INSTREAM` 64 KiB, batas `250.000.000` byte, dan workspace global cap `1.25 GiB` (`RISK-SEC-021`). |
+| `THR-038` | Eksploitasi parser/demuxer `ffprobe`/`ffmpeg` atau eksekusi payload malware via berkas video korup/polyglot | `CTRL-038` | Preventive | Scan ClamAV fail-closed wajib sebelum `ffprobe` (signature ≤ 24h), validasi ketat allowlist container/codec MP4/MOV/WebM, batas ≤ 600s/4K/60 FPS, dan isolasi `bubblewrap --unshare-net --die-with-parent` di Linux (`RISK-SEC-022`). |
+| `THR-039` | DoS CPU, proses zombie `ffmpeg`, atau exhaustion disk akibat antrean/transcoding video berat | `CTRL-039` | Preventive & Responsive | Worker systemd terpisah `satukit-video-worker`, koordinasi PostgreSQL (`1 running + 2 queued`), rate limit 3 job/jam per akun & per IP, `-threads 1`, process-group kill (`SIGTERM`->`SIGKILL`), hard timeout 45 menit, startup recovery, & sweeper TTL 15 menit (`RISK-SEC-023`, `RISK-SEC-024`). |
+| `THR-040` | Broken Object-Level Authorization (BOLA), replay download, atau bypass login pada kategori `convert` | `CTRL-040` | Preventive | Wajib sesi terautentikasi + email terverifikasi (prod) + Origin/CSRF guard, guard login eksplisit di `App.tsx` (tidak ikut bypass `category === 'convert'`), filter `user_id` (HTTP 404 anti-enumerasi), dan transisi atomik sekali unduh `succeeded -> claimed` (`RISK-SEC-022`). |
+| `THR-041` | Kebocoran metadata lokasi/perangkat (EXIF/GPS/chapter/creator tag) atau nama berkas/PII di audit log | `CTRL-041` | Preventive & Detective | Flag `ffmpeg -map_metadata -1 -map_chapters -1` pada semua output, sanitasi filename (`os.path.basename` + fallback `Content-Disposition`), dan pencatatan audit JSONL non-PII tanpa nama berkas (`RISK-SEC-024`). |
+| `THR-042` | Regresi pelonggaran batas payload global 35 MB atau ketiadaan worker/`ffmpeg` yang tidak terdeteksi | `CTRL-042` | Preventive & Detective | Override matcher Caddy khusus `POST /api/video-compressions` (~260 MB) sambil mempertahankan batas global 35 MB, serta telemetry kesiapan `ffmpeg`/`ffprobe` & heartbeat worker di `/api/health` tanpa mengekspos path internal (`RISK-SEC-023`). |
+
+### 3.5 Model Ancaman & Kontrol MP4 ke MP3 (`CR-022`)
+| Threat ID | Skenario Ancaman | Kontrol Terkait | Tipe Kontrol | Mitigasi / Penanganan |
+|---|---|---|---|---|
+| `THR-043` | Parser/demuxer abuse atau malformed MP4 container attack saat ekstraksi stream audio via `ffprobe`/`ffmpeg` | `CTRL-043` | Preventive | Scan ClamAV streaming fail-closed sebelum probe, validasi ekstensi ketat `.mp4` & format token MP4, sandboxing `bubblewrap --unshare-net` di Linux (`RISK-SEC-025`). |
+| `THR-044` | Pelanggaran hak cipta audio atau ekstraksi materi terlindungi hak cipta tanpa otorisasi | `CTRL-044` | Preventive & Detective | Otentikasi wajib, checkbox konfirmasi hak kepemilikan/izin audio eksplisit sebelum upload, audit log JSONL kepatuhan non-PII (`action="mp4_to_mp3_requested"`, `action="mp4_to_mp3_downloaded"`) (`RISK-SEC-026`). |
+| `THR-045` | DoS pemrosesan atau worker crash akibat berkas MP4 bisu (tanpa stream audio), audio corrupt, atau channel berlebih (> 2 channel) | `CTRL-045` | Preventive | Probe audio fail-closed menolak video tanpa audio dengan `NO_AUDIO_STREAM` sebelum masuk antrean encoding, pemilihan track default / 0:a:0 eksplisit, auto-downmix channel >2 menjadi stereo (`-ac 2`), timeout 10 menit (600s), dan pembersihan workspace (`RISK-SEC-027`). |
+
+### 3.6 Model Ancaman & Kontrol Video ke Teks (`CR-023`)
+| Threat ID | Skenario Ancaman | Kontrol Terkait | Tipe Kontrol | Mitigasi / Penanganan |
+|---|---|---|---|---|
+| `THR-046` | Exploit buffer overflow / unsafe parsing pada audio WAV atau model AI CTranslate2 oleh crafted audio/video | `CTRL-046` | Preventive | Scan ClamAV streaming fail-closed sebelum probe, sanitasi ekstensi ketat `.mp4`, ekstraksi audio terstandarisasi PCM WAV 16kHz mono, sandboxing `bubblewrap --unshare-net` di Linux, isolasi user non-root (`RISK-SEC-028`). |
+| `THR-047` | Resource exhaustion (CPU starvation, memory spike, OOM freeze) pada VPS 1 vCPU / 2.2 GiB RAM oleh model transkripsi | `CTRL-047` | Preventive & Responsive | Kuantisasi model `int8` (RAM ~200-550MB), batas worker tunggal paralel (1 running global + 2 waiting), hard timeout 15 menit (900s), pembatalan per process-group, VAD filtering segmen hening / fail-closed `NO_SPEECH`, prasyarat benchmark staging VPS (`RISK-SEC-028`, `RISK-SEC-030`). |
+| `THR-048` | Kebocoran PII percakapan rapat/wawancara rahasia melalui logging, residu workspace, atau insecure ZIP download | `CTRL-048` | Preventive & Detective | Redaksi total isi transkrip dan audio dari seluruh log aplikasi dan audit trail JSONL; data pratinjau `preview.json` bersifat ephemeral di direktori workspace `0700` dan musnah saat diklaim/kedaluwarsa; unduhan ZIP sekali pakai (`succeeded -> claimed`) dengan TTL 15 menit; sanitasi nama berkas dalam ZIP tanpa path traversal (`RISK-SEC-029`). |
 
 ## 4. Remediation SLA & Quality Gates
 - **Critical Vulnerability:** Perbaikan dan patch dalam ≤ 24 jam.
@@ -183,8 +216,22 @@ Status bukti yang dipakai:
 | `RISK-SEC-014` | Retensi metadata sensitif (EXIF/GPS) pada gambar statis | MEDIUM | Unggahan foto kamera menyimpan koordinat lokasi rumah/tempat privat pengguna | Risiko privasi jika pengguna mengunduh atau berbagi berkas asli | `ACCEPT` — Diterima secara formal oleh Owner sampai 2027-02-11 dengan compensating control kewajiban checkbox persetujuan pengguna di UI sebelum upload | User (Owner) | 2027-02-11 | ACCEPTED (Formal Owner Approval) |
 | `RISK-SEC-015` | Saturasi bandwidth dan starvation koneksi pada unduhan besar simultan | MEDIUM | Beberapa pengguna mengunduh berkas 25 MB secara bersamaan | Latensi server meningkat drastis, starvation koneksi API | `MITIGATE` — Batas 1 download aktif per akun, batas 2 lease download global di seluruh sistem, rate limit rolling 30 download/jam | `MITIGATE` — Diimplementasikan pada FS-03 & FS-06 | User (Owner) | 2027-02-11 | OPEN — FS-03 & FS-06 |
 | `RISK-SEC-016` | Berkas mentah tertinggal di folder karantina jika worker crash | MEDIUM | Worker mengalami panic/OOM sebelum membersihkan berkas di folder karantina | Akumulasi berkas tidak terenkripsi di disk lokal | `MITIGATE` — Karantina mode `0600`; cleanup saat startup worker dan daemon periodic orphan sweeper tiap 15 menit untuk berkas >1 jam | `MITIGATE` — Diimplementasikan pada FS-05 & FS-07 | User (Owner) | 2027-02-11 | OPEN — FS-05 & FS-07 |
+| `RISK-SEC-017` | Penyalahgunaan fitur Hapus Watermark pada dokumen/foto tanpa izin pemilik hak cipta | MEDIUM | Pengguna mengunggah berkas berhak cipta untuk menghapus watermark | Risiko hukum/reputasi apabila fitur digunakan melanggar izin pemilik dokumen | `MITIGATE` — Wajib login terverifikasi di prod, checkbox konfirmasi hak kepemilikan/izin sebelum proses, out-of-scope batch/bypass proteksi, dan audit JSONL non-PII | `MITIGATE` — Terimplementasi & terverifikasi di `RW-03` s/d `RW-06` (`303/303` Pytest, `392/392` Vitest, `scan_secrets.py` 0 secrets); **closure pending owner approval** | User (Owner) | 2027-02-12 | MITIGATED — verifikasi RW-06 selesai; closure pending owner approval |
+| `RISK-SEC-018` | Kebocoran metadata EXIF/GPS atau memori sisa citra pada pemrosesan gambar OpenCV | LOW | Gambar input memuat tag GPS/EXIF atau alokasi buffer besar | Eksposur lokasi pengguna atau akumulasi RAM VPS | `MITIGATE` — Re-encode keluaran JPG/PNG tanpa metadata EXIF, batas piksel `MAX_PIXELS`, pemrosesan in-memory tanpa simpan permanen | `MITIGATE` — Terimplementasi & terverifikasi di `RW-02`/`RW-03` & regresi `RW-06`; **closure pending owner approval** | User (Owner) | 2027-02-12 | MITIGATED — verifikasi RW-06 selesai; closure pending owner approval |
+| `RISK-SEC-019` | Ketiadaan engine OCR Tesseract atau false positive deteksi kandidat teks sah | LOW | VPS/host tanpa binary Tesseract atau OCR menandai teks dokumen sah sebagai watermark | Kegagalan deteksi otomatis atau pengguna mengira isi dokumen harus dihapus | `MITIGATE` — OCR opsional (gagal tidak memblokir mode manual), review visual before/after wajib, koreksi mask kuas tambah/hapus | `MITIGATE` — Fallback manual & UI teruji di `RW-01` s/d `RW-06` (catatan: host Windows tanpa Tesseract, OCR diuji via mock `pdfocr_tobytes`); **closure pending owner approval** | User (Owner) | 2027-02-12 | MITIGATED — verifikasi RW-06 selesai; closure pending owner approval |
+| `RISK-SEC-020` | Hilangnya teks selectable, vektor, atau tautan halaman PDF akibat rasterisasi inpainting | MEDIUM | Halaman PDF dengan watermark menyatu harus diraster untuk dijalankan `cv2.inpaint` | Pengguna kehilangan kemampuan seleksi teks/vektor pada halaman terdampak | `MITIGATE` — Annotation/stamp dihapus struktural tanpa rasterisasi; halaman non-target tetap asli; dialog peringatan & konfirmasi eksplisit wajib sebelum rasterisasi | `MITIGATE` — Terimplementasi & terverifikasi di `RW-03` s/d `RW-06`; **closure pending owner approval** | User (Owner) | 2027-02-12 | MITIGATED — verifikasi RW-06 selesai; closure pending owner approval |
+| `RISK-SEC-021` | Memory exhaustion / OOM VPS 2.2 GiB saat menerima upload video hingga 250 MB atau memindai ClamAV | HIGH | `request.body()` atau `ClamAVScanner.scan_file()` yang memuat seluruh byte ke RAM sekaligus dapat memicu OOM | Proses web utama / worker crash dan melumpuhkan layanan lain di VPS | `MITIGATE` — Upload streaming chunk `request.stream()`, ClamAV streaming `INSTREAM` 64 KiB, batas `250.000.000` B, dan workspace cap global `1.25 GiB` | `MITIGATE` — Dirancang pada `VC-00`, target implementasi & uji `VC-01`–`VC-02` | User (Owner) | 2026-11-26 | PLANNED — VC-01 & VC-02 |
+| `RISK-SEC-022` | Eksploitasi parser `ffprobe`/`ffmpeg`, BOLA lintas akun, atau bypass login kategori `convert` | HIGH | Berkas video korup memicu eksploit demuxer, atau `App.tsx` lama melewatkan login pada kategori `convert` | RCE di sandbox, kebocoran video pengguna lain, atau komputasi server oleh pengguna anonim | `MITIGATE` — ClamAV pre-`ffprobe` fail-closed, `bwrap --unshare-net`, `user_id` ownership (404), atomic `succeeded -> claimed`, dan guard login eksplisit di `App.tsx` | `MITIGATE` — Dirancang pada `VC-00`, target implementasi & uji `VC-02`–`VC-05` | User (Owner) | 2026-11-26 | PLANNED — VC-02, VC-03, VC-05 |
+| `RISK-SEC-023` | Ketiadaan `ffmpeg`/`ffprobe` di host dev Windows & kebutuhan kalibrasi `StreamMaxLength` ClamAV (>250 MB) + konsumsi RAM FFmpeg di Ubuntu staging | HIGH (release-blocking) | `ffmpeg`/`ffprobe` tidak tersedia di Windows dev host; benchmark aktual ClamAV >250 MB + FFmpeg pada 2.2 GiB RAM belum dieksekusi di Ubuntu staging | Kegagalan penolakan palsu ClamAV atau OOM/thrashing pada skenario produksi 4K/250 MB | `MITIGATE` — Unit/integration suite terisolasi di dev, telemetry `/api/health` untuk `ffmpeg`/`ffprobe` & heartbeat worker, serta **benchmark Ubuntu staging wajib** (`Q-007`) sebelum rilis produksi | `MITIGATE` — Terjadwal sebelum rilis produksi (`Q-007`) | User (Owner) | 2026-11-26 | OPEN (Release-blocking) — Q-007 |
+| `RISK-SEC-024` | Akumulasi file video sementara, zombie `ffmpeg`, atau kebocoran metadata lokasi/perangkat pada MP4 hasil | MEDIUM | Crash worker atau timeout encode dapat menyisakan file input/output besar maupun metadata asli | Disk workspace penuh hingga batas 1.25 GiB atau kebocoran metadata pribadi dalam output | `MITIGATE` — Workspace `0700`/`0600`, process-group kill (`SIGTERM`->`SIGKILL`), timeout 45m, `-map_metadata -1 -map_chapters -1`, startup recovery, dan sweeper TTL 15m | `MITIGATE` — Dirancang pada `VC-00`, target implementasi & uji `VC-02`–`VC-03` | User (Owner) | 2026-11-26 | PLANNED — VC-02 & VC-03 |
+| `RISK-SEC-025` | Eksploitasi malformed MP4 container / parser abuse pada stream audio via `ffprobe`/`ffmpeg` | HIGH | Berkas MP4 berbahaya memicu celah pada demuxer FFmpeg | RCE atau arbitrary memory read di dalam proses worker | `MITIGATE` — Scan ClamAV fail-closed sebelum probe, pembatasan ekstensi ketat `.mp4`, sandbox `bubblewrap --unshare-net`, user non-root | `MITIGATE` — Dirancang pada `CR-022`, target implementasi & uji `MP3-01`–`MP3-02` | User (Owner) | 2026-11-27 | PLANNED — MP3-01 & MP3-02 |
+| `RISK-SEC-026` | Pelanggaran hak cipta audio atau ekstraksi konten berhak cipta tanpa izin pemilik | MEDIUM | Pengguna mengekstrak lagu/audio berhak cipta dari berkas MP4 pihak ketiga | Risiko hukum/reputasi platform Doc-builder/Satukit | `MITIGATE` — Otentikasi wajib, konfirmasi checkbox hak kepemilikan/izin audio eksplisit di UI & API, audit event non-PII | `MITIGATE` — Dirancang pada `CR-022`, target implementasi & uji `MP3-02`–`MP3-03` | User (Owner) | 2026-11-27 | PLANNED — MP3-02 & MP3-03 |
+| `RISK-SEC-027` | DoS worker crash akibat MP4 tanpa audio stream (`NO_AUDIO_STREAM`) atau audio abnormal (>2 channel) | MEDIUM | Berkas MP4 bisu atau surround 5.1/7.1 dikirim untuk ekstraksi audio | Worker gagal tanpa error jelas atau pemborosan resource CPU/disk | `MITIGATE` — Validasi ffprobe fail-closed menolak berkas tanpa stream audio dengan `NO_AUDIO_STREAM`, auto-downmix channel >2 menjadi stereo (`-ac 2`), timeout 10 menit | `MITIGATE` — Dirancang pada `CR-022`, target implementasi & uji `MP3-01`–`MP3-02` | User (Owner) | 2026-11-27 | PLANNED — MP3-01 & MP3-02 |
+| `RISK-SEC-028` | Resource exhaustion (CPU starvation, spike RAM, OOM freeze) pada VPS 1 vCPU / 2.2 GiB RAM saat inferensi model transkripsi | HIGH | Beban eksekusi model AI transkripsi melampaui RAM fisik VPS | Web server Uvicorn crash atau VPS tidak merespons | `MITIGATE` — Kuantisasi int8 (RAM ~200-550MB), single worker queue (1 running + 2 waiting), hard timeout 15 menit, VAD noise rejection, benchmark staging wajib sebelum rilis | `MITIGATE` — Dirancang pada `CR-023`, target implementasi & uji `VTT-02`–`VTT-05` | User (Owner) | 2026-11-28 | PLANNED — VTT-02 & VTT-05 |
+| `RISK-SEC-029` | Kebocoran PII percakapan rapat/wawancara melalui logging, residu workspace disk, atau insecure ZIP | MEDIUM | Rekaman sensitif pengguna tertinggal di disk atau bocor di log audit | Pelanggaran kerahasiaan data pengguna / UU PDP | `MITIGATE` — Redaksi penuh transkrip dan audio dari log/audit, ephemeral preview `preview.json` musnah pasca-download/expiry, single-use download TTL 15 menit, sanitasi nama ZIP | `MITIGATE` — Dirancang pada `CR-023`, target implementasi & uji `VTT-02`–`VTT-04` | User (Owner) | 2026-11-28 | PLANNED — VTT-02 & VTT-03 |
+| `RISK-SEC-030` | Worker hang atau kebuntuan proses pada rekaman audio tanpa ucapan / audio rusak | MEDIUM | Audio berisi musik murni, hening panjang, atau file WAV PCM rusak diproses model | Worker terkunci selama 15 menit penuh dan menghalangi antrean job lain | `MITIGATE` — Deteksi VAD fail-closed `NO_SPEECH`, validasi integritas WAV sebelum inferensi, process-group kill SIGTERM->SIGKILL jika melewati deadline | `MITIGATE` — Dirancang pada `CR-023`, target implementasi & uji `VTT-02` | User (Owner) | 2026-11-28 | PLANNED — VTT-02 |
 
-**Aturan:** `RISK-SEC-001` s/d `RISK-SEC-016` wajib ditangani secara bertahap sesuai fase implementasinya. Tidak ada deployment rilis online yang diizinkan sebelum seluruh mitigasi diverifikasi.
+**Aturan:** `RISK-SEC-001` s/d `RISK-SEC-016` wajib ditangani secara bertahap sesuai fase implementasinya, `RISK-SEC-021` s/d `RISK-SEC-024` berlaku untuk `CR-021` (`RISK-SEC-023` benchmark Ubuntu staging bersifat release-blocking), `RISK-SEC-025` s/d `RISK-SEC-027` berlaku untuk `CR-022`, dan `RISK-SEC-028` s/d `RISK-SEC-030` berlaku untuk `CR-023`. Tidak ada deployment rilis online yang diizinkan sebelum seluruh mitigasi wajib diverifikasi.
 
 ## 13. Catatan Konsistensi Dokumentasi
 - Revisi 2026-11-08: Penambahan model ancaman komprehensif, evaluasi cross-cutting, dan mitigasi risiko `RISK-SEC-004` s/d `RISK-SEC-007` untuk arsitektur hybrid VPS online dan serverless Cloudflare Workers + D1.
@@ -255,3 +302,111 @@ Status bukti yang dipakai:
 - [x] Batasan unduh: max 1 aktif per user, max 2 lease download global; rate limit rolling hour
 - [x] Pemantauan Cloudflare R2 via GraphQL tiap 15m; fail-closed jika data >30m; hard ceiling 7 GB
 ```
+
+### 14.2 Checklist Security Planning Gate — Fitur Hapus Watermark (`CR-020` — `RW-01` s/d `RW-06`)
+```markdown
+### Governance & Ownership
+- [x] Security risk tier HIGH tetap berlaku; Security & Data Owner: User (Owner)
+- [x] Implementasi & verifikasi bertahap `RW-01` s/d `RW-06` selesai pasca `DEC-025` (penutupan formal `RISK-SEC-017` s/d `020` oleh owner)
+
+### Asset, Data, dan Exposure
+- [x] Input dibatasi PDF, JPG/JPEG, PNG <= 25 MB, batas piksel `MAX_PIXELS`, analisis interaktif <= 50 halaman
+- [x] Pemrosesan stateless in-memory via `ConversionJobManager` tanpa penyimpanan berkas permanen
+- [x] Re-encode output JPG/PNG membuang seluruh metadata EXIF/GPS (`THR-035`, `RISK-SEC-018`, teruji di `RW-03` & `RW-06`)
+
+### Identity, Authorization, & Integrity
+- [x] Akses `/api/watermark-removal/*` wajib sesi terautentikasi & proteksi CSRF (`SecurityMiddleware`, `THR-034`, teruji di `RW-03`) dan kartu `#/tools` mewajibkan login (`app.integration.test.tsx`, teruji di `RW-05`)
+- [x] Penegakan server-side `owner_confirmed == true` & audit JSONL non-PII (`RISK-SEC-017`, teruji di `RW-03` & `RW-06`)
+- [x] Penolakan fail-closed PDF terenkripsi & `has_digital_signature` (`THR-033`, teruji di `RW-02` & `RW-03`)
+- [x] Validasi manifest koordinat ternormalisasi `0..1`, batas stroke/titik, serta ikatan `file_sha256` & `xref` (`THR-032`, `THR-033`, teruji di `RW-02` & `RW-03`)
+
+### Safety, Telemetry, & Verification
+- [x] Mode OCR opsional tidak memblokir saat Tesseract absen/gagal (`RISK-SEC-019`, teruji di `RW-02`, `RW-03`, `RW-04`)
+- [x] Review before/after wajib, penghapusan struktural annotation/stamp tanpa meraster halaman non-target, & konfirmasi eksplisit sebelum rasterisasi (`THR-036`, backend teruji `RW-03`; UI teruji `RW-04`)
+- [x] Pengujian negatif & gate akhir (`RW-06`): auth 401/origin/CSRF/prod-verified 403 (endpoint stateless tanpa objek tersimpan antarakun), signed/encrypted/SHA/xref 422, EXIF strip, batas 25MB/50-hal/`MAX_PIXELS`/NaN/out-of-range `0..1` (batas stroke/point overflow ditegakkan schema Pydantic meski belum diuji terpisah), 7/7 `vitest-axe` 0 violations, 303/303 Pytest, 392/392 Vitest, Ruff file CR-020 PASS, Oxlint 0 errors, `scan_secrets.py` 0 secrets
+```
+
+### 14.3 Checklist Security Planning Gate — Fitur Compress Video (`CR-021` — Gerbang 2 Disetujui 2026-11-12)
+```markdown
+### Governance & Ownership
+- [x] Security risk tier HIGH tetap berlaku; Security & Data Owner: User (Owner)
+- [x] Persetujuan Gerbang 2 (`CR-021`) diberikan oleh User (Owner) pada 2026-11-12 dengan phase `phase-video-compression` (`VC-00` s/d `VC-06`)
+- [ ] Release gate produksi menuntut penutupan `RISK-SEC-023` melalui benchmark empiris ClamAV (`StreamMaxLength` > 250 MB) + FFmpeg di Ubuntu staging (`Q-007`)
+
+### Asset, Data, dan Exposure
+- [x] Input dibatasi unggahan berkas lokal MP4, MOV, WebM ≤ 250.000.000 byte (250 MB), ≤ 600 detik, ≤ 4K (landscape/portrait), ≤ 60 FPS; input URL, two-pass, & target ukuran MB di luar scope
+- [x] Upload stream `request.stream()` chunk 64 KiB tanpa `request.body()`; workspace video permission `0700`/`0600` dan batas global `1.25 GiB` (`1.342.177.280` B)
+- [x] Output dipaksa MP4 H.264 (`yuv420p`) + AAC ≤ 1080p/30 FPS tanpa upscale dan tanpa metadata/chapter (`-map_metadata -1 -map_chapters -1`), TTL unduhan sekali pakai 15 menit
+- [x] Batas reverse proxy global `Caddyfile.example` 35 MB dipertahankan; override matcher khusus hanya untuk `POST /api/video-compressions` (~260 MB)
+
+### Identity, Authorization, & Coordination
+- [x] Akses `/api/video-compressions*` wajib login, email terverifikasi (prod), Origin allowlist, dan CSRF token; `App.tsx` menambahkan guard login eksplisit meskipun kategori `convert`
+- [x] Koordinasi antrean lintas 2 worker Uvicorn via PostgreSQL (`video_compression_jobs`, advisory xact lock, partial unique index 1 aktif/akun & 1 global `running`, `FOR UPDATE SKIP LOCKED`)
+- [x] Isolasi kepemilikan `user_id` (HTTP 404 anti-enumerasi) dan transisi atomik single-use download `succeeded -> claimed`
+
+### Threat Coverage, Isolation, & Verification
+- [x] `THR-037` s/d `THR-042` dan `CTRL-037` s/d `CTRL-042` dipetakan beserta `RISK-SEC-021` s/d `RISK-SEC-024`
+- [x] ClamAV streaming `INSTREAM` 64 KiB fail-closed (signature ≤ 24h) wajib sebelum `ffprobe`; `ffprobe`/`ffmpeg` di Linux dibungkus `bubblewrap --unshare-net --die-with-parent` + process-group kill + timeout 45 menit
+- [x] Rencana verifikasi (`VC-01` s/d `VC-06`) mencakup streaming 250 MB, ClamAV pre-probe, sandbox/timeout/cancel, rate limit 3/jam per akun & IP, BOLA 404, single-use download, `/api/health` tanpa path bocor, aksesibilitas `vitest-axe` 0 violations, dan Playwright E2E
+```
+
+### 14.4 Checklist Security Planning Gate — Fitur MP4 ke MP3 (`CR-022` — Gerbang 2 Siap Disetujui)
+```markdown
+### Governance & Ownership
+- [x] Security risk tier HIGH tetap berlaku; Security & Data Owner: User (Owner)
+- [x] Gerbang 1B PRD disetujui untuk `CR-022` (`FR-060`); fase `phase-mp4-to-mp3` (`MP3-00` s/d `MP3-04`)
+- [ ] Release gate produksi menuntut penutupan `RISK-SEC-023` melalui benchmark empiris ClamAV (`StreamMaxLength` > 250 MB) + FFmpeg di Ubuntu staging (`Q-007`)
+
+### Asset, Data, dan Exposure
+- [x] Input terbatas pada berkas lokal MP4 tunggal ≤ 250.000.000 byte, durasi ≤ 600 detik; tidak ada input URL, batch, atau format video non-MP4
+- [x] Output audio dipaksa MP3 (CBR 128k, 192k default, 320k), strip metadata dan cover art (`-map_metadata -1 -map_chapters -1 -vn`), nama output `<stem>_audio.mp3`
+- [x] Hasil download sekali pakai (`claimed`) dengan TTL 15 menit, pembersihan berkas segera pasca-unduh/batal
+
+### Identity, Authorization, & Legal Protection
+- [x] Wajib login terverifikasi (prod) + Origin/CSRF guard; guard login eksplisit di `App.tsx`
+- [x] Checkbox wajib konfirmasi hak kepemilikan/izin audio sebelum proses ekstraksi dimulai
+- [x] Audit log JSONL non-PII (`action="mp4_to_mp3_requested"`, `action="mp4_to_mp3_downloaded"`) tanpa merekam nama berkas asli maupun payload audio
+
+### Threat Coverage, Audio Validation, & Resource Limits
+- [x] `THR-043` s/d `THR-045` dan `CTRL-043` s/d `CTRL-045` dipetakan beserta `RISK-SEC-025` s/d `RISK-SEC-027`
+- [x] Validasi ffprobe fail-closed menolak MP4 tanpa aliran audio aktif dengan kode error spesifik `NO_AUDIO_STREAM`
+- [x] Pemilihan stream default / 0:a:0 eksplisit dan auto-downmix channel > 2 ke stereo (`-ac 2`)
+- [x] Berbagi antrean dan pembatasan dengan `CR-021`: 1 aktif per akun (`uq_video_jobs_active_per_user`), 1 running global (`uq_video_jobs_global_running`), max 2 menunggu, rate limit 3/jam per akun & IP
+- [x] Timeout ekstraksi audio maksimal 10 menit (600s), sandbox Linux `bubblewrap --unshare-net`, dan penghapusan input segera setelah ekstraksi selesai
+```
+
+### 14.5 Checklist Security Planning Gate — Fitur Video ke Teks (`CR-023` — Gerbang 2 Disetujui 2026-11-13)
+```markdown
+### Governance & Ownership
+- [x] Security risk tier HIGH dipertahankan; Security & Data Owner: User (Owner)
+- [x] Approval Gerbang 2 diberikan oleh User (Owner) pada 2026-11-13
+- [x] Residual risk RISK-SEC-028 s/d RISK-SEC-030 dipetakan dengan owner User (Owner); benchmark staging VPS Ubuntu (RISK-SEC-023 / Q-007 & transkripsi) tetap prasyarat rilis-blocking
+
+### Asset, Data, dan Exposure
+- [x] Input terbatas pada berkas MP4 lokal tunggal ≤ 250.000.000 byte, durasi ≤ 600 detik; tidak menerima URL atau batch
+- [x] Paket hasil diunduh dalam 1 arsip ZIP berisi tepat 3 berkas: `<stem>_transcript.txt`, `.srt`, dan `.docx` (via python-docx)
+- [x] Data pratinjau teks (preview.json) bersifat ephemeral di direktori workspace 0700 dan otomatis musnah saat diunduh atau kedaluwarsa 15 menit
+- [x] Transisi atomik sekali unduh (succeeded -> claimed) dengan Content-Type application/zip; replay download ditolak fail-closed (HTTP 410)
+
+### Identity, Authorization, & Legal Protection
+- [x] Wajib login terverifikasi (prod) + Origin/CSRF guard; guard login eksplisit di App.tsx
+- [x] Checkbox wajib konfirmasi kepemilikan berkas dan izin mentranskripsikan suara sebelum tombol transkripsi aktif
+- [x] Redaksi total: teks transkrip dan audio dilarang masuk ke dalam log aplikasi maupun audit trail JSONL
+
+### Threat Coverage, Audio Validation, & Resource Limits
+- [x] THR-046 s/d THR-048 dan CTRL-046 s/d CTRL-048 dipetakan beserta RISK-SEC-028 s/d RISK-SEC-030
+- [x] Validasi ffprobe fail-closed menolak MP4 tanpa audio dengan kode NO_AUDIO_STREAM
+- [x] VAD filtering fail-closed menolak audio tanpa ucapan dengan kode NO_SPEECH tanpa menghasilkan dokumen kosong
+- [x] Kuantisasi model int8 (RAM ~200-550MB) dijalankan offline CPU-only pada worker systemd terpisah
+- [x] Berbagi antrean dan pembatasan dengan CR-021: 1 aktif per akun, 1 running global, max 2 menunggu, rate limit 3/jam per akun & IP
+- [x] Timeout transkripsi keras maksimal 15 menit (900s), pembatalan per process-group, sandbox Linux bubblewrap --unshare-net, dan pembersihan berkas audio WAV perantara segera setelah inferensi selesai
+```
+
+### 14.6 Hardening Subprocess LibreOffice (`OFF-01` — `DEC-029`)
+- **Isolasi Profil Per-Eksekusi:** Setiap konversi dokumen Office menggunakan `-env:UserInstallation=file://...` pada direktori temporer terisolasi (`docbuilder_lo_prof_*`) dan dihapus deterministik setelah proses selesai, menutup celah race condition dan kebocoran state antar-konversi.
+- **Terminasi Pohon Proses (Process-Tree Kill):** `run_sandboxed_subprocess` di `backend/app/core/sandbox.py` menggunakan `start_new_session=True` dan `os.killpg` (`SIGTERM` -> `SIGKILL`) pada POSIX serta fail-closed `WindowsJobObject` pada Windows untuk mencegah penumpukan proses zombie `soffice.bin` akibat dokumen macet/malicious.
+- **Validasi Output Fail-Closed:** Luaran konversi wajib lolos pemeriksaan header magic bytes `%PDF-` (`validate_pdf_file`) sebelum dikirim ke klien.
+
+### 14.7 Gate Endpoint Peluncuran Beta (`BETA-01` — `CR-024`, `THR-049`, `CTRL-049`)
+- **Ancaman (`THR-049`):** Bypass antarmuka pengguna dengan menembak langsung endpoint fitur yang dinonaktifkan pada masa beta (`/api/media-downloads*`, `/api/video-compressions*`, `/api/pdf-tools/editor/*`, `/api/pdf-tools/repair`, `/api/pdf-tools/ocr*`) untuk memicu beban CPU/RAM/disk di VPS 1 vCPU.
+- **Kontrol Preventif & Detektif (`CTRL-049`):** `SecurityMiddleware` memeriksa `is_beta_coming_soon_path(path)` ketika `BETA_COMING_SOON_GATES_ENABLED=True` tepat setelah pemeriksaan `Origin` (sebelum pembacaan stream upload atau reservasi DB), mencatat `audit_denial("feature_coming_soon", 503)`, dan mengembalikan HTTP `503` dengan `error_code: "FEATURE_COMING_SOON"`. Endpoint `/api/image-tools/remove-background` sengaja tidak diblokir agar fitur aktif `Hapus Latar Belakang` tetap berfungsi.

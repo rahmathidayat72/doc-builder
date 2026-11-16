@@ -366,3 +366,274 @@ def test_dual_read_legacy_session_cookie_compatibility():
     assert me_legacy.status_code == 200
     assert me_legacy.json()["authenticated"] is True
     assert me_legacy.json()["user"]["email"] == email
+
+
+def test_google_oidc_start_and_callback_flow(monkeypatch: pytest.MonkeyPatch):
+    """Menguji alur lengkap Google OIDC start dan callback login/register."""
+    from urllib.parse import parse_qs, urlparse
+
+    from app.core.config import settings
+    from app.services.google_oidc import google_oidc_service
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "mock-client-id.apps.googleusercontent.com")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "mock-client-secret")
+
+    # 1. Start flow: redirect ke accounts.google.com dengan parameter PKCE
+    start_res = client.get("/api/auth/google/start", follow_redirects=False)
+    assert start_res.status_code == 303
+    loc = start_res.headers["location"]
+    assert "accounts.google.com" in loc
+    tx_cookie = start_res.cookies.get(settings.GOOGLE_OAUTH_COOKIE_NAME)
+    assert tx_cookie is not None
+
+    parsed_url = urlparse(loc)
+    qs = parse_qs(parsed_url.query)
+    assert "state" in qs
+    assert "code_challenge" in qs
+    assert qs["prompt"] == ["select_account"]
+    state = qs["state"][0]
+
+    # Mock exchange & token verification
+    def mock_exchange(*args, **kwargs):
+        return {"id_token": "mock.jwt.token"}
+
+    def mock_verify(*args, **kwargs):
+        return {
+            "sub": "google-sub-9999",
+            "email": "newgoogleuser@example.com",
+            "name": "New Google User",
+            "avatar_url": "https://lh3.googleusercontent.com/a/mock-pic",
+        }
+
+    monkeypatch.setattr(google_oidc_service, "exchange_code_for_tokens", mock_exchange)
+    monkeypatch.setattr(google_oidc_service, "verify_id_token", mock_verify)
+
+    # 2. Callback dengan error / cancelled dari Google
+    cb_err = client.get(
+        "/api/auth/google/callback",
+        params={"error": "access_denied"},
+        cookies={settings.GOOGLE_OAUTH_COOKIE_NAME: tx_cookie},
+        follow_redirects=False,
+    )
+    assert cb_err.status_code == 303
+    assert "auth_status=google_cancelled" in cb_err.headers["location"]
+
+    # 3. Callback dengan sukses
+    cb_succ = client.get(
+        "/api/auth/google/callback",
+        params={"code": "valid-auth-code", "state": state},
+        cookies={settings.GOOGLE_OAUTH_COOKIE_NAME: tx_cookie},
+        follow_redirects=False,
+    )
+    assert cb_succ.status_code == 303
+    assert "auth_status=google_login_success" in cb_succ.headers["location"]
+    new_sess = cb_succ.cookies.get(SESSION_COOKIE_NAME)
+    assert new_sess is not None
+
+    # Verifikasi profil user yang baru terdaftar melalui Google
+    me_res = client.get("/api/auth/me", cookies={SESSION_COOKIE_NAME: new_sess})
+    assert me_res.status_code == 200
+    user_info = me_res.json()["user"]
+    assert user_info["email"] == "newgoogleuser@example.com"
+    assert user_info["avatar_url"] == "https://lh3.googleusercontent.com/a/mock-pic"
+    assert len(me_res.json()["oauth_accounts"]) == 1
+
+
+def test_google_oidc_anti_auto_merge(monkeypatch: pytest.MonkeyPatch):
+    """Menguji penolakan auto-merge jika email telah memiliki password lokal (BRULE-013)."""
+    from urllib.parse import parse_qs, urlparse
+
+    from app.core.config import settings
+    from app.services.google_oidc import google_oidc_service
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "mock-client-id.apps.googleusercontent.com")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "mock-client-secret")
+
+    # Daftarkan akun lokal dengan password
+    reg = client.post(
+        "/api/auth/register",
+        json={
+            "email": "existing@example.com",
+            "password": "LocalPassword123",
+            "name": "Local User",
+        },
+    )
+    assert reg.status_code == 200
+
+    # Start Google OAuth
+    start_res = client.get("/api/auth/google/start", follow_redirects=False)
+    tx_cookie = start_res.cookies.get(settings.GOOGLE_OAUTH_COOKIE_NAME)
+    state = parse_qs(urlparse(start_res.headers["location"]).query)["state"][0]
+
+    # Mock Google mengembalikan email yang sama persis
+    monkeypatch.setattr(
+        google_oidc_service,
+        "exchange_code_for_tokens",
+        lambda *a, **k: {"id_token": "mock"},
+    )
+    monkeypatch.setattr(
+        google_oidc_service,
+        "verify_id_token",
+        lambda *a, **k: {
+            "sub": "google-sub-collide",
+            "email": "existing@example.com",
+            "name": "Collide",
+            "avatar_url": None,
+        },
+    )
+
+    cb = client.get(
+        "/api/auth/google/callback",
+        params={"code": "code", "state": state},
+        cookies={settings.GOOGLE_OAUTH_COOKIE_NAME: tx_cookie},
+        follow_redirects=False,
+    )
+    assert cb.status_code == 303
+    assert "auth_status=account_merge_required" in cb.headers["location"]
+
+
+def test_google_link_and_unlink_api_flow(monkeypatch: pytest.MonkeyPatch):
+    """Menguji endpoint start link dan unlink dengan verifikasi password sadar."""
+    from urllib.parse import parse_qs, urlparse
+
+    from app.core.config import settings
+    from app.services.google_oidc import google_oidc_service
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "mock-client-id.apps.googleusercontent.com")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "mock-client-secret")
+
+    # Register user lokal
+    reg = client.post(
+        "/api/auth/register",
+        json={"email": "linker@example.com", "password": "LinkerPassword123", "name": "Linker"},
+    )
+    sess = reg.cookies.get(SESSION_COOKIE_NAME)
+    csrf = reg.json()["csrf_token"]
+
+    # 1. Start link dengan password salah -> 400
+    fail_start = client.post(
+        "/api/auth/google/link/start",
+        json={"current_password": "WrongPassword"},
+        cookies={SESSION_COOKIE_NAME: sess},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert fail_start.status_code == 400
+
+    # 2. Start link dengan password benar -> 200 dengan auth_url
+    succ_start = client.post(
+        "/api/auth/google/link/start",
+        json={"current_password": "LinkerPassword123"},
+        cookies={SESSION_COOKIE_NAME: sess},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert succ_start.status_code == 200
+    auth_url = succ_start.json()["auth_url"]
+    tx_cookie = succ_start.cookies.get(settings.GOOGLE_OAUTH_COOKIE_NAME)
+    state = parse_qs(urlparse(auth_url).query)["state"][0]
+
+    # Mock Google token
+    monkeypatch.setattr(
+        google_oidc_service,
+        "exchange_code_for_tokens",
+        lambda *a, **k: {"id_token": "mock"},
+    )
+    monkeypatch.setattr(
+        google_oidc_service,
+        "verify_id_token",
+        lambda *a, **k: {
+            "sub": "google-linker-sub",
+            "email": "linker@example.com",
+            "name": "Linker",
+            "avatar_url": "https://lh3.googleusercontent.com/a/linker-avatar",
+        },
+    )
+
+    # Callback link intent
+    cb = client.get(
+        "/api/auth/google/callback",
+        params={"code": "code", "state": state},
+        cookies={
+            SESSION_COOKIE_NAME: sess,
+            settings.GOOGLE_OAUTH_COOKIE_NAME: tx_cookie,
+        },
+        follow_redirects=False,
+    )
+    assert cb.status_code == 303
+    assert "auth_status=google_link_success" in cb.headers["location"]
+
+    # Verifikasi Google tertaut
+    me = client.get("/api/auth/me", cookies={SESSION_COOKIE_NAME: sess})
+    assert len(me.json()["oauth_accounts"]) == 1
+    assert me.json()["user"]["avatar_url"] == "https://lh3.googleusercontent.com/a/linker-avatar"
+
+    # 3. Unlink dengan password salah -> 400
+    fail_unlink = client.post(
+        "/api/auth/google/unlink",
+        json={"current_password": "WrongPassword"},
+        cookies={SESSION_COOKIE_NAME: sess},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert fail_unlink.status_code == 400
+
+    # 4. Unlink dengan password benar -> 200
+    succ_unlink = client.post(
+        "/api/auth/google/unlink",
+        json={"current_password": "LinkerPassword123"},
+        cookies={SESSION_COOKIE_NAME: sess},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert succ_unlink.status_code == 200
+
+    # Verifikasi Google terputus dan avatar google dibersihkan
+    me_after = client.get("/api/auth/me", cookies={SESSION_COOKIE_NAME: sess})
+    assert len(me_after.json()["oauth_accounts"]) == 0
+    assert me_after.json()["user"]["avatar_url"] is None
+
+
+def test_google_oidc_handles_unconfigured_credentials(monkeypatch: pytest.MonkeyPatch):
+    """Menguji graceful redirect dan HTTP 503 jika Google Client ID belum dikonfigurasi."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", None)
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", None)
+
+    # 1. Start flow mengalihkan ke /#/login?auth_status=google_not_configured (bukan 500)
+    res = client.get("/api/auth/google/start", follow_redirects=False)
+    assert res.status_code == 303
+    assert "auth_status=google_not_configured" in res.headers["location"]
+
+    # 2. Link start dengan user terautentikasi menghasilkan 503 dengan detail yang jelas
+    reg = client.post(
+        "/api/auth/register",
+        json={"email": "unconfig@example.com", "password": "Password123", "name": "Unconfig"},
+    )
+    sess = reg.cookies.get(SESSION_COOKIE_NAME)
+    csrf = reg.json()["csrf_token"]
+
+    link_res = client.post(
+        "/api/auth/google/link/start",
+        json={"current_password": "Password123"},
+        cookies={SESSION_COOKIE_NAME: sess},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert link_res.status_code == 503
+    assert "Layanan autentikasi Google belum dikonfigurasi" in link_res.json()["detail"]
+
+
+def test_google_oidc_resolves_host_header_in_dev(monkeypatch: pytest.MonkeyPatch):
+    """Menguji bahwa di development mode, redirect_uri menyesuaikan host header jika 127.0.0.1:8000."""
+    from urllib.parse import parse_qs, urlparse
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "mock-client-id")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "mock-client-secret")
+    monkeypatch.setattr(settings, "IS_PRODUCTION", False)
+
+    res = client.get(
+        "/api/auth/google/start", headers={"host": "127.0.0.1:8000"}, follow_redirects=False
+    )
+    assert res.status_code == 303
+    loc = res.headers["location"]
+    qs = parse_qs(urlparse(loc).query)
+    assert qs["redirect_uri"] == ["http://127.0.0.1:8000/api/auth/google/callback"]

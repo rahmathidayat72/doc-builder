@@ -30,7 +30,7 @@ describe('LoginPage Component', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: 'Masuk ke Satukit' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Masuk ke Beresin' })).toBeInTheDocument()
     expect(screen.getByTestId('input-auth-email')).toBeInTheDocument()
     expect(screen.getByTestId('input-auth-password')).toBeInTheDocument()
     expect(screen.getByTestId('btn-submit-step-1')).toHaveTextContent('Lanjut ke Verifikasi')
@@ -285,12 +285,12 @@ describe('LoginPage Component', () => {
       <LoginPage
         onLoginSuccess={mockOnLoginSuccess}
         onNavigateHome={mockOnNavigateHome}
-        noticeMessage="Silakan masuk terlebih dahulu untuk mengakses 24 alat dokumen Satukit."
+        noticeMessage="Silakan masuk terlebih dahulu untuk mengakses utilitas dokumen Beresin."
       />
     )
 
     expect(
-      screen.getByText('Silakan masuk terlebih dahulu untuk mengakses 24 alat dokumen Satukit.')
+      screen.getByText('Silakan masuk terlebih dahulu untuk mengakses utilitas dokumen Beresin.')
     ).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('btn-login-back-home'))
@@ -427,5 +427,47 @@ describe('LoginPage Component', () => {
         'Email berhasil diverifikasi! Silakan masuk.'
       )
     })
+  })
+
+  it('menampilkan tombol Google pada mode login dan register serta mengarahkan ke endpoint auth google', () => {
+    const originalLocation = window.location
+    // @ts-ignore
+    delete (window as any).location
+    ;(window as any).location = { ...originalLocation, href: '' }
+
+    render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+      />
+    )
+
+    const googleBtn = screen.getByTestId('btn-google-auth')
+    expect(googleBtn).toBeInTheDocument()
+    expect(googleBtn).toHaveTextContent('Lanjutkan dengan Google')
+
+    fireEvent.click(googleBtn)
+    expect(window.location.href).toBe('/api/auth/google/start')
+
+    // Pindah ke tab register
+    fireEvent.click(screen.getByTestId('tab-register'))
+    const googleRegBtn = screen.getByTestId('btn-google-auth')
+    expect(googleRegBtn).toHaveTextContent('Daftar dengan Google')
+
+    ;(window as any).location = originalLocation
+  })
+
+  it('menampilkan initialErrorMessage saat diberikan melalui props', () => {
+    render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+        initialErrorMessage="Alamat email telah terdaftar dengan kata sandi."
+      />
+    )
+
+    expect(screen.getByTestId('auth-error-alert')).toHaveTextContent(
+      'Alamat email telah terdaftar dengan kata sandi.'
+    )
   })
 })

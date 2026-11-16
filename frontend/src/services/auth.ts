@@ -1,10 +1,19 @@
 import { apiFetch, setCsrfToken } from './apiClient'
 
+export interface OAuthAccount {
+  provider: string
+  email: string
+  created_at: number
+}
+
 export interface AuthUser {
   id: string
   email: string
   name: string
   email_verified?: boolean
+  has_password?: boolean
+  avatar_url?: string | null
+  oauth_accounts?: OAuthAccount[]
   is_admin?: boolean
   role?: string
 }
@@ -55,7 +64,13 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     if (data.csrf_token) {
       setCsrfToken(data.csrf_token)
     }
-    return data.user || null
+    if (data.user) {
+      return {
+        ...data.user,
+        oauth_accounts: data.oauth_accounts || [],
+      }
+    }
+    return null
   } catch {
     return null
   }
@@ -213,6 +228,43 @@ export async function resetPassword(token: string, newPassword: string): Promise
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || 'Gagal memperbarui kata sandi. Token mungkin tidak valid atau sudah kedaluwarsa.')
+  }
+  return res.json()
+}
+
+export function isValidGoogleAvatarUrl(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:') return false
+    return parsed.hostname === 'googleusercontent.com' || parsed.hostname.endsWith('.googleusercontent.com')
+  } catch {
+    return false
+  }
+}
+
+export async function startGoogleLink(currentPassword: string): Promise<{ success: boolean; auth_url: string }> {
+  const res = await apiFetch('/api/auth/google/link/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Gagal memulai penautan akun Google.')
+  }
+  return res.json()
+}
+
+export async function unlinkGoogle(currentPassword: string): Promise<{ success: boolean; message: string }> {
+  const res = await apiFetch('/api/auth/google/unlink', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Gagal memutuskan tautan akun Google.')
   }
   return res.json()
 }

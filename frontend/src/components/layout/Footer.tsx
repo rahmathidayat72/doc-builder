@@ -11,9 +11,9 @@ export const Footer: React.FC<FooterProps> = ({ className = '' }) => {
       data-testid="app-footer"
     >
       <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2 text-stone-600 dark:text-stone-400">
-        <span className="font-medium text-stone-700 dark:text-stone-300">© 2026 Satukit</span>
+        <span className="font-medium text-stone-700 dark:text-stone-300">© 2026 Beresin by Satukit</span>
         <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
-        <span>Satu Tempat, Banyak Solusi Digital</span>
+        <span>Urusan Berkas? Beresin Aja!</span>
       </div>
       <div className="flex items-center gap-1.5">
         <span>Dikembangkan oleh</span>

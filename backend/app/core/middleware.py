@@ -32,9 +32,32 @@ PUBLIC_PATHS = {
     "/api/auth/resend-verification",
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
+    "/api/auth/google/start",
+    "/api/auth/google/callback",
     "/docs",
     "/openapi.json",
 }
+
+BETA_COMING_SOON_EXACT_PATHS = {
+    "/api/media-downloads",
+    "/api/video-compressions",
+    "/api/pdf-tools/editor/pages",
+    "/api/pdf-tools/editor/apply",
+    "/api/pdf-tools/repair",
+    "/api/pdf-tools/ocr/status",
+    "/api/pdf-tools/ocr",
+}
+
+BETA_COMING_SOON_PREFIXES = (
+    "/api/media-downloads/",
+    "/api/video-compressions/",
+)
+
+
+# ponytail: static path set/prefix gate; add DB flag table when per-user beta rollout needed.
+def is_beta_coming_soon_path(path: str) -> bool:
+    clean = path.rstrip("/") or "/"
+    return clean in BETA_COMING_SOON_EXACT_PATHS or clean.startswith(BETA_COMING_SOON_PREFIXES)
 
 
 def is_allowed_origin(origin: str) -> bool:
@@ -85,6 +108,23 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return JSONResponse(
                 status_code=403,
                 content={"success": False, "error": "Forbidden: Origin tidak tepercaya"},
+            )
+
+        # 1b. Gate fitur beta Coming Soon sebelum auth, upload stream, atau reservasi DB
+        if (
+            settings.BETA_COMING_SOON_GATES_ENABLED
+            and request.method != "OPTIONS"
+            and is_beta_coming_soon_path(path)
+        ):
+            audit_denial("feature_coming_soon", 503)
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "success": False,
+                    "error": "Fitur ini akan segera tersedia.",
+                    "error_code": "FEATURE_COMING_SOON",
+                    "detail": "Fitur ini akan segera tersedia.",
+                },
             )
 
         # 2. Periksa Endpoint Terproteksi

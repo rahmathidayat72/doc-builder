@@ -27,7 +27,7 @@ class BrevoEmailService:
             logger.info("Brevo API key / sender belum disetel. Simulasi email '%s' ke %s", subject, to_email)
             return True
 
-        sender_name = settings.BREVO_SENDER_NAME or "Satukit"
+        sender_name = settings.BREVO_SENDER_NAME or "Beresin by Satukit"
         sender_email = settings.BREVO_SENDER_EMAIL
 
         payload = {
@@ -73,18 +73,18 @@ class BrevoEmailService:
         """Mengirimkan email berisi tautan verifikasi akun (TTL 15 menit)."""
         clean_base = base_url.rstrip("/")
         verify_url = f"{clean_base}/verify-email?token={raw_token}"
-        subject = "Verifikasi Alamat Email Anda - Satukit"
+        subject = "Verifikasi Alamat Email Anda - Beresin by Satukit"
         html = f"""
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1c1917;">
-            <h2 style="color: #0f766e; margin-bottom: 16px;">Selamat Datang di Satukit</h2>
+            <h2 style="color: #0f766e; margin-bottom: 16px;">Selamat Datang di Beresin by Satukit</h2>
             <p>Halo <strong>{name}</strong>,</p>
-            <p>Terima kasih telah mendaftar di Satukit. Silakan klik tombol di bawah ini untuk memverifikasi alamat email Anda sebelum mulai menggunakan layanan kami:</p>
+            <p>Terima kasih telah mendaftar di Beresin by Satukit. Silakan klik tombol di bawah ini untuk memverifikasi alamat email Anda sebelum mulai menggunakan layanan kami:</p>
             <div style="margin: 32px 0;">
                 <a href="{verify_url}" style="background-color: #0f766e; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Verifikasi Email Saya</a>
             </div>
-            <p style="font-size: 13px; color: #78716c;">Tautan ini hanya berlaku selama 15 menit. Jika Anda tidak merasa mendaftar di Satukit, abaikan email ini.</p>
+            <p style="font-size: 13px; color: #78716c;">Tautan ini hanya berlaku selama 15 menit. Jika Anda tidak merasa mendaftar di Beresin by Satukit, abaikan email ini.</p>
             <hr style="border: none; border-top: 1px solid #e7e5e4; margin: 24px 0;" />
-            <p style="font-size: 11px; color: #a8a29e;">Satukit &bull; Solusi Dokumen Terintegrasi & Aman</p>
+            <p style="font-size: 11px; color: #a8a29e;">Beresin by Satukit &bull; Urusan Berkas? Beresin Aja!</p>
         </div>
         """
         return self.send_transactional_email(email, name, subject, html)
@@ -99,18 +99,18 @@ class BrevoEmailService:
         """Mengirimkan email berisi tautan reset kata sandi (single-use, TTL 15 menit)."""
         clean_base = base_url.rstrip("/")
         reset_url = f"{clean_base}/reset-password?token={raw_token}"
-        subject = "Permintaan Reset Kata Sandi - Satukit"
+        subject = "Permintaan Reset Kata Sandi - Beresin by Satukit"
         html = f"""
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1c1917;">
-            <h2 style="color: #0f766e; margin-bottom: 16px;">Reset Kata Sandi Akun Satukit</h2>
+            <h2 style="color: #0f766e; margin-bottom: 16px;">Reset Kata Sandi Akun Beresin</h2>
             <p>Halo <strong>{name}</strong>,</p>
-            <p>Kami menerima permintaan untuk mereset kata sandi akun Satukit Anda. Silakan klik tautan di bawah ini untuk mengatur kata sandi baru:</p>
+            <p>Kami menerima permintaan untuk mereset kata sandi akun Beresin by Satukit Anda. Silakan klik tautan di bawah ini untuk mengatur kata sandi baru:</p>
             <div style="margin: 32px 0;">
                 <a href="{reset_url}" style="background-color: #0f766e; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Atur Kata Sandi Baru</a>
             </div>
             <p style="font-size: 13px; color: #78716c;">Tautan ini hanya berlaku selama 15 menit dan hanya dapat digunakan satu kali. Jika Anda tidak meminta reset kata sandi, akun Anda tetap aman dan abaikan email ini.</p>
             <hr style="border: none; border-top: 1px solid #e7e5e4; margin: 24px 0;" />
-            <p style="font-size: 11px; color: #a8a29e;">Satukit &bull; Solusi Dokumen Terintegrasi & Aman</p>
+            <p style="font-size: 11px; color: #a8a29e;">Beresin by Satukit &bull; Urusan Berkas? Beresin Aja!</p>
         </div>
         """
         return self.send_transactional_email(email, name, subject, html)
@@ -125,18 +125,18 @@ class BrevoEmailService:
         """Mengirimkan email peringatan kedaluwarsa draf akun (H-14, H-7, H-1). Zero CV PII."""
         clean_base = base_url.rstrip("/")
         login_url = f"{clean_base}/login"
-        subject = f"Pemberitahuan Retensi Draf: {days_left} Hari Tersisa - Satukit"
+        subject = f"Pemberitahuan Retensi Draf: {days_left} Hari Tersisa - Beresin by Satukit"
         html = f"""
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #1c1917;">
             <h2 style="color: #b45309; margin-bottom: 16px;">Pengingat Retensi Draf Dokumen</h2>
             <p>Halo <strong>{name}</strong>,</p>
-            <p>Sesuai kebijakan privasi Satukit, draf dokumen yang tidak aktif selama 30 hari akan dihapus otomatis secara permanen demi keamanan data Anda.</p>
+            <p>Sesuai kebijakan privasi Beresin by Satukit, draf dokumen yang tidak aktif selama 30 hari akan dihapus otomatis secara permanen demi keamanan data Anda.</p>
             <p>Draf Anda akan kedaluwarsa dalam <strong>{days_left} hari</strong>. Untuk memperpanjang masa simpan draf, cukup masuk ke akun Anda:</p>
             <div style="margin: 32px 0;">
-                <a href="{login_url}" style="background-color: #0f766e; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Buka Akun Satukit</a>
+                <a href="{login_url}" style="background-color: #0f766e; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-block;">Buka Akun Beresin</a>
             </div>
             <hr style="border: none; border-top: 1px solid #e7e5e4; margin: 24px 0;" />
-            <p style="font-size: 11px; color: #a8a29e;">Satukit &bull; Solusi Dokumen Terintegrasi & Aman</p>
+            <p style="font-size: 11px; color: #a8a29e;">Beresin by Satukit &bull; Urusan Berkas? Beresin Aja!</p>
         </div>
         """
         return self.send_transactional_email(email, name, subject, html)

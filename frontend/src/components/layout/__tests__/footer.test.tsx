@@ -12,8 +12,8 @@ describe('Footer Component Suite', () => {
 
     // Verifikasi tahun dan identitas aplikasi
     expect(footer).toHaveTextContent('2026')
-    expect(footer).toHaveTextContent('Satukit')
-    expect(footer).toHaveTextContent('Satu Tempat, Banyak Solusi Digital')
+    expect(footer).toHaveTextContent('Beresin by Satukit')
+    expect(footer).toHaveTextContent('Urusan Berkas? Beresin Aja!')
 
     // Verifikasi teks developer
     expect(footer).toHaveTextContent('Dikembangkan oleh')

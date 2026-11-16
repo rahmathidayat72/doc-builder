@@ -12,6 +12,7 @@ from PIL import Image, UnidentifiedImageError
 from pypdf import PdfReader, PdfWriter
 
 from app.services.converter import convert_docx_to_pdf_sandboxed
+from app.services.libreoffice import LibreOfficeBusyError
 
 PDF_MAGIC = b"%PDF"
 JPEG_MAGIC = b"\xff\xd8\xff"
@@ -67,6 +68,10 @@ def merge_pdf_and_images(files: Iterable[tuple[str, bytes]]) -> io.BytesIO:
                 raise ValueError(
                     "LIBREOFFICE_NOT_FOUND: LibreOffice belum terpasang di komputer lokal "
                     "untuk mengonversi berkas DOCX."
+                )
+            if err_code and err_code.startswith("CONVERSION_BUSY"):
+                raise LibreOfficeBusyError(
+                    err_code.removeprefix("CONVERSION_BUSY:").strip() or err_code
                 )
             if not pdf_stream or err_code:
                 raise ValueError(

@@ -255,7 +255,7 @@ export const QrCodeGeneratorModal: React.FC<QrCodeGeneratorModalProps> = ({ isOp
 
     canvasRef.current.toBlob((blob) => {
       if (blob) {
-        downloadImageBlob(blob, 'satukit-qr-code.png')
+        downloadImageBlob(blob, 'beresin-qr-code.png')
       } else {
         setErrorMessage('Gagal memproses berkas PNG dari kanvas.')
       }
@@ -280,7 +280,7 @@ export const QrCodeGeneratorModal: React.FC<QrCodeGeneratorModalProps> = ({ isOp
         },
       })
       const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
-      downloadImageBlob(blob, 'satukit-qr-code.svg')
+      downloadImageBlob(blob, 'beresin-qr-code.svg')
     } catch (err: any) {
       setErrorMessage(err.message || 'Gagal membuat berkas vektor SVG.')
     }

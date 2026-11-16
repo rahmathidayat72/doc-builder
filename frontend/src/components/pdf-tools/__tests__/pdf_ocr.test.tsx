@@ -20,19 +20,25 @@ describe('PdfOcrModal Component', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('menampilkan panduan instalasi jika Tesseract tidak terdeteksi', async () => {
+  it('menampilkan status layanan tidak tersedia tanpa panduan instalasi perangkat saat server OCR tidak aktif', async () => {
+    const onClose = vi.fn()
     vi.mocked(pdfToolsService.getOcrStatus).mockResolvedValueOnce({
       available: false,
       languages: [],
       message: 'No tessdata specified and Tesseract is not installed',
     })
 
-    render(<PdfOcrModal isOpen={true} onClose={vi.fn()} />)
+    render(<PdfOcrModal isOpen={true} onClose={onClose} />)
 
     expect(await screen.findByTestId('card-ocr-not-available')).toBeInTheDocument()
-    expect(screen.getByText(/Engine Tesseract OCR Belum Terdeteksi/i)).toBeInTheDocument()
-    expect(screen.getByText(/UB-Mannheim Tesseract/i)).toBeInTheDocument()
-    expect(screen.getByText(/sudo apt install tesseract-ocr/i)).toBeInTheDocument()
+    expect(screen.getByText(/Layanan OCR Sedang Tidak Tersedia/i)).toBeInTheDocument()
+    expect(screen.getByText(/tanpa perlu memasang aplikasi di perangkat Anda/i)).toBeInTheDocument()
+    expect(screen.queryByText(/UB-Mannheim Tesseract/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sudo apt install tesseract-ocr/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('btn-close-ocr-unavailable'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('dapat melakukan periksa ulang status OCR', async () => {
@@ -68,8 +74,47 @@ describe('PdfOcrModal Component', () => {
     render(<PdfOcrModal isOpen={true} onClose={vi.fn()} />)
 
     expect(await screen.findByTestId('badge-ocr-ready')).toBeInTheDocument()
-    expect(screen.getByTestId('select-ocr-lang')).toBeInTheDocument()
+    const select = screen.getByTestId('select-ocr-lang') as HTMLSelectElement
+    expect(select).toBeInTheDocument()
+    expect(select.value).toBe('ind+eng')
+    expect((select.querySelector('option[value="ind+eng"]') as HTMLOptionElement).disabled).toBe(false)
+    expect((select.querySelector('option[value="ind"]') as HTMLOptionElement).disabled).toBe(false)
+    expect((select.querySelector('option[value="eng"]') as HTMLOptionElement).disabled).toBe(false)
     expect(screen.getByTestId('input-ocr-file')).toBeInTheDocument()
+  })
+
+  it('menonaktifkan ind+eng dan memilih bahasa yang tersedia saat paket bahasa server parsial', async () => {
+    vi.mocked(pdfToolsService.getOcrStatus).mockResolvedValueOnce({
+      available: true,
+      languages: ['eng'],
+      message: 'Siap',
+    })
+
+    render(<PdfOcrModal isOpen={true} onClose={vi.fn()} />)
+
+    expect(await screen.findByTestId('badge-ocr-ready')).toBeInTheDocument()
+    const select = screen.getByTestId('select-ocr-lang') as HTMLSelectElement
+    expect(select.value).toBe('eng')
+    expect((select.querySelector('option[value="ind+eng"]') as HTMLOptionElement).disabled).toBe(true)
+    expect((select.querySelector('option[value="ind"]') as HTMLOptionElement).disabled).toBe(true)
+    expect((select.querySelector('option[value="eng"]') as HTMLOptionElement).disabled).toBe(false)
+  })
+
+  it('memilih fallback ind jika hanya bahasa Indonesia yang tersedia di server', async () => {
+    vi.mocked(pdfToolsService.getOcrStatus).mockResolvedValueOnce({
+      available: true,
+      languages: ['ind'],
+      message: 'Siap',
+    })
+
+    render(<PdfOcrModal isOpen={true} onClose={vi.fn()} />)
+
+    expect(await screen.findByTestId('badge-ocr-ready')).toBeInTheDocument()
+    const select = screen.getByTestId('select-ocr-lang') as HTMLSelectElement
+    expect(select.value).toBe('ind')
+    expect((select.querySelector('option[value="ind+eng"]') as HTMLOptionElement).disabled).toBe(true)
+    expect((select.querySelector('option[value="ind"]') as HTMLOptionElement).disabled).toBe(false)
+    expect((select.querySelector('option[value="eng"]') as HTMLOptionElement).disabled).toBe(true)
   })
 
   it('menjalankan proses OCR dan menampilkan pesan sukses saat berhasil', async () => {
@@ -129,5 +174,32 @@ describe('PdfOcrModal Component', () => {
     expect(await screen.findByTestId('alert-error-ocr')).toHaveTextContent(
       'Gagal memproses OCR pada halaman 1.'
     )
+  })
+
+  it('memetakan galat Tesseract tidak ditemukan menjadi pesan pemeliharaan server', async () => {
+    vi.mocked(pdfToolsService.getOcrStatus).mockResolvedValueOnce({
+      available: true,
+      languages: ['eng', 'ind'],
+      message: 'Siap',
+    })
+    vi.mocked(pdfToolsService.ocrPdf).mockResolvedValueOnce({
+      success: false,
+      message:
+        'Tesseract OCR tidak ditemukan di sistem lokal. Silakan instal Tesseract OCR terlebih dahulu untuk menggunakan fitur ini.',
+    })
+
+    render(<PdfOcrModal isOpen={true} onClose={vi.fn()} />)
+
+    expect(await screen.findByTestId('badge-ocr-ready')).toBeInTheDocument()
+
+    const input = screen.getByTestId('input-ocr-file')
+    const file = new File(['%PDF-scan'], 'scan.pdf', { type: 'application/pdf' })
+    fireEvent.change(input, { target: { files: [file] } })
+
+    fireEvent.click(screen.getByTestId('btn-submit-ocr'))
+
+    const alert = await screen.findByTestId('alert-error-ocr')
+    expect(alert).toHaveTextContent(/Layanan OCR server sedang tidak tersedia atau dalam pemeliharaan/i)
+    expect(alert).not.toHaveTextContent(/instal Tesseract/i)
   })
 })

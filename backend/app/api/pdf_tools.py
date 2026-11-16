@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.core.jobs import conversion_job_manager
 from app.services.job_manager import JobBusyError
+from app.services.libreoffice import LibreOfficeBusyError
 from app.services.pdf_tools import (
     add_page_numbers_pdf,
     apply_pdf_editor_changes,
@@ -66,7 +67,7 @@ async def merge_files(files: Annotated[list[UploadFile], File()]):
                     "X-Job-ID": job.id,
                 },
             )
-    except JobBusyError as exc:
+    except (JobBusyError, LibreOfficeBusyError) as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
         if "LIBREOFFICE_NOT_FOUND" in str(exc):

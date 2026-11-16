@@ -335,7 +335,7 @@ def _inspect_markdown_or_reject(data: bytes, filename: str) -> tuple[str, str]:
     if not (filename.lower().endswith(".md") or filename.lower().endswith(".markdown")):
         msg = (
             "Format berkas tidak didukung. "
-            "Satukit mendukung: PDF, DOCX, PPTX, XLSX, JPG, PNG, WebP, Markdown."
+            "Beresin mendukung: PDF, DOCX, PPTX, XLSX, JPG, PNG, WebP, Markdown."
         )
         raise UnsupportedFormatError(msg)
 

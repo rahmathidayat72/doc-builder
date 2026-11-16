@@ -248,11 +248,25 @@ curl -i https://your-domain.com/api/health
 curl -i -X POST https://your-domain.com/api/pdf-tools/merge
 # Ekspektasi: HTTP 401 Unauthorized (karena akses anonim ke komputasi server)
 
-# 4. Verifikasi UI Frontend
+# 4. Verifikasi kesiapan engine OCR dan paket bahasa di server
+tesseract --list-langs
+/var/www/satukit/backend/.venv/bin/python -c "from app.services.pdf_tools import get_tesseract_status; print(get_tesseract_status())"
+# Ekspektasi: available: True dengan daftar languages memuat 'eng' dan 'ind'
+
+# 5. Verifikasi isolasi & lease single-active LibreOffice
+curl -s http://127.0.0.1:8000/api/health | grep -o '"libreoffice_worker":{[^}]*}'
+# Ekspektasi: {"busy":false,"job_type":null,"lease_expires_in_seconds":null}
+# Catatan operasional VPS 1 vCPU:
+# - Eksekusi LibreOffice dibatasi maksimal 1 proses aktif lintas worker Uvicorn via DB lease RuntimeState ("libreoffice_active_lease") + pg_advisory_xact_lock.
+# - Setiap job memakai profil terisolasi -env:UserInstallation=file:///tmp/docbuilder_lo_prof_* dengan batas waktu 300 detik dan terminasi grup proses otomatis (os.killpg SIGTERM -> SIGKILL).
+# - Permintaan konversi kedua saat slot aktif ditolak secara deterministik dengan HTTP 429 Too Many Requests.
+
+# 6. Verifikasi UI Frontend
 # Buka https://your-domain.com pada peramban web:
 # - Navigasi ke #/tools
 # - Buka WebP ke JPG atau QR Code (bisa dibuka langsung tanpa login)
 # - Buka DOCX ke PDF atau Kompres PDF (dialihkan ke #/login dengan pemberitahuan)
+# - Login lalu buka OCR PDF dan pastikan status layanan OCR server aktif serta ind+eng tersedia
 ```
 
 ---
@@ -305,4 +319,14 @@ sudo -u satukit /var/www/satukit/deploy/restore_r2.sh
 
 # 3. Jalankan kembali service backend
 sudo systemctl start satukit.service
+```
+
+### D. Gate Peluncuran Beta (`BETA_COMING_SOON_GATES_ENABLED`)
+Secara default pada fase peluncuran beta (`BETA-01` / `CR-024`), `BETA_COMING_SOON_GATES_ENABLED=true` menolak akses langsung ke endpoint berisiko/belum siap (`/api/media-downloads*`, `/api/video-compressions*`, `/api/pdf-tools/editor/pages`, `/api/pdf-tools/editor/apply`, `/api/pdf-tools/repair`, `/api/pdf-tools/ocr/status`, `/api/pdf-tools/ocr`) dengan HTTP `503` dan `error_code: "FEATURE_COMING_SOON"` sebelum membaca body unggahan atau menyentuh database.
+
+Untuk membuka kembali gate di staging/post-beta setelah validasi resource VPS selesai:
+```bash
+# Setel pada /etc/satukit/satukit.env
+BETA_COMING_SOON_GATES_ENABLED=false
+sudo systemctl restart satukit.service
 ```

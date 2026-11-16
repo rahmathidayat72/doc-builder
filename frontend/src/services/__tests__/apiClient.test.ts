@@ -36,7 +36,7 @@ describe('apiFetch network error handling', () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'))
     try {
       await expect(apiFetch('/api/test')).rejects.toThrow(
-        /Layanan Satukit sedang tidak dapat dihubungi/
+        /Layanan Beresin sedang tidak dapat dihubungi/
       )
     } finally {
       globalThis.fetch = originalFetch

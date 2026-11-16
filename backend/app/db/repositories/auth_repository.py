@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy import Engine, create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import AuthToken, OAuthAccount, User, UserSession
+from app.db.models import AuthToken, OAuthAccount, OAuthTransaction, User, UserSession
 from app.db.postgres import Base, SessionLocal
 
 
@@ -23,6 +23,7 @@ class UserRecord:
     email_verified: bool
     created_at: float
     updated_at: float
+    avatar_url: str | None = None
 
     @property
     def has_password(self) -> bool:
@@ -35,9 +36,24 @@ class UserRecord:
             "name": self.name,
             "email_verified": self.email_verified,
             "has_password": self.has_password,
+            "avatar_url": self.avatar_url,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
+
+
+@dataclass
+class OAuthTransactionRecord:
+    state_hash: str
+    provider: str
+    intent: str
+    user_id: str | None
+    browser_binding_hash: str
+    code_verifier: str
+    nonce: str
+    created_at: float
+    expires_at: float
+    used_at: float | None
 
 
 def user_to_record(user: User) -> UserRecord:
@@ -49,6 +65,7 @@ def user_to_record(user: User) -> UserRecord:
         email_verified=bool(user.email_verified),
         created_at=user.created_at,
         updated_at=user.updated_at,
+        avatar_url=getattr(user, "avatar_url", None),
     )
 
 
@@ -155,6 +172,7 @@ class AuthRepository:
         email_verified: bool,
         provider_user_id: str,
         now: float,
+        avatar_url: str | None = None,
     ) -> UserRecord:
         with self._session() as session:
             user = User(
@@ -162,6 +180,7 @@ class AuthRepository:
                 email=email,
                 password_hash=None,
                 name=name,
+                avatar_url=avatar_url,
                 email_verified=1 if email_verified else 0,
                 created_at=now,
                 updated_at=now,
@@ -178,6 +197,79 @@ class AuthRepository:
             )
             session.add(oauth)
             return user_to_record(user)
+
+    def update_user_avatar(self, user_id: str, avatar_url: str | None, now: float) -> None:
+        with self._session() as session:
+            user = session.get(User, user_id)
+            if user:
+                user.avatar_url = avatar_url
+                user.updated_at = now
+
+    def create_oauth_transaction(
+        self,
+        state_hash: str,
+        provider: str,
+        intent: str,
+        user_id: str | None,
+        browser_binding_hash: str,
+        code_verifier: str,
+        nonce: str,
+        created_at: float,
+        expires_at: float,
+    ) -> None:
+        with self._session() as session:
+            tx = OAuthTransaction(
+                state_hash=state_hash,
+                provider=provider,
+                intent=intent,
+                user_id=user_id,
+                browser_binding_hash=browser_binding_hash,
+                code_verifier=code_verifier,
+                nonce=nonce,
+                created_at=created_at,
+                expires_at=expires_at,
+                used_at=None,
+            )
+            session.add(tx)
+
+    def claim_oauth_transaction(
+        self,
+        state_hash: str,
+        browser_binding_hash: str,
+        now: float,
+    ) -> OAuthTransactionRecord | None:
+        with self._session() as session:
+            stmt = select(OAuthTransaction).where(
+                OAuthTransaction.state_hash == state_hash,
+                OAuthTransaction.browser_binding_hash == browser_binding_hash,
+                OAuthTransaction.used_at.is_(None),
+                OAuthTransaction.expires_at > now,
+            )
+            tx = session.scalars(stmt).first()
+            if not tx:
+                return None
+            tx.used_at = now
+            return OAuthTransactionRecord(
+                state_hash=tx.state_hash,
+                provider=tx.provider,
+                intent=tx.intent,
+                user_id=tx.user_id,
+                browser_binding_hash=tx.browser_binding_hash,
+                code_verifier=tx.code_verifier,
+                nonce=tx.nonce,
+                created_at=tx.created_at,
+                expires_at=tx.expires_at,
+                used_at=now,
+            )
+
+    def cleanup_expired_oauth_transactions(self, now: float) -> int:
+        with self._session() as session:
+            res = session.execute(
+                delete(OAuthTransaction).where(
+                    (OAuthTransaction.expires_at <= now) | OAuthTransaction.used_at.is_not(None)
+                )
+            )
+            return int(res.rowcount or 0)
 
     def get_google_oauth_user_id(self, provider_user_id: str) -> str | None:
         with self._session() as session:
@@ -342,7 +434,9 @@ class AuthRepository:
             )
             session.add(token)
 
-    def get_email_verification_token(self, token_hash: str) -> tuple[str, float | None, float] | None:
+    def get_email_verification_token(
+        self, token_hash: str
+    ) -> tuple[str, float | None, float] | None:
         with self._session() as session:
             stmt = select(AuthToken).where(
                 AuthToken.token_hash == token_hash,

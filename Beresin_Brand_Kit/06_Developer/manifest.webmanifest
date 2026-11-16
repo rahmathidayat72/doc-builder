@@ -1,0 +1,21 @@
+{
+  "name": "Beresin by Satukit",
+  "short_name": "Beresin",
+  "description": "Urusan Berkas? Beresin Aja!",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#103B33",
+  "theme_color": "#16B89A",
+  "icons": [
+    {
+      "src": "/icons/beresin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/beresin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

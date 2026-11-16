@@ -5,7 +5,10 @@
 - **Versi Arsitektur:** 2.0.0
 - **Tanggal Persetujuan Awal:** 2026-10-20
 - **Revisi Terakhir:** 2026-11-08 — Transformasi arsitektur menjadi Sistem Hybrid Online Multi-Tier: Hosting VPS Ubuntu 24.04 (1 vCPU, 2.2 GiB RAM) dengan Reverse Proxy (Caddy/Nginx), Autentikasi Pengguna & Kuota Cloud CV (max 5 CV, retensi 30 hari, backup terenkripsi Cloudflare R2 7 hari, email Brevo), Penghapus Latar Belakang Gambar Lokal (U2NetP CPU-only, antrean max 2, timeout 30s), serta Layanan URL Shortener Mandiri Serverless (Cloudflare Workers + D1).
-- **Status:** Pending Approval (Revisi Gerbang 2)
+- **Revisi 2026-11-12 (`CR-021`):** Penambahan arsitektur **Compress Video** asinkron (`§9`): upload raw streaming (`application/octet-stream` + `X-Video-Metadata`), koordinasi antrean PostgreSQL (`video_compression_jobs`), worker systemd terpisah `satukit-video-worker`, scan ClamAV chunked `INSTREAM` 64 KiB fail-closed sebelum `ffprobe`/`ffmpeg` dalam sandbox `bubblewrap --unshare-net`, override payload Caddy khusus `POST /api/video-compressions`, serta health check `ffmpeg`/`ffprobe` + heartbeat worker di `/api/health`.
+- **Revisi 2026-11-13 (`CR-022`):** Penambahan arsitektur **MP4 ke MP3** asinkron (`§9.3`): memanfaatkan antrean PostgreSQL `video_compression_jobs` (`job_type = 'extract_audio'`), daemon worker bersama `satukit-video-worker`, ekstraksi audio FFmpeg `libmp3lame` (preset 128k, 192k default, 320k), validasi stream audio (`NO_AUDIO_STREAM`), auto-downmix stereo, dan single-use claim TTL 15 menit.
+- **Revisi 2026-11-13 (`CR-023`):** Penambahan arsitektur **Video ke Teks** asinkron (`§9.4`): memanfaatkan antrean PostgreSQL `video_compression_jobs` (`job_type = 'transcribe'`), preset bahasa (`auto`, `id`, `en`), ekstraksi audio sementara WAV 16kHz mono PCM via FFmpeg, engine transkripsi CPU lokal `faster-whisper` (CTranslate2 int8), pembuat dokumen multi-format (TXT, SRT, DOCX via `python-docx`), pengemas arsip ZIP, penyajian pratinjau baca-saja sementara via `preview.json`, serta unduhan sekali pakai single-use TTL 15 menit.
+- **Status:** Approved (Gerbang 2 disetujui untuk `CR-023`)
 
 ## 2. Gambaran Umum Sistem & Topologi
 
@@ -346,3 +349,115 @@ Header biner terenkripsi memiliki panjang tepat 49 byte sebelum ciphertext:
 - Rate limit rolling 60 menit per akun: maksimal 10 upload sukses, maksimal 30 download.
 - Konkurensi download: maksimal 1 download aktif per akun dan maksimal 2 download lease global di seluruh sistem untuk mencegah saturasi bandwidth VPS.
 - Unduh langsung didekripsi on-the-fly dari stream R2 ke client tanpa menyimpan file terdekripsi di disk lokal.
+
+## 9. Arsitektur Kompresi Video Asinkron (Compress Video — `CR-021`)
+
+### 9.1 Ringkasan & Prinsip Desain
+Fitur **Compress Video** (`/api/video-compressions`, kartu `#/tools` kategori `convert` dengan guard login wajib) dirancang agar aman dijalankan pada VPS 1 vCPU / 2.2 GiB RAM tanpa membebani 2 Uvicorn web worker utama maupun memicu OOM.
+Prinsip utama:
+1. **Upload Raw Streaming Tanpa Buffering Memori:** Client mengirim `POST /api/video-compressions` sebagai `application/octet-stream` dengan header metadata JSON base64url `X-Video-Metadata` (`filename`, `preset`). Backend FastAPI membaca `request.stream()` per chunk (64 KiB) langsung ke disk workspace (`0700`/`0600`) tanpa pernah memanggil `await request.body()`. Batas keras ukuran berkas `250.000.000` byte (250 MB) dan kapasitas total workspace video global `1.25 GiB` (`1.342.177.280` byte) dijaga ketat secara fail-closed.
+2. **Koordinasi Antrean Lintas Worker via PostgreSQL:** Karena backend berjalan dengan 2 Uvicorn worker terpisah dan tidak boleh menyalin pola SQLite milik `media_downloader.py`, seluruh state job dan koordinasi antrean berada di PostgreSQL (`video_compression_jobs` pada Alembic migration `004_video_compression.py`), memakai `pg_advisory_xact_lock`, partial unique index (maks 1 job aktif per akun dan maks 1 job `running` global), antrean global maks `1 running + 2 waiting`, rate limit rolling 60 menit (`3 job/jam` per akun dan per IP), `SELECT ... FOR UPDATE SKIP LOCKED`, serta transisi atomik unduhan sekali pakai `succeeded -> claimed`.
+3. **Worker Systemd Terpisah & Isolasi Sandbox:** Seluruh kerja berat dijalankan di proses systemd terpisah `satukit-video-worker.service` (`python -m app.workers.video_worker`). Pipeline fail-closed per job:
+   - Scan malware **ClamAV** streaming `INSTREAM` chunk 64 KiB via Unix socket (`/run/clamav/clamd.ctl`) **sebelum** `ffprobe` dijalankan; jika daemon mati atau signature > 24 jam, job ditolak fail-closed.
+   - Validasi media `ffprobe`: format `mp4`/`mov`/`webm`, durasi ≤ `600` detik, resolusi ≤ 4K (`3840x2160` landscape atau `2160x3840` portrait), dan frame rate ≤ `60` FPS.
+   - Transcoding `ffmpeg` (`apt`) single-pass `libx264 -preset veryfast -threads 1`, `yuv420p`, AAC audio opsional (`has_audio`), `-map_metadata -1 -map_chapters -1`, `-movflags +faststart`, downscale proporsional maksimal 1080p dan batas `fps=30` hanya jika input melebihi batas (tanpa upscale):
+     - `light`: CRF 23, AAC 128k
+     - `balanced` (default): CRF 28, AAC 96k
+     - `maximum`: CRF 32, AAC 64k
+   - Pada host Linux, `ffprobe`/`ffmpeg` dibungkus `bubblewrap --unshare-net --die-with-parent`, dihentikan per process-group (`SIGTERM` lalu `SIGKILL`) saat cancel atau melewati hard timeout **45 menit** (`2700` detik).
+4. **Kebijakan Ukuran & Retensi Ketat:** Jika `output_size_bytes >= input_size_bytes`, file output segera dihapus dan job ditandai gagal dengan kode `OUTPUT_NOT_SMALLER`. Output yang valid hanya dapat diunduh satu kali (`succeeded -> claimed`) dengan TTL **15 menit** (`900` detik); file input dihapus segera setelah transcode selesai/gagal/dibatalkan, dan sweeper worker membersihkan workspace/job kedaluwarsa serta memulihkan job `running`/`scanning`/`probing`/`encoding` yang menggantung saat startup.
+5. **Reverse Proxy & Telemetry `/api/health`:** `deploy/Caddyfile.example` mempertahankan batas request global `35 MB` sambil menambahkan override matcher khusus `POST /api/video-compressions` (`~260 MB`). Endpoint `GET /api/health` melaporkan status ketersediaan `ffmpeg`/`ffprobe` dan kesegaran heartbeat `video_worker` (`runtime_state`) tanpa mengekspos path filesystem internal.
+
+### 9.2 Topologi Proses & Alur Pipeline
+```text
+Client Browser (#/tools -> CompressVideoModal)
+    |
+    | (1) POST /api/video-compressions [octet-stream + X-Video-Metadata]
+    v
+Caddy Reverse Proxy (global cap 35 MB; matcher POST /api/video-compressions ~260 MB)
+    v
+FastAPI Uvicorn x2 (satukit.service)
+    |-- (2) Validasi auth, email_verified (prod), Origin/CSRF, rate limit 3/jam (akun & IP),
+    |       1 job aktif/akun, kapasitas antrean (<=3 total), global workspace cap 1.25 GiB
+    |-- (3) Stream request.stream() 64 KiB ke workspace 0700/0600 (tolak >250.000.000 B)
+    `-- (4) Insert video_compression_jobs (status: 'queued') -> HTTP 202 Accepted
+
+                [ PostgreSQL (video_compression_jobs & runtime_state) ]
+                         ^
+                         | (SELECT ... FOR UPDATE SKIP LOCKED + heartbeat)
+                         v
+Video Worker Service (satukit-video-worker.service)
+    |-- (5) ClamAV Unix socket INSTREAM 64 KiB fail-closed (SEBELUM ffprobe)
+    |-- (6) [bwrap --unshare-net] ffprobe -> format/durasi<=600s/<=4K/<=60fps
+    |-- (7) [bwrap --unshare-net, PGID kill, timeout 45m]
+    |       ffmpeg single-pass H.264 veryfast -threads 1, <=1080p/30fps, strip metadata
+    |-- (8) Cek output < input (jika >= input -> hapus output, failed OUTPUT_NOT_SMALLER)
+    `-- (9) Hapus input, set status='succeeded', expires_at = now + 900s (single-use claim)
+```
+
+### 9.3 Ekstensi Fitur MP4 ke MP3 (`CR-022`)
+Fitur **MP4 ke MP3** menggunakan kembali infrastruktur antrean, daemon worker, dan reverse proxy dari `CR-021` tanpa menduplikasi komponen sistem:
+1. **Model Database & Skema Bersama:**
+   - Tabel `video_compression_jobs` diperluas dengan kolom `job_type` (`VARCHAR(20)`, default `'compress'`, valid values: `'compress'`, `'extract_audio'`).
+   - Check constraint preset diperluas untuk mencakup nilai bitrate MP3: `preset IN ('light', 'balanced', 'maximum', '128k', '192k', '320k')`.
+   - Seluruh batasan konkurensi (1 aktif per akun via partial unique index `uq_video_jobs_active_per_user`, 1 running global via `uq_video_jobs_global_running`, rate limit 3/jam) otomatis berlaku bersama antara video compression dan audio extraction.
+2. **Pipeline Ekstraksi Audio Worker (`video_worker.py` & `video_compressor.py`):**
+   - Pemindaian ClamAV socket `INSTREAM` 64 KiB tetap dijalankan sebelum `ffprobe`.
+   - Validasi stream audio (`probe_audio`): format container wajib MP4, durasi ≤ 600s, dan **wajib terdapat minimal 1 stream audio**. Jika tidak ada stream audio sama sekali, job langsung digagalkan dengan error code `NO_AUDIO_STREAM`.
+   - Pemilihan stream: otomatis memilih stream audio dengan flag `default` (fallback ke stream audio pertama `0:a:0`).
+   - Penanganan channel: mono (1-ch) dan stereo (2-ch) dipertahankan utuh. Jika jumlah channel > 2 (misal surround 5.1 / 6-ch), otomatis dilakukan downmix ke stereo 2 channel (`-ac 2`).
+   - Perintah FFmpeg:
+     `ffmpeg -nostdin -y -hide_banner -i <input_path> -map 0:a:<selected_idx> -vn -ac <channels> -c:a libmp3lame -b:a <preset> -map_metadata -1 -map_chapters -1 <output_path>`
+   - Nama output: `<stem>_audio.mp3`.
+   - Timeout proses ekstraksi: hard timeout 10 menit (600s).
+   - Retensi & download: hasil unduhan sekali pakai (`succeeded -> claimed`) dengan TTL 15 menit, pembersihan berkas segera pasca-unduh/batal.
+3. **Endpoint & Caddy Matcher:**
+   - Client mengirim `POST /api/video-compressions` dengan `X-Video-Metadata` JSON base64url memuat `job_type: "extract_audio"`, `preset: "128k"|"192k"|"320k"`, dan `filename: "...mp4"`.
+   - Rute `POST /api/video-compressions` langsung dilayani oleh override matcher Caddy `@videoUpload` yang sudah ada (~260 MB) tanpa memerlukan modifikasi reverse proxy.
+
+### 9.4 Ekstensi Fitur Video ke Teks (`CR-023`)
+Fitur **Video ke Teks** memperluas infrastruktur antrean dan daemon worker bersama `satukit-video-worker` untuk menjalankan model transkripsi CPU lokal:
+1. **Model Database & Skema Bersama:**
+   - Tabel `video_compression_jobs` diperluas dengan nilai `job_type`: `'compress'`, `'extract_audio'`, dan `'transcribe'`.
+   - Check constraint preset diperluas untuk mencakup opsi bahasa transkripsi: `preset IN ('light', 'balanced', 'maximum', '128k', '192k', '320k', 'auto', 'id', 'en')`.
+   - Memanfaatkan antrean bersama: kuota 1 job aktif per user (`uq_video_jobs_active_per_user`), 1 global running worker (`uq_video_jobs_global_running`), dan rate limit 3 job/jam dihitung bersama untuk menjaga stabilitas VPS 1 vCPU / 2.2 GiB RAM.
+2. **Pipeline Ekstraksi Audio & Transkripsi (`video_worker.py` & `transcription_service.py`):**
+   - **Scanning:** ClamAV socket `INSTREAM` 64 KiB memeriksa integritas berkas MP4.
+   - **Probing:** `ffprobe` memverifikasi keberadaan minimal 1 stream audio (gagal `NO_AUDIO_STREAM` jika nihil).
+   - **Ekstraksi Audio Sementara:** FFmpeg mengekstrak audio menjadi format WAV PCM 16kHz mono 16-bit (`-ar 16000 -ac 1 -c:a pcm_s16le`) ke direktori workspace terisolasi `0700`.
+   - **Transkripsi Offline (faster-whisper int8):**
+     - Dijalankan secara lokal menggunakan CPU-only dengan kuantisasi `int8` (footprint RAM ~200MB untuk `base` atau ~550MB untuk `small`).
+     - Jika pengguna memilih `auto`, model secara otomatis mendeteksi bahasa dominan (fokus Indonesia/Inggris). Jika memilih `id` atau `en`, bahasa dipaksa.
+     - VAD (Voice Activity Detection) internal menyaring segmen hening. Jika tidak ada ucapan terdeteksi sama sekali, proses dihentikan dengan kode `NO_SPEECH`.
+   - **Penyusunan Dokumen Multi-Format:**
+     - `<stem>_transcript.txt`: Teks polos bertimestamp per segmen `[HH:MM:SS - HH:MM:SS]`.
+     - `<stem>_transcript.srt`: Subtitel SubRip standar bertimestamp `HH:MM:SS,mmm --> HH:MM:SS,mmm`.
+     - `<stem>_transcript.docx`: Dokumen Microsoft Word resmi (via `python-docx` existing) dengan kop judul, metadata durasi & bahasa terdeteksi, tabel segmen, dan disclaimer verifikasi manusia.
+   - **Penyajian Pratinjau (Ephemeral Preview):**
+     - Berkas `preview.json` memuat ringkasan segmen teks disimpan di workspace job dan diinjeksikan ke payload respons `GET /api/video-compressions/{job_id}` saat job berstatus `succeeded`.
+     - Tidak disimpan di database untuk menjamin prinsip data minimization & zero residual PII.
+   - **Pengemasan ZIP & Pembersihan:**
+     - Ketiga berkas dikemas ke dalam `<stem>_transcript.zip` menggunakan pustaka standar Python `zipfile`.
+     - Berkas perantara `audio.wav` dan berkas dokumen individual segera dibersihkan dari workspace.
+   - **Unduhan Sekali Pakai & TTL:**
+     - Unduhan melalui `GET /api/video-compressions/{job_id}/download` dengan Content-Type `application/zip`, transisi atomik `succeeded -> claimed`, dan penghapusan workspace seketika. TTL kedaluwarsa 15 menit.
+
+### 9.5 Hardening Eksekusi LibreOffice & Isolasi Profil (`OFF-01` s/d `OFF-04`, `DEC-029`)
+1. **Sentralisasi Helper (`backend/app/services/libreoffice.py`):**
+   - Seluruh 5 call site LibreOffice (`converter.py`, `office_converter.py` untuk PPT/XLS, `pdf_generator.py`, dan `ats_report_generator.py`) diarahkan ke `run_libreoffice_conversion` / `convert_bytes_to_pdf_sandboxed`.
+   - Setiap eksekusi menyertakan flag `-env:UserInstallation=file://...` ke direktori profil temporer unik yang dibersihkan secara deterministik pada blok `finally` (`tempfile.TemporaryDirectory`), mencegah korupsi profil bersama atau deadlock berkas `.lock` saat ada lebih dari satu worker Uvicorn.
+   - Output PDF divalidasi secara ketat: berkas wajib ada, berukuran `>= 5` byte, dan diawali magic bytes `%PDF-`.
+2. **Process-Tree Termination & Fail-Closed Sandbox (`backend/app/core/sandbox.py`):**
+   - Pada POSIX (`sys.platform != "win32"`), subprocess dijalankan dengan `start_new_session=True` dan saat `TimeoutExpired` dihentikan melalui `os.killpg(pgid, SIGTERM)` diikuti `os.killpg(pgid, SIGKILL)` (grace period 1.5s) sehingga child process `soffice.bin` tidak tertinggal sebagai proses yatim (orphan/zombie).
+   - Pada Windows (`sys.platform == "win32"`), `WindowsJobObject` menerapkan kebijakan **fail-closed**: kegagalan membuat Job Object, menyetel limit memori, atau mendaftarkan proses ke Job Object (`AssignProcessToJobObject`) segera menghentikan proses dan melempar `RuntimeError`.
+3. **Antrean Single-Active Lintas Worker & Evaluasi Renderer CV (`OFF-02` s/d `CVR-02`):**
+   - `OFF-02` & `OFF-03`: Koordinasi database single-active menjaga maksimal 1 proses LibreOffice aktif di seluruh host VPS 1 vCPU dengan facade sinkron yang kompatibel ke frontend (menolak request konkuren saat sibuk dengan HTTP 429).
+   - `CVR-01` & `CVR-02`: Direct PDF renderer berbasis `PyMuPDF` (`pymupdf.Story` + `DocumentWriter` + `Shape`) melayani `POST /api/export/pdf` (4 template canonical: `AtsClean`, `AtsModern`, `VisualExecutive`, `VisualMinimal`) dan `POST /api/ats/export-report-pdf` tanpa LibreOffice, sementara `python-docx` dipertahankan untuk ekspor DOCX.
+
+### 9.6 Gate Peluncuran Beta (`CR-024` / `BETA-01`, `DEC-031`)
+1. **Frontend (`frontend/src/App.tsx` & `Dashboard.tsx`):**
+   - Katalog 28 alat dibagi ke 7 kategori termasuk `Media & Audio` (`id: 'media'`).
+   - 9 kartu (`Pengunduh Media`, `Blur Background`, `WebP ke JPG`, `OCR PDF`, `Edit PDF`, `Repair PDF`, `Compress Video`, `MP4 ke MP3`, `Video ke Teks`) diberi `comingSoon: true`, atribut tombol `disabled`, dan guard `handleExecuteTool`, sementara `Dashboard.tsx` menampilkan `19` (`stat-tools-count`) dan `9 Coming Soon` (`stat-tools-coming-soon`).
+2. **Backend (`backend/app/core/config.py` & `backend/app/core/middleware.py`):**
+   - Flag `BETA_COMING_SOON_GATES_ENABLED` (default `True`) dievaluasi di `SecurityMiddleware` setelah validasi Origin.
+   - Permintaan non-`OPTIONS` ke `/api/media-downloads*`, `/api/video-compressions*`, `/api/pdf-tools/editor/pages`, `/api/pdf-tools/editor/apply`, `/api/pdf-tools/repair`, `/api/pdf-tools/ocr/status`, dan `/api/pdf-tools/ocr` dihentikan dengan HTTP `503` (`error_code: "FEATURE_COMING_SOON"`), sedangkan `/api/image-tools/remove-background` tetap terbuka untuk `Hapus Latar Belakang`.

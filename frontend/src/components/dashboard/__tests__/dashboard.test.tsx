@@ -52,7 +52,7 @@ describe('Dashboard Component Suite', () => {
     )
 
     expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Satu Tempat,\s*Banyak Solusi Digital/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Urusan Berkas\?\s*Beresin Aja!/i })).toBeInTheDocument()
     expect(screen.getByTestId('dashboard-drafts-empty')).toBeInTheDocument()
     expect(screen.getByText(/Belum ada CV yang dibuat/i)).toBeInTheDocument()
     expect(screen.getByTestId('stat-total-drafts')).toHaveTextContent('0')
@@ -66,7 +66,8 @@ describe('Dashboard Component Suite', () => {
         draftsList={sampleSummaries}
         atsScore={88}
         privateMode={true}
-        documentToolsCount={18}
+        documentToolsCount={19}
+        comingSoonToolsCount={9}
         onNavigate={vi.fn()}
         onCreateNewResume={vi.fn()}
         onOpenImportModal={vi.fn()}
@@ -77,7 +78,9 @@ describe('Dashboard Component Suite', () => {
 
     expect(screen.getByTestId('stat-total-drafts')).toHaveTextContent('2')
     expect(screen.getByTestId('stat-ats-score')).toHaveTextContent('88')
-    expect(screen.getByTestId('stat-tools-count')).toHaveTextContent('18')
+    expect(screen.getByTestId('stat-tools-count')).toHaveTextContent('19')
+    expect(screen.getByTestId('stat-tools-coming-soon')).toHaveTextContent('9 Coming Soon')
+    expect(screen.getByTestId('card-workspace-tools')).toHaveTextContent('19 aktif · 9 Coming Soon')
     expect(screen.getByText('Mode Privat Aktif')).toBeInTheDocument()
     expect(screen.getByTestId('btn-dashboard-continue-latest')).toBeInTheDocument()
     expect(screen.getAllByText('CV Software Engineer').length).toBeGreaterThanOrEqual(1)
@@ -286,7 +289,7 @@ describe('Dashboard Component Suite', () => {
     expect(urgentBadge.className).toContain('text-amber-900')
   })
 
-  it('menerapkan fondasi merek Satukit dan komposisi landing referensi tanpa kelas warna ungu', () => {
+  it('menerapkan fondasi merek Beresin by Satukit dan komposisi landing referensi tanpa kelas warna ungu', () => {
     const { container } = render(
       <Dashboard
         draft={sampleDraft}
@@ -305,8 +308,13 @@ describe('Dashboard Component Suite', () => {
     const dashboardView = screen.getByTestId('dashboard-view')
     expect(dashboardView.className).toContain('paper-canvas')
     expect(screen.getByTestId('btn-dashboard-create-cv')).toHaveTextContent('Coba Sekarang')
-    expect(screen.getByRole('heading', { name: /Fitur Unggulan Satukit/i })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Cara Menggunakan Satukit/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Urusan Berkas\?\s*Beresin Aja!/i })).toBeInTheDocument()
+    expect(
+      screen.getByText('Buat CV, kelola PDF, konversi dokumen, dan siapkan pasfoto dalam satu tempat.')
+    ).toBeInTheDocument()
+    expect(screen.getByText('Asisten digitalmu di Beresin by Satukit.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Fitur Unggulan Beresin/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Cara Menggunakan Beresin/i })).toBeInTheDocument()
     const builderCard = screen.getByTestId('card-workspace-builder')
     expect(builderCard.parentElement?.className).toContain('bg-white')
     expect(builderCard.parentElement?.className).toContain('dark:bg-stone-900')

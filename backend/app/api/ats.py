@@ -88,6 +88,12 @@ def export_report_pdf(req: ExportReportRequest):
                 },
             )
 
+        if err_code and err_code.startswith("CONVERSION_BUSY"):
+            raise HTTPException(
+                status_code=429,
+                detail=err_code.removeprefix("CONVERSION_BUSY:").strip() or err_code,
+            )
+
         if not pdf_io or err_code:
             raise HTTPException(
                 status_code=500, detail=err_code or "Gagal membuat PDF laporan ATS."

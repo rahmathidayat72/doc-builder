@@ -1,7 +1,9 @@
 import sys
+import unicodedata
 from pathlib import Path
 
 import docx
+import pymupdf
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -10,6 +12,7 @@ from app.api.export import sanitize_export_filename
 from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
 from app.main import app
 from app.services.docx_generator import generate_resume_docx
+from app.services.pdf_generator import generate_resume_pdf
 
 client = TestClient(app)
 
@@ -403,3 +406,96 @@ def test_generate_resume_docx_respects_section_order():
     summary_index = text.index("RINGKASAN PROFESIONAL")
 
     assert education_index < skills_index < summary_index
+
+
+def test_generate_resume_pdf_all_four_canonical_templates():
+    """Direct PDF renderer mendukung ke-4 template canonical, foto, sectionOrder, dan anti-XSS."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    img = Image.new("RGB", (64, 64), color="teal")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    b64_url = f"data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}"
+
+    for tpl_id in ("ats-clean", "ats-modern", "visual-executive", "visual-minimal"):
+        payload = {
+            **SAMPLE_RESUME_PAYLOAD,
+            "templateId": tpl_id,
+            "data": {
+                **SAMPLE_RESUME_PAYLOAD["data"],
+                "contact": {
+                    **SAMPLE_RESUME_PAYLOAD["data"]["contact"],
+                    "headline": "Principal Distributed Systems Architect",
+                    "usePhoto": True,
+                    "photoUrl": b64_url,
+                },
+                "customSections": [
+                    {
+                        "id": "custom-1",
+                        "sectionTitle": "Sertifikasi",
+                        "items": [
+                            {
+                                "id": "custom-item-1",
+                                "title": "AWS Certified Developer",
+                                "subtitle": "Amazon Web Services",
+                                "date": "2025",
+                                "description": "Validasi <script>alert(1)</script> cloud.",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        pdf_io, err = generate_resume_pdf(payload)
+        assert err is None
+        assert pdf_io is not None
+        raw = pdf_io.getvalue()
+        assert raw.startswith(b"%PDF-")
+
+        doc = pymupdf.open("pdf", raw)
+        assert len(doc) >= 1
+        full_text = unicodedata.normalize("NFKC", "\n".join(p.get_text("text") for p in doc))
+        normalized = " ".join(full_text.split())
+
+        assert "BAMBANG PAMUNGKAS" in normalized
+        assert "Principal Distributed Systems Architect" in normalized
+        assert "bambang@example.id" in normalized
+        assert "PT Mega Finansial" in normalized
+        assert "AWS Certified Developer" in normalized
+        assert "Validasi <script>alert(1)</script> cloud." in normalized
+
+        if tpl_id == "visual-executive":
+            assert "Beresin Executive" in normalized
+            assert len(doc[0].get_drawings()) >= 1
+        elif tpl_id == "visual-minimal":
+            assert "TENTANG SAYA" in normalized
+            assert "PENGALAMAN" in normalized
+        doc.close()
+
+
+def test_export_pdf_endpoint_returns_valid_pdf_and_400_on_invalid_photo():
+    """POST /api/export/pdf mengembalikan 200 PDF langsung dan 400 bila foto rusak."""
+    headers = {CSRF_HEADER_NAME: session_manager.csrf_token, "Origin": "http://localhost:5173"}
+    client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
+
+    resp = client.post("/api/export/pdf", json=SAMPLE_RESUME_PAYLOAD, headers=headers)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content.startswith(b"%PDF-")
+
+    bad_payload = {
+        **SAMPLE_RESUME_PAYLOAD,
+        "data": {
+            **SAMPLE_RESUME_PAYLOAD["data"],
+            "contact": {
+                **SAMPLE_RESUME_PAYLOAD["data"]["contact"],
+                "usePhoto": True,
+                "photoUrl": "data:image/jpeg;base64,not-an-image",
+            },
+        },
+    }
+    bad_resp = client.post("/api/export/pdf", json=bad_payload, headers=headers)
+    assert bad_resp.status_code == 400

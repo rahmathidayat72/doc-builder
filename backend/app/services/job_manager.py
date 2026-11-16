@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 import threading
 import time
 import uuid
@@ -14,6 +15,13 @@ from typing import Literal
 from app.core.disk_guard import check_disk_guard
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+TEMP_DIR_PREFIXES = (
+    "docbuilder_lo_prof_",
+    "docbuilder_conv_",
+    "docbuilder_office_",
+    "docbuilder_pdf_",
+    "docbuilder_ats_pdf_",
+)
 
 
 class JobBusyError(RuntimeError):
@@ -141,22 +149,35 @@ class ConversionJobManager:
         finally:
             self.finish_job(job.id)
 
-    def sweep_expired_workspaces(self, now: float | None = None) -> list[Path]:
+    def sweep_expired_workspaces(
+        self, now: float | None = None, temp_root: Path | None = None
+    ) -> list[Path]:
         current_time = now if now is not None else time.time()
         removed: list[Path] = []
-        if not self.workspace_root.exists():
-            return removed
+        if self.workspace_root.exists():
+            for path in self.workspace_root.iterdir():
+                if not path.is_dir():
+                    continue
+                try:
+                    age = current_time - path.stat().st_mtime
+                    if age >= self.ttl_seconds:
+                        shutil.rmtree(path, ignore_errors=True)
+                        removed.append(path)
+                except OSError:
+                    continue
 
-        for path in self.workspace_root.iterdir():
-            if not path.is_dir():
-                continue
-            try:
-                age = current_time - path.stat().st_mtime
-                if age >= self.ttl_seconds:
-                    shutil.rmtree(path, ignore_errors=True)
-                    removed.append(path)
-            except OSError:
-                continue
+        sys_tmp = temp_root if temp_root is not None else Path(tempfile.gettempdir())
+        if sys_tmp.exists():
+            for path in sys_tmp.iterdir():
+                if not path.is_dir() or not path.name.startswith(TEMP_DIR_PREFIXES):
+                    continue
+                try:
+                    age = current_time - path.stat().st_mtime
+                    if age >= self.ttl_seconds:
+                        shutil.rmtree(path, ignore_errors=True)
+                        removed.append(path)
+                except OSError:
+                    continue
         return removed
 
 

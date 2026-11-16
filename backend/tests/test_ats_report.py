@@ -1,14 +1,19 @@
 import sys
+import unicodedata
 from pathlib import Path
 
 import docx
+import pymupdf
 from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
 from app.main import app
-from app.services.ats_report_generator import generate_ats_report_docx
+from app.services.ats_report_generator import (
+    generate_ats_report_docx,
+    generate_ats_report_pdf,
+)
 
 client = TestClient(app)
 
@@ -55,6 +60,7 @@ def test_generate_ats_report_docx_creates_valid_document():
     doc = docx.Document(docx_io)
     full_text = " ".join([p.text for p in doc.paragraphs])
     assert "LAPORAN EVALUASI KETERBACAAN ATS" in full_text
+    assert "Beresin by Satukit" in full_text
     assert "SKOR TOTAL: 88 / 100" in full_text
     assert "Catatan Penafian (Disclaimer)" in full_text
     assert len(doc.tables) >= 2
@@ -76,8 +82,29 @@ def test_export_report_docx_endpoint():
     assert resp.content[:2] == b"PK"
 
 
+def test_generate_ats_report_pdf_creates_valid_pdf_document():
+    """Service generate_ats_report_pdf menghasilkan berkas PDF valid beserta rincian 5 pilar."""
+    pdf_io, err = generate_ats_report_pdf(SAMPLE_ANALYSIS_DATA, "Resume Lead Engineer")
+    assert err is None
+    assert pdf_io is not None
+    raw = pdf_io.getvalue()
+    assert raw.startswith(b"%PDF-")
+
+    doc = pymupdf.open("pdf", raw)
+    assert len(doc) >= 1
+    full_text = unicodedata.normalize("NFKC", "\n".join(p.get_text("text") for p in doc))
+    normalized = " ".join(full_text.split())
+    assert "LAPORAN EVALUASI KETERBACAAN ATS" in normalized
+    assert "Beresin by Satukit" in normalized
+    assert "SKOR TOTAL: 88 / 100" in normalized
+    assert "1. RINCIAN SKOR 5 PILAR PENILAIAN" in normalized
+    assert "3. STATUS CHECKLIST INDIKATOR" in normalized
+    assert "Catatan Penafian (Disclaimer)" in normalized
+    doc.close()
+
+
 def test_export_report_pdf_endpoint():
-    """Endpoint POST /api/ats/export-report-pdf mengembalikan 422 edukatif atau 200 PDF."""
+    """Endpoint POST /api/ats/export-report-pdf mengembalikan 200 PDF secara langsung."""
     client.cookies.set(SESSION_COOKIE_NAME, session_manager.session_token)
     headers = {CSRF_HEADER_NAME: session_manager.csrf_token, "Origin": "http://localhost:5173"}
 
@@ -86,9 +113,7 @@ def test_export_report_pdf_endpoint():
         json={"analysis": SAMPLE_ANALYSIS_DATA, "resume_title": "Resume Budi"},
         headers=headers,
     )
-    if resp.status_code == 422:
-        data = resp.json()
-        assert data["error_code"] == "LIBREOFFICE_NOT_FOUND"
-    else:
-        assert resp.status_code == 200
-        assert resp.headers["content-type"] == "application/pdf"
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert "Laporan_ATS_Resume_Budi.pdf" in resp.headers["content-disposition"]
+    assert resp.content.startswith(b"%PDF-")

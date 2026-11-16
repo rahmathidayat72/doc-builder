@@ -1,0 +1,43 @@
+[Unit]
+Description=Satukit Video Compression Background Worker
+After=network.target postgresql.service clamav-daemon.service
+Requires=postgresql.service clamav-daemon.service
+
+[Service]
+Type=exec
+User=satukit
+Group=satukit
+WorkingDirectory=/var/www/satukit/backend
+EnvironmentFile=/etc/satukit/satukit.env
+
+# Background daemon polling PostgreSQL queue & transcoding video via ClamAV + bwrap + FFmpeg
+ExecStart=/var/www/satukit/backend/.venv/bin/python -m app.workers.video_worker
+
+# Restart policies
+Restart=always
+RestartSec=5s
+
+# Resource Containment (VPS 1 vCPU / 2.2 GiB RAM; terpisah dari 2 worker Uvicorn)
+CPUQuota=75%
+MemoryHigh=700M
+MemoryMax=950M
+TasksMax=48
+
+# Linux Namespaces & Sandboxing
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Shared workspace video (0700 satukit:satukit) lintas service PrivateTmp + logs
+ReadWritePaths=/var/lib/satukit/video_jobs /var/www/satukit/backend/logs /tmp
+
+# File descriptor limits
+LimitNOFILE=32768
+
+[Install]
+WantedBy=multi-user.target

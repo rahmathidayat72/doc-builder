@@ -43,6 +43,7 @@ import { PdfSecurityModal, type SecurityTab } from './components/pdf-tools/PdfSe
 import { PdfRepairModal } from './components/pdf-tools/PdfRepairModal'
 import { PdfOcrModal } from './components/pdf-tools/PdfOcrModal'
 import { PdfWatermarkModal } from './components/pdf-tools/PdfWatermarkModal'
+import { WatermarkRemovalModal } from './components/pdf-tools/WatermarkRemovalModal'
 import { PdfPageNumbersModal } from './components/pdf-tools/PdfPageNumbersModal'
 import { PdfToMarkdownModal } from './components/pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from './components/image-tools/ImageResizeModal'
@@ -51,6 +52,8 @@ import { PhotoProfileMakerModal } from './components/image-tools/PhotoProfileMak
 import { WebpToJpgModal } from './components/image-tools/WebpToJpgModal'
 import { QrCodeGeneratorModal } from './components/tools/QrCodeGeneratorModal'
 import { MediaDownloaderModal } from './components/tools/MediaDownloaderModal'
+import { CompressVideoModal } from './components/video-tools/CompressVideoModal'
+import { Mp4ToMp3Modal } from './components/video-tools/Mp4ToMp3Modal'
 import { ContactForm } from './components/builder/ContactForm'
 import { SectionOrderForm } from './components/builder/SectionOrderForm'
 import { SummaryForm } from './components/builder/SummaryForm'
@@ -72,6 +75,7 @@ import {
   Languages,
   Eye,
   Edit3,
+  Eraser,
   FileEdit,
   PenTool,
   ShieldCheck,
@@ -98,10 +102,12 @@ import {
   Download,
   Search,
   Lock,
+  Film,
+  Music,
   X
 } from 'lucide-react'
 
-type ToolCategory = 'convert' | 'organize' | 'extract' | 'security' | 'image' | 'utility'
+type ToolCategory = 'convert' | 'organize' | 'extract' | 'security' | 'image' | 'media' | 'utility'
 
 interface ToolItem {
   title: string
@@ -111,6 +117,8 @@ interface ToolItem {
   iconClass: string
   isNew?: boolean
   isBrowserOnly?: boolean
+  requiresAuth?: boolean
+  comingSoon?: boolean
   action: () => void
 }
 
@@ -120,14 +128,75 @@ const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
   { id: 'extract', label: 'Ekstraksi & Digitalisasi' },
   { id: 'security', label: 'Keamanan & Tanda Tangan' },
   { id: 'image', label: 'Gambar & Foto' },
+  { id: 'media', label: 'Media & Audio' },
   { id: 'utility', label: 'Utilitas Digital' }
 ]
 
+const GOOGLE_AUTH_STATUS_MAP: Record<string, { message: string; isError?: boolean; target: Workspace }> = {
+  google_login_success: {
+    message: 'Berhasil masuk dengan akun Google!',
+    target: 'home',
+  },
+  google_link_success: {
+    message: 'Akun Google berhasil ditautkan!',
+    target: 'home',
+  },
+  account_merge_required: {
+    message:
+      'Akun dengan email ini telah terdaftar menggunakan kata sandi. Silakan masuk menggunakan kata sandi Anda terlebih dahulu, kemudian tautkan akun Google melalui menu profil.',
+    isError: true,
+    target: 'login',
+  },
+  google_cancelled: {
+    message: 'Proses autentikasi Google dibatalkan.',
+    isError: true,
+    target: 'login',
+  },
+  google_invalid_response: {
+    message: 'Respon dari Google tidak valid atau sesi autentikasi kedaluwarsa. Silakan coba kembali.',
+    isError: true,
+    target: 'login',
+  },
+  google_temporarily_unavailable: {
+    message: 'Layanan Google sementara tidak dapat dihubungi. Silakan coba sesaat lagi.',
+    isError: true,
+    target: 'login',
+  },
+  google_not_configured: {
+    message:
+      'Layanan masuk dengan Google belum dikonfigurasi pada server (GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET belum diatur di berkas .env).',
+    isError: true,
+    target: 'login',
+  },
+  google_link_conflict: {
+    message: 'Akun Google ini telah ditautkan ke akun Beresin lainnya.',
+    isError: true,
+    target: 'home',
+  },
+  google_link_error: {
+    message: 'Gagal menautkan akun Google. Pastikan alamat email Google sama persis dengan email akun Beresin Anda.',
+    isError: true,
+    target: 'home',
+  },
+}
+
+function parseHashRoute(): { workspace: Workspace; authStatus?: string } {
+  const raw = window.location.hash.replace(/^#\/?/, '')
+  const [route, queryStr] = raw.split('?')
+  const validWorkspace: Workspace =
+    route === 'home' || route === 'builder' || route === 'ats' || route === 'tools' || route === 'files' || route === 'login'
+      ? route
+      : 'home'
+  let authStatus: string | undefined
+  if (queryStr) {
+    const params = new URLSearchParams(queryStr)
+    authStatus = params.get('auth_status') || undefined
+  }
+  return { workspace: validWorkspace, authStatus }
+}
+
 function workspaceFromHash(): Workspace {
-  const value = window.location.hash.replace('#/', '')
-  return value === 'home' || value === 'builder' || value === 'ats' || value === 'tools' || value === 'files' || value === 'login'
-    ? value
-    : 'home'
+  return parseHashRoute().workspace
 }
 
 export function App() {
@@ -135,6 +204,12 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [authNoticeMessage, setAuthNoticeMessage] = useState<string | undefined>()
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | undefined>()
+  const [googleToast, setGoogleToast] = useState<{
+    tone: 'success' | 'error' | 'info'
+    title: string
+    message: string
+  } | null>(null)
   const [pendingWorkspace, setPendingWorkspace] = useState<Workspace | null>(null)
 
   const {
@@ -193,6 +268,7 @@ export function App() {
   const [showPdfRepairModal, setShowPdfRepairModal] = useState(false)
   const [showPdfOcrModal, setShowPdfOcrModal] = useState(false)
   const [showPdfWatermarkModal, setShowPdfWatermarkModal] = useState(false)
+  const [showWatermarkRemovalModal, setShowWatermarkRemovalModal] = useState(false)
   const [showPdfPageNumbersModal, setShowPdfPageNumbersModal] = useState(false)
   const [showPdfToMarkdownModal, setShowPdfToMarkdownModal] = useState(false)
   const [pdfSecurityTab, setPdfSecurityTab] = useState<SecurityTab>('unlock')
@@ -203,6 +279,8 @@ export function App() {
   const [showWebpToJpgModal, setShowWebpToJpgModal] = useState(false)
   const [showQrCodeModal, setShowQrCodeModal] = useState(false)
   const [showMediaDownloaderModal, setShowMediaDownloaderModal] = useState(false)
+  const [showCompressVideoModal, setShowCompressVideoModal] = useState(false)
+  const [showMp4ToMp3Modal, setShowMp4ToMp3Modal] = useState(false)
   const [removeBgInitialMode, setRemoveBgInitialMode] = useState<string>('transparent')
   const [importUndo, setImportUndo] = useState<{
     draftId: string
@@ -237,18 +315,62 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    const handleHashChange = () => {
-      const target = workspaceFromHash()
+    const processRoute = () => {
+      const { workspace: target, authStatus } = parseHashRoute()
+      if (authStatus) {
+        const config = GOOGLE_AUTH_STATUS_MAP[authStatus]
+        if (config) {
+          if (config.isError && config.target === 'login') {
+            setAuthErrorMessage(config.message)
+            setActiveWorkspace('login')
+            window.history.replaceState(null, '', '#/login')
+          } else if (config.isError) {
+            setGoogleToast({
+              tone: 'error',
+              title: 'Autentikasi Google Gagal',
+              message: config.message,
+            })
+            setActiveWorkspace(config.target)
+            window.history.replaceState(null, '', `/#/${config.target}`)
+          } else {
+            setGoogleToast({
+              tone: 'success',
+              title: 'Berhasil',
+              message: config.message,
+            })
+            setActiveWorkspace(config.target)
+            window.history.replaceState(null, '', `/#/${config.target}`)
+            getCurrentUser().then(user => {
+              if (user) setCurrentUser(user)
+            })
+          }
+          return
+        }
+      }
+
       if (target !== 'login') {
         setAuthNoticeMessage(undefined)
+        setAuthErrorMessage(undefined)
       }
       setActiveWorkspace(target)
     }
 
-    window.addEventListener('hashchange', handleHashChange)
-    if (!window.location.hash) window.history.replaceState(null, '', '#/home')
-    return () => window.removeEventListener('hashchange', handleHashChange)
+    window.addEventListener('hashchange', processRoute)
+    if (!window.location.hash) {
+      window.history.replaceState(null, '', '#/home')
+    } else {
+      processRoute()
+    }
+    return () => window.removeEventListener('hashchange', processRoute)
   }, [])
+
+  useEffect(() => {
+    if (!googleToast) return
+    const timer = setTimeout(() => {
+      setGoogleToast(null)
+    }, 6000)
+    return () => clearTimeout(timer)
+  }, [googleToast])
 
   const navigateTo = (workspace: Workspace) => {
     window.location.hash = `/${workspace}`
@@ -460,66 +582,29 @@ export function App() {
       }
     },
     {
-      title: 'PDF & Gambar',
-      category: 'image' as ToolCategory,
-      desc: 'Ubah gambar menjadi PDF atau ekstrak seluruh halaman PDF ke gambar.',
-      icon: Archive,
-      iconClass: 'bg-amber-50 text-amber-800',
-      action: () => {
-        setPdfToolsTab('img2pdf')
-        setShowPdfToolsModal(true)
-      }
+      title: 'Watermark PDF',
+      category: 'organize' as ToolCategory,
+      desc: 'Bubuhkan stempel teks atau logo transparan pada halaman dengan posisi dan rotasi kustom.',
+      icon: Stamp,
+      iconClass: 'bg-stone-100 text-stone-800',
+      action: () => setShowPdfWatermarkModal(true)
     },
     {
-      title: 'Hapus Latar Belakang',
-      category: 'image' as ToolCategory,
-      desc: 'Hapus latar belakang foto otomatis menggunakan AI U2NetP dan ganti warna latar pasfoto.',
-      icon: Sparkles,
+      title: 'Hapus Watermark',
+      category: 'organize' as ToolCategory,
+      desc: 'Hapus watermark tipis pada PDF, JPG/JPEG, dan PNG secara selektif dengan pratinjau before/after wajib.',
+      icon: Eraser,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
-      action: () => {
-        setRemoveBgInitialMode('transparent')
-        setShowRemoveBackgroundModal(true)
-      }
+      action: () => setShowWatermarkRemovalModal(true)
     },
     {
-      title: 'Blur Background',
-      category: 'image' as ToolCategory,
-      desc: 'Buat efek bokeh/blur artistik pada latar belakang foto dengan subjek tetap tajam secara instan.',
-      icon: Focus,
-      iconClass: 'bg-teal-50 text-teal-800',
-      isNew: true,
-      action: () => {
-        setRemoveBgInitialMode('blur')
-        setShowRemoveBackgroundModal(true)
-      }
-    },
-    {
-      title: 'Photo Profile Maker',
-      category: 'image' as ToolCategory,
-      desc: 'Buat foto profil & avatar media sosial (LinkedIn, WA, IG) dengan crop lingkaran, latar warna/gradasi/blur, dan border kustom.',
-      icon: CircleUser,
-      iconClass: 'bg-teal-50 text-teal-800',
-      isNew: true,
-      action: () => setShowPhotoProfileModal(true)
-    },
-    {
-      title: 'WebP ke JPG',
-      category: 'image' as ToolCategory,
-      desc: 'Konversi gambar WebP ke JPG dengan fidelitas ukuran asli, opsi warna latar, dan kontrol kualitas.',
-      icon: FileImage,
-      iconClass: 'bg-teal-50 text-teal-800',
-      isNew: true,
-      isBrowserOnly: true,
-      action: () => setShowWebpToJpgModal(true)
-    },
-    {
-      title: 'Resize Gambar',
-      category: 'image' as ToolCategory,
-      desc: 'Kompres ukuran gambar sesuai target KB/MB dan bersihkan metadata EXIF.',
-      icon: ImageIcon,
-      iconClass: 'bg-teal-50 text-teal-800',
-      action: () => setShowImageResizeModal(true)
+      title: 'Nomor Halaman',
+      category: 'organize' as ToolCategory,
+      desc: 'Sisipkan penomoran halaman otomatis dengan format angka, letak posisi, dan margin fleksibel.',
+      icon: Hash,
+      iconClass: 'bg-stone-100 text-stone-800',
+      action: () => setShowPdfPageNumbersModal(true)
     },
     {
       title: 'Edit PDF',
@@ -527,7 +612,35 @@ export function App() {
       desc: 'Atur urutan, putar, hapus halaman, serta tambah teks & tanda tangan.',
       icon: FileEdit,
       iconClass: 'bg-stone-100 text-stone-800',
+      comingSoon: true,
       action: () => setShowPdfEditorModal(true)
+    },
+    {
+      title: 'Repair PDF',
+      category: 'organize' as ToolCategory,
+      desc: 'Pulihkan berkas PDF yang rusak dan selamatkan data di dalamnya secara aman.',
+      icon: Wrench,
+      iconClass: 'bg-stone-100 text-stone-800',
+      comingSoon: true,
+      action: () => setShowPdfRepairModal(true)
+    },
+    {
+      title: 'PDF to Markdown',
+      category: 'extract' as ToolCategory,
+      desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) dengan mempertahankan heading, tabel, list & tautan.',
+      icon: FileCode,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowPdfToMarkdownModal(true)
+    },
+    {
+      title: 'OCR PDF',
+      category: 'extract' as ToolCategory,
+      desc: 'Ubah PDF hasil scan menjadi dokumen yang teksnya dapat dicari dan disalin.',
+      icon: FileSearch,
+      iconClass: 'bg-teal-50 text-teal-800',
+      comingSoon: true,
+      action: () => setShowPdfOcrModal(true)
     },
     {
       title: 'Sign PDF',
@@ -560,45 +673,110 @@ export function App() {
       }
     },
     {
-      title: 'Repair PDF',
-      category: 'organize' as ToolCategory,
-      desc: 'Pulihkan berkas PDF yang rusak dan selamatkan data di dalamnya secara aman.',
-      icon: Wrench,
-      iconClass: 'bg-stone-100 text-stone-800',
-      action: () => setShowPdfRepairModal(true)
+      title: 'PDF & Gambar',
+      category: 'image' as ToolCategory,
+      desc: 'Ubah gambar menjadi PDF atau ekstrak seluruh halaman PDF ke gambar.',
+      icon: Archive,
+      iconClass: 'bg-amber-50 text-amber-800',
+      action: () => {
+        setPdfToolsTab('img2pdf')
+        setShowPdfToolsModal(true)
+      }
     },
     {
-      title: 'OCR PDF',
-      category: 'extract' as ToolCategory,
-      desc: 'Ubah PDF hasil scan menjadi dokumen yang teksnya dapat dicari dan disalin.',
-      icon: FileSearch,
-      iconClass: 'bg-teal-50 text-teal-800',
-      action: () => setShowPdfOcrModal(true)
-    },
-    {
-      title: 'Watermark PDF',
-      category: 'organize' as ToolCategory,
-      desc: 'Bubuhkan stempel teks atau logo transparan pada halaman dengan posisi dan rotasi kustom.',
-      icon: Stamp,
-      iconClass: 'bg-stone-100 text-stone-800',
-      action: () => setShowPdfWatermarkModal(true)
-    },
-    {
-      title: 'Nomor Halaman',
-      category: 'organize' as ToolCategory,
-      desc: 'Sisipkan penomoran halaman otomatis dengan format angka, letak posisi, dan margin fleksibel.',
-      icon: Hash,
-      iconClass: 'bg-stone-100 text-stone-800',
-      action: () => setShowPdfPageNumbersModal(true)
-    },
-    {
-      title: 'PDF to Markdown',
-      category: 'extract' as ToolCategory,
-      desc: 'Ekstrak dokumen PDF menjadi berkas Markdown (.md) dengan mempertahankan heading, tabel, list & tautan.',
-      icon: FileCode,
+      title: 'Hapus Latar Belakang',
+      category: 'image' as ToolCategory,
+      desc: 'Hapus latar belakang foto otomatis menggunakan AI U2NetP dan ganti warna latar pasfoto.',
+      icon: Sparkles,
       iconClass: 'bg-teal-50 text-teal-800',
       isNew: true,
-      action: () => setShowPdfToMarkdownModal(true)
+      action: () => {
+        setRemoveBgInitialMode('transparent')
+        setShowRemoveBackgroundModal(true)
+      }
+    },
+    {
+      title: 'Photo Profile Maker',
+      category: 'image' as ToolCategory,
+      desc: 'Buat foto profil & avatar media sosial (LinkedIn, WA, IG) dengan crop lingkaran, latar warna/gradasi/blur, dan border kustom.',
+      icon: CircleUser,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      action: () => setShowPhotoProfileModal(true)
+    },
+    {
+      title: 'Resize Gambar',
+      category: 'image' as ToolCategory,
+      desc: 'Kompres ukuran gambar sesuai target KB/MB dan bersihkan metadata EXIF.',
+      icon: ImageIcon,
+      iconClass: 'bg-teal-50 text-teal-800',
+      action: () => setShowImageResizeModal(true)
+    },
+    {
+      title: 'Blur Background',
+      category: 'image' as ToolCategory,
+      desc: 'Buat efek bokeh/blur artistik pada latar belakang foto dengan subjek tetap tajam secara instan.',
+      icon: Focus,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      comingSoon: true,
+      action: () => {
+        setRemoveBgInitialMode('blur')
+        setShowRemoveBackgroundModal(true)
+      }
+    },
+    {
+      title: 'WebP ke JPG',
+      category: 'image' as ToolCategory,
+      desc: 'Konversi gambar WebP ke JPG dengan fidelitas ukuran asli, opsi warna latar, dan kontrol kualitas.',
+      icon: FileImage,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      isBrowserOnly: true,
+      comingSoon: true,
+      action: () => setShowWebpToJpgModal(true)
+    },
+    {
+      title: 'Compress Video',
+      category: 'media' as ToolCategory,
+      desc: 'Kompres ukuran video MP4, MOV, dan WebM hingga 1080p/30 FPS dengan 3 preset tanpa metadata privasi.',
+      icon: Film,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      requiresAuth: true,
+      comingSoon: true,
+      action: () => setShowCompressVideoModal(true)
+    },
+    {
+      title: 'MP4 ke MP3',
+      category: 'media' as ToolCategory,
+      desc: 'Ekstrak audio MP3 berkualitas tinggi (128k, 192k, 320k) dari berkas video MP4 secara aman.',
+      icon: Music,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      requiresAuth: true,
+      comingSoon: true,
+      action: () => setShowMp4ToMp3Modal(true)
+    },
+    {
+      title: 'Video ke Teks',
+      category: 'media' as ToolCategory,
+      desc: 'Transkripsikan rekaman video MP4 menjadi teks dan subtitel bertimestamp (ID/EN) secara privat.',
+      icon: FileText,
+      iconClass: 'bg-teal-50 text-teal-800',
+      requiresAuth: true,
+      comingSoon: true,
+      action: () => {}
+    },
+    {
+      title: 'Pengunduh Media',
+      category: 'media' as ToolCategory,
+      desc: 'Unduh video MP4 (maks 720p) dan gambar publik dari YouTube, Instagram, dan TikTok secara aman.',
+      icon: Download,
+      iconClass: 'bg-teal-50 text-teal-800',
+      isNew: true,
+      comingSoon: true,
+      action: () => setShowMediaDownloaderModal(true)
     },
     {
       title: 'Generate QR Code',
@@ -609,17 +787,10 @@ export function App() {
       isNew: true,
       isBrowserOnly: true,
       action: () => setShowQrCodeModal(true)
-    },
-    {
-      title: 'Pengunduh Media',
-      category: 'utility' as ToolCategory,
-      desc: 'Unduh video MP4 (maks 720p) dan gambar publik dari YouTube, Instagram, dan TikTok secara aman.',
-      icon: Download,
-      iconClass: 'bg-teal-50 text-teal-800',
-      isNew: true,
-      action: () => setShowMediaDownloaderModal(true)
     }
   ]
+  const activeToolsCount = TOOLS.filter(tool => !tool.comingSoon).length
+  const comingSoonToolsCount = TOOLS.filter(tool => tool.comingSoon).length
   const normalizedToolQuery = toolQuery.trim().toLowerCase()
   const visibleTools = normalizedToolQuery
     ? TOOLS.filter(tool =>
@@ -635,12 +806,16 @@ export function App() {
     setActiveSection(target.id)
   }
 
+  const toolRequiresAuth = (tool: ToolItem): boolean => {
+    if (tool.isBrowserOnly) return false
+    if (typeof tool.requiresAuth === 'boolean') return tool.requiresAuth
+    return tool.category !== 'convert'
+  }
+
+  // ponytail: boolean comingSoon flag on ToolItem + native disabled button; add feature-flag table when per-cohort rollout needed.
   const handleExecuteTool = (tool: ToolItem) => {
-    if (tool.isBrowserOnly || tool.category === 'convert') {
-      tool.action()
-      return
-    }
-    if (!currentUser) {
+    if (tool.comingSoon) return
+    if (toolRequiresAuth(tool) && !currentUser) {
       setAuthNoticeMessage('Alat komputasi server memerlukan akun terdaftar. Silakan masuk atau daftar terlebih dahulu.')
       setPendingWorkspace('tools')
       window.location.hash = '#/login'
@@ -690,6 +865,11 @@ export function App() {
         onToggleFavorite={toggleDraftFavorite}
         onUndoDelete={undoDelete}
         onTogglePrivateMode={togglePrivateMode}
+        onUserUpdated={() => {
+          getCurrentUser().then(user => {
+            if (user) setCurrentUser(user)
+          })
+        }}
       />
 
       {activeWorkspace === 'home' && (
@@ -701,7 +881,8 @@ export function App() {
           isLoadingDrafts={isLoadingDrafts}
           storageError={storageError}
           onRetryLoadDrafts={refreshList}
-          documentToolsCount={TOOLS.length}
+          documentToolsCount={activeToolsCount}
+          comingSoonToolsCount={comingSoonToolsCount}
           onNavigate={navigateTo}
           onCreateNewResume={handleCreateNewFromDashboard}
           onOpenImportModal={handleImportFromDashboard}
@@ -1112,35 +1293,56 @@ export function App() {
                           <button
                             key={tool.title}
                             type="button"
+                            disabled={Boolean(tool.comingSoon)}
                             onClick={() => handleExecuteTool(tool)}
                             style={{ '--i': index } as CSSProperties}
-                            className="stagger-item group text-left p-5 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl shadow-2xs hover:border-teal-700 dark:hover:border-teal-500 transition duration-150 min-h-44 flex flex-col relative cursor-pointer"
+                            className={`stagger-item group text-left p-5 rounded-2xl shadow-2xs transition duration-150 min-h-44 flex flex-col relative ${
+                              tool.comingSoon
+                                ? 'bg-stone-50/90 dark:bg-stone-900/60 border border-stone-200/80 dark:border-stone-800/80 opacity-75 cursor-not-allowed'
+                                : 'bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-700 dark:hover:border-teal-500 cursor-pointer'
+                            }`}
                             data-testid={`tool-card-${tool.title.toLowerCase().replace(/\s+/g, '-')}`}
                           >
                             <div className="flex items-center justify-between w-full">
                               <span className={`p-3 rounded-xl self-start border border-stone-200/70 dark:border-stone-700 transition-colors ${tool.iconClass}`}><Icon className="w-5 h-5" /></span>
                               <div className="flex items-center gap-1.5">
-                                {tool.isBrowserOnly ? (
-                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md border border-emerald-200 dark:border-emerald-800">
-                                    Browser
+                                {tool.comingSoon ? (
+                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-stone-200/80 dark:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-md border border-stone-300 dark:border-stone-700">
+                                    Coming Soon
                                   </span>
-                                ) : !currentUser && tool.category !== 'convert' ? (
-                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 flex items-center gap-1">
-                                    <Lock className="w-2.5 h-2.5" />
-                                    Perlu Akun
-                                  </span>
-                                ) : null}
-                                {tool.isNew && (
-                                  <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 rounded-md border border-teal-200 dark:border-teal-800">
-                                    Baru
-                                  </span>
+                                ) : (
+                                  <>
+                                    {tool.isBrowserOnly ? (
+                                      <span className="text-2xs font-semibold px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                        Browser
+                                      </span>
+                                    ) : !currentUser && toolRequiresAuth(tool) ? (
+                                      <span className="text-2xs font-semibold px-2 py-0.5 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                                        <Lock className="w-2.5 h-2.5" />
+                                        Perlu Akun
+                                      </span>
+                                    ) : null}
+                                    {tool.isNew && (
+                                      <span className="text-2xs font-semibold px-2 py-0.5 bg-teal-50 dark:bg-teal-950 text-teal-900 dark:text-teal-300 rounded-md border border-teal-200 dark:border-teal-800">
+                                        Baru
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
-                            <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 mt-4 group-hover:text-teal-900 dark:group-hover:text-teal-300 transition-colors">{tool.title}</h3>
+                            <h3 className={`text-base font-bold mt-4 transition-colors ${
+                              tool.comingSoon
+                                ? 'text-stone-700 dark:text-stone-300'
+                                : 'text-stone-900 dark:text-stone-100 group-hover:text-teal-900 dark:group-hover:text-teal-300'
+                            }`}>{tool.title}</h3>
                             <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 mt-1.5 flex-1">{tool.desc}</p>
-                            <span className="mt-4 text-xs font-semibold text-teal-800 dark:text-teal-400">
-                              {tool.isBrowserOnly ? 'Buka di browser' : !currentUser && tool.category !== 'convert' ? 'Masuk untuk membuka' : 'Buka utilitas'}
+                            <span className={`mt-4 text-xs font-semibold ${
+                              tool.comingSoon
+                                ? 'text-stone-500 dark:text-stone-400'
+                                : 'text-teal-800 dark:text-teal-400'
+                            }`}>
+                              {tool.comingSoon ? 'Coming Soon' : tool.isBrowserOnly ? 'Buka di browser' : !currentUser && toolRequiresAuth(tool) ? 'Masuk untuk membuka' : 'Buka utilitas'}
                             </span>
                           </button>
                         )
@@ -1155,7 +1357,7 @@ export function App() {
               <ShieldCheck className="w-5 h-5 text-teal-800 dark:text-teal-400 shrink-0 mt-0.5" />
               <div>
                 <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Pemrosesan aman &amp; privat</h3>
-                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">Dokumen diproses secara aman melalui server Satukit. Berkas sementara dibersihkan otomatis.</p>
+                <p className="text-xs text-stone-600 dark:text-stone-400 mt-1">Dokumen diproses secara aman melalui server Beresin. Berkas sementara dibersihkan otomatis.</p>
               </div>
             </div>
 
@@ -1177,7 +1379,22 @@ export function App() {
           onLoginSuccess={handleLoginSuccess}
           onNavigateHome={() => navigateTo('home')}
           noticeMessage={authNoticeMessage}
+          initialErrorMessage={authErrorMessage}
         />
+      )}
+
+      {googleToast && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm sm:max-w-md animate-toast-in">
+          <KituNotice
+            variant="toast"
+            tone={googleToast.tone}
+            expression={googleToast.tone === 'success' ? 'hore' : 'kecewa'}
+            title={googleToast.title}
+            role="status"
+          >
+            <span>{googleToast.message}</span>
+          </KituNotice>
+        </div>
       )}
 
       {importUndo && draft?.id === importUndo.draftId && (
@@ -1326,6 +1543,18 @@ export function App() {
         onClose={() => setShowMediaDownloaderModal(false)}
       />
 
+      {/* Modal Compress Video */}
+      <CompressVideoModal
+        isOpen={showCompressVideoModal}
+        onClose={() => setShowCompressVideoModal(false)}
+      />
+
+      {/* Modal MP4 ke MP3 */}
+      <Mp4ToMp3Modal
+        isOpen={showMp4ToMp3Modal}
+        onClose={() => setShowMp4ToMp3Modal(false)}
+      />
+
       {/* Modal Keamanan PDF (Unlock & Protect) */}
       <PdfSecurityModal
         isOpen={showPdfSecurityModal}
@@ -1349,6 +1578,12 @@ export function App() {
       <PdfWatermarkModal
         isOpen={showPdfWatermarkModal}
         onClose={() => setShowPdfWatermarkModal(false)}
+      />
+
+      {/* Modal Hapus Watermark */}
+      <WatermarkRemovalModal
+        isOpen={showWatermarkRemovalModal}
+        onClose={() => setShowWatermarkRemovalModal(false)}
       />
 
       {/* Modal Nomor Halaman PDF */}

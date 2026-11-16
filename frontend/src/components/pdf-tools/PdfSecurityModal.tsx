@@ -258,7 +258,7 @@ export const PdfSecurityModal: React.FC<PdfSecurityModalProps> = ({
                     Pilih berkas PDF ({activeTab === 'unlock' ? 'terenkripsi password' : 'yang ingin diproteksi'})
                   </span>
                   <span className="text-3xs text-stone-600 block mt-0.5">
-                    Maksimum ukuran 25 MB • Pemrosesan aman di server Satukit
+                    Maksimum ukuran 25 MB • Pemrosesan aman di server Beresin
                   </span>
                 </div>
                 <input

@@ -19,10 +19,13 @@ import { PdfSecurityModal } from '../pdf-tools/PdfSecurityModal'
 import { PdfRepairModal } from '../pdf-tools/PdfRepairModal'
 import { PdfOcrModal } from '../pdf-tools/PdfOcrModal'
 import { PdfWatermarkModal } from '../pdf-tools/PdfWatermarkModal'
+import { WatermarkRemovalModal } from '../pdf-tools/WatermarkRemovalModal'
 import { PdfPageNumbersModal } from '../pdf-tools/PdfPageNumbersModal'
 import { PdfToMarkdownModal } from '../pdf-tools/PdfToMarkdownModal'
 import { ImageResizeModal } from '../image-tools/ImageResizeModal'
 import { RemoveBackgroundModal } from '../image-tools/RemoveBackgroundModal'
+import { CompressVideoModal } from '../video-tools/CompressVideoModal'
+import { Mp4ToMp3Modal } from '../video-tools/Mp4ToMp3Modal'
 import { type ResumeDraft, createEmptyResumeData } from '../../types/resume'
 
 const dummyDraft: ResumeDraft = {
@@ -167,7 +170,7 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
     expect(results.violations).toEqual([])
   })
 
-  it('PdfToolsModal, PdfEditorModal, PdfSignModal, PdfSecurityModal, PdfRepairModal, PdfOcrModal, PdfWatermarkModal, PdfPageNumbersModal, PdfToMarkdownModal & ImageResizeModal bebas pelanggaran aksesibilitas', async () => {
+  it('PdfToolsModal, PdfEditorModal, PdfSignModal, PdfSecurityModal, PdfRepairModal, PdfOcrModal, PdfWatermarkModal, WatermarkRemovalModal, PdfPageNumbersModal, PdfToMarkdownModal & ImageResizeModal bebas pelanggaran aksesibilitas', async () => {
     const { container } = render(
       <div>
         <PdfToolsModal isOpen={true} onClose={vi.fn()} />
@@ -178,12 +181,25 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
         <PdfRepairModal isOpen={true} onClose={vi.fn()} />
         <PdfOcrModal isOpen={true} onClose={vi.fn()} />
         <PdfWatermarkModal isOpen={true} onClose={vi.fn()} />
+        <WatermarkRemovalModal isOpen={true} onClose={vi.fn()} />
         <PdfPageNumbersModal isOpen={true} onClose={vi.fn()} />
         <PdfToMarkdownModal isOpen={true} onClose={vi.fn()} />
         <ImageResizeModal isOpen={true} onClose={vi.fn()} />
         <RemoveBackgroundModal isOpen={true} onClose={vi.fn()} />
       </div>
     )
+    const results = await axe(container)
+    expect(results.violations).toEqual([])
+  })
+
+  it('CompressVideoModal bebas pelanggaran aksesibilitas', async () => {
+    const { container } = render(<CompressVideoModal isOpen={true} onClose={vi.fn()} />)
+    const results = await axe(container)
+    expect(results.violations).toEqual([])
+  })
+
+  it('Mp4ToMp3Modal bebas pelanggaran aksesibilitas', async () => {
+    const { container } = render(<Mp4ToMp3Modal isOpen={true} onClose={vi.fn()} />)
     const results = await axe(container)
     expect(results.violations).toEqual([])
   })

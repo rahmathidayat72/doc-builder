@@ -8,8 +8,8 @@ test.describe('Login Page & Two-Step Anti-Bot Flow', () => {
     await page.goto('/#/tools')
     await expect(page.getByTestId('input-search-tools')).toBeVisible()
 
-    // 2. Klik alat komputasi server (DOCX ke PDF) -> alihkan ke #/login
-    await page.getByTestId('tool-card-docx-ke-pdf').click()
+    // 2. Klik alat komputasi server (Merge Dokumen) -> alihkan ke #/login
+    await page.getByTestId('tool-card-merge-dokumen').click()
     await expect(page).toHaveURL(/#\/login$/)
 
     // 3. Pastikan halaman login penuh terbuka (bukan popup)
@@ -30,15 +30,20 @@ test.describe('Login Page & Two-Step Anti-Bot Flow', () => {
     await expect(page.getByTestId('dashboard-view')).toBeVisible()
   })
 
-  test('pengguna anonim dapat membuka alat murni browser langsung tanpa login', async ({
+  test('pengguna anonim melihat kartu Coming Soon nonaktif dan dapat membuka alat murni browser aktif tanpa login', async ({
     page,
   }) => {
     await page.goto('/#/tools')
     await expect(page.getByTestId('input-search-tools')).toBeVisible()
 
-    // Klik alat murni browser (WebP ke JPG)
-    await page.getByTestId('tool-card-webp-ke-jpg').click()
-    await expect(page.getByTestId('btn-close-webp-modal')).toBeVisible()
+    // Kartu WebP ke JPG berstatus Coming Soon dan disabled
+    const webpCard = page.getByTestId('tool-card-webp-ke-jpg')
+    await expect(webpCard).toBeDisabled()
+    await expect(webpCard).toContainText('Coming Soon')
+
+    // Klik alat murni browser aktif (Generate QR Code)
+    await page.getByTestId('tool-card-generate-qr-code').click()
+    await expect(page.getByTestId('btn-close-qr-modal')).toBeVisible()
   })
 
   test('tombol masuk di navbar membuka halaman penuh #/login', async ({ page }) => {
@@ -49,6 +54,6 @@ test.describe('Login Page & Two-Step Anti-Bot Flow', () => {
     await page.getByTestId('btn-nav-login').click()
     await expect(page).toHaveURL(/#\/login$/)
     await expect(page.getByTestId('login-page-container')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Masuk ke Satukit' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Masuk ke Beresin' })).toBeVisible()
   })
 })

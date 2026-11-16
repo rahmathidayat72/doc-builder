@@ -551,7 +551,7 @@ export const RemoveBackgroundModal: React.FC<RemoveBackgroundModalProps> = ({
                   Mendeteksi Subjek &amp; Menghapus Latar Belakang...
                 </p>
                 <p className="text-xs text-stone-500 mt-1">
-                  AI U2NetP memproses citra secara efisien di server Satukit
+                  AI U2NetP memproses citra secara efisien di server Beresin
                 </p>
               </div>
               <div className="max-w-xs mx-auto bg-stone-100 rounded-full h-1.5 overflow-hidden">

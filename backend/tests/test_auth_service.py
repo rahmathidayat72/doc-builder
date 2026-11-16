@@ -135,27 +135,36 @@ def test_google_oauth_new_user_and_idempotent_login(auth_svc: AuthService):
 def test_link_google_account_requires_reauth_and_prevents_conflict(auth_svc: AuthService):
     user, _ = auth_svc.register_user("alice@example.com", "PasswordAlice123", "Alice")
 
+    # Gagal jika email Google berbeda dengan email akun Beresin
+    with pytest.raises(HTTPException, match="harus sama dengan alamat email akun Beresin"):
+        auth_svc.link_google_account(
+            user_id=user.id,
+            provider_user_id="google-alice-123",
+            email="alice.different@example.com",
+            current_password="PasswordAlice123",
+        )
+
     # Gagal jika password saat ini salah
     with pytest.raises(HTTPException, match="kata sandi saat ini tidak valid"):
         auth_svc.link_google_account(
             user_id=user.id,
             provider_user_id="google-alice-123",
-            email="alice@gmail.com",
+            email="alice@example.com",
             current_password="SalahPassword123",
         )
 
-    # Sukses dengan password benar
+    # Sukses dengan password benar dan email sama
     auth_svc.link_google_account(
         user_id=user.id,
         provider_user_id="google-alice-123",
-        email="alice@gmail.com",
+        email="alice@example.com",
         current_password="PasswordAlice123",
     )
 
     # Verifikasi akun Google sekarang dapat digunakan login langsung
     logged_in = auth_svc.authenticate_or_register_google(
         provider_user_id="google-alice-123",
-        email="alice@gmail.com",
+        email="alice@example.com",
         name="Alice Google",
     )
     assert logged_in.id == user.id
@@ -166,7 +175,7 @@ def test_link_google_account_requires_reauth_and_prevents_conflict(auth_svc: Aut
         auth_svc.link_google_account(
             user_id=user_bob.id,
             provider_user_id="google-alice-123",
-            email="bob@gmail.com",
+            email="bob@example.com",
             current_password="PasswordBob123",
         )
 
@@ -179,11 +188,17 @@ def test_unlink_google_account(auth_svc: AuthService):
         name="Google Only",
     )
     with pytest.raises(HTTPException, match="belum membuat kata sandi"):
-        auth_svc.unlink_google_account(g_user.id)
+        auth_svc.unlink_google_account(g_user.id, current_password="AnyPassword123")
 
-    # Beri password ke user, lalu unlink
+    # Beri password ke user
     auth_svc.change_password(g_user.id, old_password="", new_password="NewPassword123")
-    auth_svc.unlink_google_account(g_user.id)
+
+    # Gagal jika password verifikasi unlink salah
+    with pytest.raises(HTTPException, match="Konfirmasi kata sandi tidak valid"):
+        auth_svc.unlink_google_account(g_user.id, current_password="WrongPassword123")
+
+    # Berhasil unlink dengan password benar
+    auth_svc.unlink_google_account(g_user.id, current_password="NewPassword123")
     assert len(auth_svc.get_oauth_accounts_for_user(g_user.id)) == 0
 
 

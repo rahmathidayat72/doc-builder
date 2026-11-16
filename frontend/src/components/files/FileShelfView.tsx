@@ -166,7 +166,7 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
     const isAllowed = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext))
     if (!isAllowed) {
       setErrorMessage(
-        'Format berkas tidak didukung. Satukit mendukung PDF, DOCX, PPT/PPTX, XLS/XLSX, JPG, PNG, WebP, dan Markdown.'
+        'Format berkas tidak didukung. Beresin mendukung PDF, DOCX, PPT/PPTX, XLS/XLSX, JPG, PNG, WebP, dan Markdown.'
       )
       if (fileInputRef.current) fileInputRef.current.value = ''
       return
@@ -636,7 +636,7 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
 
             <div className="p-3.5 bg-stone-50 dark:bg-stone-900/60 rounded-xl text-xs text-stone-600 dark:text-stone-300 space-y-2 border border-stone-200 dark:border-stone-700">
               <p>
-                Sesuai kebijakan keamanan Satukit (<code>RISK-SEC-014</code>), berkas gambar statis
+                Sesuai kebijakan keamanan Beresin (<code>RISK-SEC-014</code>), berkas gambar statis
                 disimpan dengan mempertahankan byte asli penuh (termasuk potensi data lokasi GPS dan
                 model kamera).
               </p>

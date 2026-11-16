@@ -125,7 +125,7 @@ export const ImportResumeModal: React.FC<ImportResumeModalProps> = ({
       const msg = error?.message || ''
       if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
         setErrorMessage(
-          'Server backend Satukit tidak terhubung. Silakan periksa koneksi atau coba beberapa saat lagi.'
+          'Server backend Beresin tidak terhubung. Silakan periksa koneksi atau coba beberapa saat lagi.'
         )
       } else {
         setErrorMessage(msg || 'Gagal mem-parsing berkas CV.')

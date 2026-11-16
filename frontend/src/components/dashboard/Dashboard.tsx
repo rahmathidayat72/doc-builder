@@ -41,6 +41,7 @@ interface DashboardProps {
   storageError?: string | null
   onRetryLoadDrafts?: () => void | Promise<void>
   documentToolsCount?: number
+  comingSoonToolsCount?: number
   onNavigate: (workspace: Workspace) => void
   onCreateNewResume: () => void | Promise<void>
   onOpenImportModal: () => void | Promise<void>
@@ -82,7 +83,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   isLoadingDrafts = false,
   storageError = null,
   onRetryLoadDrafts,
-  documentToolsCount = 20,
+  documentToolsCount = 19,
+  comingSoonToolsCount = 9,
   onNavigate,
   onCreateNewResume,
   onOpenImportModal,
@@ -171,7 +173,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* 2. Hero Satukit: lanskap vektor (tanpa tepi persegi) + gelombang mask + Kitu */}
+      {/* 2. Hero Beresin: lanskap vektor (tanpa tepi persegi) + gelombang mask + Kitu */}
       <section
         aria-labelledby="dashboard-welcome-heading"
         className="hero-wave-mask relative overflow-hidden bg-[linear-gradient(110deg,#e4f9f2_0%,#d3f5ec_40%,#e9fbf5_74%,#f6fffb_100%)] dark:bg-[linear-gradient(110deg,#061a19_0%,#0a2926_46%,#071618_100%)] pt-8 pb-24 sm:pt-10 sm:pb-28 lg:pt-6 lg:pb-28 transition-colors duration-500"
@@ -184,7 +186,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="lg:col-span-6 space-y-4 sm:space-y-6 text-left">
               <div style={delay(80)} className="hero-in inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#c2f6ea] dark:bg-teal-950/80 border border-[#16b89a]/30 dark:border-teal-600/50 text-[#095f57] dark:text-teal-200 font-bold text-[13px] tracking-wide shadow-2xs">
                 <span className="text-[#ffb22e] text-base leading-none" aria-hidden="true">✦</span>
-                <span>Platform Alat Digital Serba Ada</span>
+                <span>Beresin by Satukit</span>
                 {privateMode && (
                   <span className="ml-1 pl-2 border-l border-teal-300 dark:border-teal-700 text-amber-700 dark:text-amber-400 font-bold">
                     Mode Privat Aktif
@@ -197,11 +199,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 style={delay(170)}
                 className="hero-in text-4xl sm:text-5xl lg:text-[3.8rem] font-black tracking-[-0.035em] text-[#17383c] dark:text-white leading-[1.08]"
               >
-                Satu Tempat,
+                Urusan Berkas?
                 <br />
-                Banyak{' '}
                 <span className="relative inline-block text-[#17383c] dark:text-white">
-                  <span className="text-[#0f766e] dark:text-teal-300">Solusi Digital</span>
+                  <span className="text-[#0f766e] dark:text-teal-300">Beresin Aja!</span>
                   <svg
                     className="absolute -bottom-2 sm:-bottom-3 left-0 w-full h-3 sm:h-4 text-[#a3e635] dark:text-teal-400 overflow-visible pointer-events-none"
                     viewBox="0 0 280 20"
@@ -220,7 +221,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </h1>
 
               <p style={delay(270)} className="hero-in text-base sm:text-lg leading-relaxed text-[#40565b] dark:text-stone-300 max-w-xl">
-                Buat CV profesional, edit foto, olah file, dan berbagai alat digital lainnya dalam satu platform yang mudah, cepat, dan gratis untuk dicoba.
+                Buat CV, kelola PDF, konversi dokumen, dan siapkan pasfoto dalam satu tempat.
               </p>
 
               {/* Tombol Aksi Utama */}
@@ -316,7 +317,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </div>
                     </div>
                     <span className="block text-[13px] font-medium text-stone-600 dark:text-stone-300 leading-snug">
-                      Asisten digitalmu di Satukit.
+                      Asisten digitalmu di Beresin by Satukit.
                     </span>
                     {/* Ekor Segitiga Balon */}
                     <div className="absolute -bottom-2.5 left-8 w-4 h-4 bg-white dark:bg-[#0c2427] border-b-2 border-r-2 border-[#079875] dark:border-teal-400 rotate-45" />
@@ -336,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <source srcSet={kituMascotWebp} type="image/webp" />
                     <img
                       src={kituMascotPng}
-                      alt="Kitu — Maskot Resmi Satukit"
+                      alt="Kitu — Asisten Digital Beresin by Satukit"
                       draggable={false}
                       className="relative w-72 sm:w-96 lg:w-[28rem] h-auto object-contain mx-auto select-none drop-shadow-[0_18px_22px_rgba(8,80,70,0.22)] animate-float-gentle"
                     />
@@ -380,7 +381,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="text-center max-w-2xl mx-auto space-y-2">
               <div className="w-12 h-1 bg-[#16b89a] rounded-full mx-auto mb-2.5" />
               <h2 id="features-heading" className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17383c] dark:text-white">
-                Fitur Unggulan Satukit
+                Fitur Unggulan Beresin
               </h2>
               <p className="text-sm sm:text-base text-stone-600 dark:text-stone-400">
                 Berbagai alat digital praktis untuk kebutuhan kerja, belajar, dan produktivitasmu.
@@ -493,7 +494,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </section>
         </Reveal>
 
-        {/* 5. Banner Cara Menggunakan Satukit (3 Langkah Mudah) */}
+        {/* 5. Banner Cara Menggunakan Beresin (3 Langkah Mudah) */}
         <Reveal delay={80}>
           <section
             aria-labelledby="how-it-works-heading"
@@ -502,10 +503,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1.1fr_2.9fr] gap-6 lg:gap-8 items-center">
               <div>
                 <h2 id="how-it-works-heading" className="text-2xl font-black tracking-tight text-[#17383c] dark:text-white">
-                  Cara Menggunakan Satukit
+                  Cara Menggunakan Beresin
                 </h2>
                 <p className="text-sm text-[#40565b] dark:text-stone-300 mt-1 leading-relaxed">
-                  Hanya 3 langkah mudah, semua urusan digital jadi beres!
+                  Hanya 3 langkah mudah, semua urusan berkas jadi beres!
                 </p>
               </div>
 
@@ -633,16 +634,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <div className="px-5 py-3.5 sm:px-6 sm:py-4 min-w-0">
                 <span className="text-[13px] font-medium text-stone-600 dark:text-stone-400 block">
-                  Utilitas dokumen
+                  Utilitas aktif
                 </span>
-                <div className="mt-0.5 flex items-baseline gap-2">
+                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span
                     className="text-xl font-bold text-stone-900 dark:text-stone-100 tabular-nums"
                     data-testid="stat-tools-count"
                   >
                     {documentToolsCount}
                   </span>
-                  <span className="text-[13px] text-stone-600 dark:text-stone-400 truncate">alat PDF &amp; konversi</span>
+                  <span className="text-[13px] text-stone-600 dark:text-stone-400 truncate">aktif</span>
+                  {comingSoonToolsCount > 0 && (
+                    <span
+                      className="text-[13px] font-medium text-stone-600 dark:text-stone-400 tabular-nums"
+                      data-testid="stat-tools-coming-soon"
+                    >
+                      · {comingSoonToolsCount} Coming Soon
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -930,7 +939,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           Alat Dokumen &amp; Konversi
                         </h4>
                         <span className="text-[13px] font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-100/60 dark:bg-emerald-950 px-2 py-0.5 rounded-md tabular-nums">
-                          {documentToolsCount} utilitas
+                          {comingSoonToolsCount > 0
+                            ? `${documentToolsCount} aktif · ${comingSoonToolsCount} Coming Soon`
+                            : `${documentToolsCount} utilitas`}
                         </span>
                       </div>
                       <p className="text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">

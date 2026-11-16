@@ -9,7 +9,7 @@ describe('BrandLogo component', () => {
     render(<BrandLogo />)
     const img = screen.getByTestId('satukit-horizontal-logo')
     expect(img).toBeInTheDocument()
-    expect(img).toHaveAttribute('alt', 'Satukit — Satu Tempat, Banyak Solusi Digital')
+    expect(img).toHaveAttribute('alt', 'Beresin by Satukit — Urusan Berkas? Beresin Aja!')
   })
 
   it('merender varian icon mandiri dengan ukuran yang sesuai', () => {
@@ -38,7 +38,7 @@ describe('BrandMascot component', () => {
     render(<BrandMascot />)
     const mascot = screen.getByTestId('kitu-mascot')
     expect(mascot).toBeInTheDocument()
-    const img = screen.getByAltText('Kitu — Maskot Resmi Satukit')
+    const img = screen.getByAltText('Kitu — Asisten Digital Beresin by Satukit')
     expect(img).toBeInTheDocument()
   })
 

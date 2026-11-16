@@ -341,17 +341,50 @@ describe('App integration', () => {
     window.location.hash = '#/tools'
     render(<App />)
 
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-user-profile')).toBeInTheDocument()
+    })
+
     expect(screen.getByRole('heading', { name: 'Konversi Dokumen' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Kelola & Optimasi PDF' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Ekstraksi & Digitalisasi' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Keamanan & Tanda Tangan' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Gambar & Foto' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Media & Audio' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Utilitas Digital' })).toBeInTheDocument()
+
+    const comingSoonTestIds = [
+      'tool-card-pengunduh-media',
+      'tool-card-blur-background',
+      'tool-card-webp-ke-jpg',
+      'tool-card-ocr-pdf',
+      'tool-card-edit-pdf',
+      'tool-card-repair-pdf',
+      'tool-card-compress-video',
+      'tool-card-mp4-ke-mp3',
+      'tool-card-video-ke-teks',
+    ]
+    for (const testId of comingSoonTestIds) {
+      const card = screen.getByTestId(testId)
+      expect(card).toBeInTheDocument()
+      expect(card).toBeDisabled()
+      expect(card).toHaveTextContent('Coming Soon')
+      expect(card).not.toHaveTextContent('Perlu Akun')
+      expect(card).not.toHaveTextContent('Browser')
+      expect(card).not.toHaveTextContent('Baru')
+      fireEvent.click(card)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    }
 
     const search = screen.getByTestId('input-search-tools')
     fireEvent.change(search, { target: { value: 'ocr' } })
     expect(screen.getByRole('heading', { name: 'OCR PDF' })).toBeInTheDocument()
+    expect(screen.getByTestId('tool-card-ocr-pdf')).toBeDisabled()
     expect(screen.queryByRole('heading', { name: 'Split PDF' })).not.toBeInTheDocument()
+
+    fireEvent.change(search, { target: { value: 'video ke teks' } })
+    expect(screen.getByRole('heading', { name: 'Video ke Teks' })).toBeInTheDocument()
+    expect(screen.getByTestId('tool-card-video-ke-teks')).toBeDisabled()
 
     fireEvent.change(search, { target: { value: 'tidak-ada-alat-xyz' } })
     expect(screen.getByTestId('tools-empty')).toBeInTheDocument()
@@ -359,22 +392,23 @@ describe('App integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hapus pencarian alat' }))
     expect(screen.getByRole('heading', { name: 'Split PDF' })).toBeInTheDocument()
 
-    // Buka alat WebP ke JPG
-    fireEvent.change(search, { target: { value: 'webp' } })
-    expect(screen.getByRole('heading', { name: 'WebP ke JPG' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('heading', { name: 'WebP ke JPG' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('btn-close-webp-modal')).toBeInTheDocument()
-    fireEvent.click(screen.getByTestId('btn-close-webp-modal'))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-
-    // Buka alat Generate QR Code
+    // Buka alat aktif Generate QR Code
     fireEvent.change(search, { target: { value: 'qr code' } })
     expect(screen.getByRole('heading', { name: 'Generate QR Code' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('heading', { name: 'Generate QR Code' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByTestId('btn-close-qr-modal')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('btn-close-qr-modal'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Buka alat aktif Hapus Watermark saat user terautentikasi
+    fireEvent.change(search, { target: { value: 'hapus watermark' } })
+    expect(screen.getByTestId('tool-card-hapus-watermark')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Hapus Watermark' })).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('tool-card-hapus-watermark'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByTestId('btn-close-watermark-removal')).toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('btn-close-watermark-removal'))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     // Pemendek URL tidak terdaftar di katalog alat dokumen publik (AUTH-ACCESS-001)
@@ -389,7 +423,7 @@ describe('App integration', () => {
       expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
     })
     expect(window.location.hash).toBe('#/home')
-    expect(screen.getByRole('heading', { name: /Satu Tempat,\s*Banyak Solusi Digital/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Urusan Berkas\?\s*Beresin Aja!/i })).toBeInTheDocument()
     expect(screen.getByTestId('card-workspace-builder')).toBeInTheDocument()
     expect(screen.getByTestId('card-workspace-tools')).toBeInTheDocument()
   })
@@ -441,6 +475,8 @@ describe('App integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
     })
+    expect(screen.getByTestId('stat-tools-count')).toHaveTextContent('19')
+    expect(screen.getByTestId('stat-tools-coming-soon')).toHaveTextContent('9 Coming Soon')
 
     // 1. Klik tombol navigasi Tools di navbar -> pengguna anonim bisa melihat direktori tools
     fireEvent.click(screen.getByRole('button', { name: /Tools/i }))
@@ -449,17 +485,25 @@ describe('App integration', () => {
       expect(screen.getByTestId('input-search-tools')).toBeInTheDocument()
     })
 
-    // 2. Klik alat browser murni (WebP ke JPG) -> modal langsung terbuka tanpa dialihkan ke login
+    // 2. Kartu WebP ke JPG berstatus Coming Soon (disabled) dan tidak membuka modal
     const webpToolBtn = screen.getByTestId('tool-card-webp-ke-jpg')
     expect(webpToolBtn).toBeInTheDocument()
+    expect(webpToolBtn).toBeDisabled()
+    expect(webpToolBtn).toHaveTextContent('Coming Soon')
     fireEvent.click(webpToolBtn)
+    expect(screen.queryByTestId('btn-close-webp-modal')).not.toBeInTheDocument()
+
+    // 2b. Klik alat browser murni aktif (Generate QR Code) -> modal langsung terbuka tanpa dialihkan ke login
+    const qrToolBtn = screen.getByTestId('tool-card-generate-qr-code')
+    expect(qrToolBtn).toBeInTheDocument()
+    fireEvent.click(qrToolBtn)
 
     await waitFor(() => {
-      expect(screen.getByTestId('btn-close-webp-modal')).toBeInTheDocument()
+      expect(screen.getByTestId('btn-close-qr-modal')).toBeInTheDocument()
     })
 
-    // Tutup modal WebP ke JPG
-    fireEvent.click(screen.getByTestId('btn-close-webp-modal'))
+    // Tutup modal Generate QR Code
+    fireEvent.click(screen.getByTestId('btn-close-qr-modal'))
 
     // 3. Klik alat kelompok Konversi Dokumen (DOCX ke PDF) -> modal terbuka langsung tanpa login
     const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
@@ -487,5 +531,68 @@ describe('App integration', () => {
         screen.getByText('Alat komputasi server memerlukan akun terdaftar. Silakan masuk atau daftar terlebih dahulu.')
       ).toBeInTheDocument()
     })
+  })
+
+  it('pengguna anonim yang mengklik kartu Hapus Watermark dialihkan ke halaman login tanpa membuka modal', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null)
+    window.location.hash = '#/tools'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('btn-nav-login')).toBeInTheDocument()
+      expect(screen.getByTestId('tool-card-hapus-watermark')).toBeInTheDocument()
+    })
+
+    const watermarkRemovalBtn = screen.getByTestId('tool-card-hapus-watermark')
+    expect(watermarkRemovalBtn).toHaveTextContent('Perlu Akun')
+    expect(watermarkRemovalBtn).toHaveTextContent('Masuk untuk membuka')
+    expect(watermarkRemovalBtn).toHaveTextContent('Baru')
+    fireEvent.click(watermarkRemovalBtn)
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/login')
+      expect(screen.getByTestId('login-page-container')).toBeInTheDocument()
+      expect(
+        screen.getByText('Alat komputasi server memerlukan akun terdaftar. Silakan masuk atau daftar terlebih dahulu.')
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('btn-close-watermark-removal')).not.toBeInTheDocument()
+  })
+
+  it('kartu Coming Soon tetap nonaktif bagi pengguna anonim tanpa mengalihkan ke login sementara DOCX ke PDF tetap terbuka tanpa login', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null)
+    window.location.hash = '#/tools'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('btn-nav-login')).toBeInTheDocument()
+      expect(screen.getByTestId('tool-card-compress-video')).toBeInTheDocument()
+    })
+
+    const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
+    expect(docxToolBtn).not.toHaveTextContent('Perlu Akun')
+    expect(docxToolBtn).toHaveTextContent('Buka utilitas')
+
+    const compressVideoBtn = screen.getByTestId('tool-card-compress-video')
+    expect(compressVideoBtn).toBeDisabled()
+    expect(compressVideoBtn).toHaveTextContent('Coming Soon')
+    expect(compressVideoBtn).not.toHaveTextContent('Perlu Akun')
+
+    const mp4ToMp3Btn = screen.getByTestId('tool-card-mp4-ke-mp3')
+    expect(mp4ToMp3Btn).toBeDisabled()
+    expect(mp4ToMp3Btn).toHaveTextContent('Coming Soon')
+    expect(mp4ToMp3Btn).not.toHaveTextContent('Perlu Akun')
+
+    const videoToTextBtn = screen.getByTestId('tool-card-video-ke-teks')
+    expect(videoToTextBtn).toBeDisabled()
+    expect(videoToTextBtn).toHaveTextContent('Coming Soon')
+
+    fireEvent.click(compressVideoBtn)
+    fireEvent.click(mp4ToMp3Btn)
+    fireEvent.click(videoToTextBtn)
+
+    expect(window.location.hash).toBe('#/tools')
+    expect(screen.queryByTestId('login-page-container')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('btn-close-compress-video')).not.toBeInTheDocument()
   })
 })

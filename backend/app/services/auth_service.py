@@ -171,6 +171,7 @@ class AuthService:
         email: str,
         name: str,
         email_verified: bool = True,
+        avatar_url: str | None = None,
     ) -> UserRecord:
         """Menangani login/registrasi Google OAuth dengan penegakan Anti-Auto-Merge (BRULE-013)."""
         norm_email = normalize_email(email)
@@ -180,6 +181,11 @@ class AuthService:
         # 1. Cek apakah provider_user_id sudah tertaut ke akun di tabel oauth_accounts
         oauth_user = self.repo.get_user_by_google_oauth(provider_user_id)
         if oauth_user:
+            if avatar_url and not oauth_user.avatar_url:
+                self.repo.update_user_avatar(oauth_user.id, avatar_url, now)
+                refreshed = self.repo.get_user_by_id(oauth_user.id)
+                if refreshed:
+                    return refreshed
             return oauth_user
 
         # 2. Akun Google belum tertaut. Cek apakah ada akun pengguna dengan email yang sama
@@ -198,6 +204,11 @@ class AuthService:
                 email=norm_email,
                 now=now,
             )
+            if avatar_url and not existing_user.avatar_url:
+                self.repo.update_user_avatar(existing_user.id, avatar_url, now)
+                refreshed = self.repo.get_user_by_id(existing_user.id)
+                if refreshed:
+                    return refreshed
             return existing_user
 
         # 3. User baru mendaftar via Google OAuth
@@ -209,6 +220,7 @@ class AuthService:
             email_verified=email_verified,
             provider_user_id=provider_user_id,
             now=now,
+            avatar_url=avatar_url,
         )
 
     def link_google_account(
@@ -217,6 +229,8 @@ class AuthService:
         provider_user_id: str,
         email: str,
         current_password: str | None = None,
+        avatar_url: str | None = None,
+        bypass_password_check: bool = False,
     ) -> None:
         """Menautkan akun Google ke user yang sedang login dengan verifikasi password sadar."""
         norm_email = normalize_email(email)
@@ -226,8 +240,15 @@ class AuthService:
         if not user:
             raise UserNotFoundError()
 
-        # Jika akun memiliki password, wajib verifikasi password saat ini
-        if user.has_password:
+        # Email Google wajib sama dengan email akun Beresin
+        if normalize_email(user.email) != norm_email:
+            raise HTTPException(
+                status_code=400,
+                detail="Alamat email akun Google harus sama dengan alamat email akun Beresin Anda.",
+            )
+
+        # Jika akun memiliki password dan tidak di-bypass, wajib verifikasi password saat ini
+        if user.has_password and not bypass_password_check:
             valid_pw = current_password is not None and verify_password(
                 current_password, user.password_hash or ""
             )
@@ -237,12 +258,27 @@ class AuthService:
                     detail="Konfirmasi kata sandi saat ini tidak valid untuk menautkan akun.",
                 )
 
+        # Cek apakah user sudah punya akun Google yang tertaut dengan provider_user_id berbeda
+        existing_oauths = self.repo.get_oauth_accounts_for_user(user_id)
+        for acc in existing_oauths:
+            if acc.get("provider") == "google":
+                # Jika sudah ada akun google yang tertaut dan berbeda, tolak penggantian diam-diam
+                existing_puid = self.repo.get_google_oauth_user_id(provider_user_id)
+                if existing_puid != user_id and acc.get("email") != norm_email:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "Akun Anda sudah menautkan akun Google lain. "
+                            "Harap putuskan tautan lama terlebih dahulu."
+                        ),
+                    )
+
         # Pastikan provider_user_id belum dipakai oleh user lain
         conflict_user_id = self.repo.get_google_oauth_user_id(provider_user_id)
         if conflict_user_id and conflict_user_id != user_id:
             raise HTTPException(
                 status_code=409,
-                detail="Akun Google ini telah ditautkan ke akun Satukit lainnya.",
+                detail="Akun Google ini telah ditautkan ke akun Satukit lainnya di Beresin.",
             )
 
         # Hapus jika ada tautan google lama untuk user ini lalu pasang yang baru
@@ -253,8 +289,15 @@ class AuthService:
             email=norm_email,
             now=now,
         )
+        if avatar_url and not user.avatar_url:
+            self.repo.update_user_avatar(user_id, avatar_url, now)
 
-    def unlink_google_account(self, user_id: str) -> None:
+    def unlink_google_account(
+        self,
+        user_id: str,
+        current_password: str | None = None,
+        bypass_password_check: bool = False,
+    ) -> None:
         """Memutuskan tautan akun Google. Pengguna wajib memiliki password lokal."""
         user = self.repo.get_user_by_id(user_id)
         if not user:
@@ -269,7 +312,19 @@ class AuthService:
                 ),
             )
 
+        if not bypass_password_check:
+            valid_pw = current_password is not None and verify_password(
+                current_password, user.password_hash or ""
+            )
+            if not valid_pw:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Konfirmasi kata sandi tidak valid untuk memutuskan tautan Google.",
+                )
+
         self.repo.unlink_google_oauth(user_id)
+        if user.avatar_url and "googleusercontent.com" in user.avatar_url:
+            self.repo.update_user_avatar(user_id, None, time.time())
 
     def create_session(
         self,
@@ -392,7 +447,9 @@ class AuthService:
             raise InvalidTokenError("Token verifikasi ini sudah pernah digunakan sebelumnya.")
 
         if expires_at <= now:
-            raise InvalidTokenError("Token verifikasi telah kedaluwarsa. Silakan minta tautan baru.")
+            raise InvalidTokenError(
+                "Token verifikasi telah kedaluwarsa. Silakan minta tautan baru."
+            )
 
         return self.repo.consume_email_verification_token(
             user_id=user_id,

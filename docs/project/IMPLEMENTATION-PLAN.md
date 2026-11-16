@@ -195,3 +195,45 @@ Phase 14: E2E Verification & VPS Production Live
   - `DB-POSTGRES-006`: Hardening PostgreSQL Co-located di VPS (Tuning RAM shared_buffers 128MB, loopback listen 127.0.0.1, least-privilege app user).
   - `DB-POSTGRES-007`: SQLite Retirement Gate (Pemutusan dependency SQLite backend, pengalihan inisialisasi startup ke PostgreSQL).
 - **Exit Criteria:** Autentikasi dan sesi berjalan 100% di PostgreSQL; pengalihan URL lokal 302 berfungsi dengan atomic click count; test konkurensi dan security lolos; konsumsi memori database aman (<400 MB RSS).
+
+## 6. Fase Fitur Compress Video (2026-11-12 — `CR-021`)
+
+### Phase: `phase-video-compression` — Fitur Compress Video Asinkron (`CR-021`)
+- **Tujuan:** Menyediakan alat ke-26 Satukit (**Compress Video**) untuk mengecilkan video lokal MP4/MOV/WebM (≤ 250 MB, ≤ 600 detik, ≤ 4K/60 FPS) menjadi MP4 H.264/AAC ≤ 1080p/30 FPS melalui 3 preset kualitas (`Ringan`, `Seimbang`, `Maksimum`) secara aman pada VPS 1 vCPU / 2.2 GiB RAM.
+- **Scope Task:**
+  - `VC-00`: Sinkronisasi tata kelola, dokumen arsitektur/keamanan/strategi uji, traceability, dan fase `phase-video-compression`.
+  - `VC-01`: Skema PostgreSQL (`video_compression_jobs`, migration `004_video_compression.py`), model & repository antrean/kuota/claim atomik, konfigurasi `Settings`, serta endpoint raw streaming upload (`request.stream()`, `X-Video-Metadata`, `1.25 GiB` workspace cap).
+  - `VC-02`: Layanan kompresi video (`video_compressor.py`), upgrade streaming 64 KiB `ClamAVScanner.scan_file()`, integrasi `bubblewrap --unshare-net` + process-group kill, validasi `ffprobe`, transcoding `ffmpeg` 3 preset tanpa upscale & strip metadata, `OUTPUT_NOT_SMALLER`, serta worker daemon `app.workers.video_worker`.
+  - `VC-03`: Endpoint manajemen job (`GET /{job_id}`, `GET /{job_id}/download` atomik single-use claim, `DELETE /{job_id}` batal & hapus), audit trail non-PII, serta telemetry `ffmpeg`/`ffprobe` & heartbeat worker di `/api/health`.
+  - `VC-04`: Artefak deployment VPS (`deploy/satukit-video-worker.service`, override route `POST /api/video-compressions` pada `deploy/Caddyfile.example` dengan batas global 35 MB tetap utuh, `deploy/VIDEO-COMPRESSION.md`) — menjaga `deploy/RUNBOOK.md` tetap tidak tersentuh.
+  - `VC-05`: Frontend client API streaming (`videoCompression.ts`), modal interaktif `CompressVideoModal.tsx` (preset, progres upload, polling status, cancel, hasil & `OUTPUT_NOT_SMALLER`), serta integrasi katalog alat ke-26 di `App.tsx` dengan guard login wajib.
+  - `VC-06`: Audit aksesibilitas WCAG 2.2 AA (`vitest-axe`), update Playwright E2E `stat-tools-count` `'26'`, full regression backend/frontend, Ruff/Oxlint/build/secret scan, dan penutupan tracking fase (termasuk status terbuka `RISK-SEC-023` benchmark Ubuntu staging).
+- **Detail Lengkap:** Lihat `docs/project/phases/phase-video-compression.md`.
+- **Exit Criteria:** Seluruh unit/integration/security/accessibility/E2E test lulus di dev environment; benchmark Ubuntu staging (`Q-007` / `RISK-SEC-023`) tercatat jelas sebagai prasyarat wajib rilis produksi.
+
+## 7. Fase Fitur MP4 ke MP3 (2026-11-13 — `CR-022`)
+
+### Phase: `phase-mp4-to-mp3` — Fitur Konversi MP4 ke MP3 Asinkron (`CR-022`)
+- **Tujuan:** Menyediakan alat ke-27 Satukit (**MP4 ke MP3**) untuk mengekstrak audio dari video lokal MP4 (≤ 250 MB, ≤ 600 detik) menjadi berkas MP3 stereo murni (CBR 128k, 192k default, 320k) dengan memanfaatkan kembali antrean PostgreSQL, worker daemon `satukit-video-worker`, dan endpoint `POST /api/video-compressions` dari `CR-021` secara aman dan efisien pada VPS 1 vCPU / 2.2 GiB RAM.
+- **Scope Task:**
+  - `MP3-00`: Migrasi skema database (`005_mp4_to_mp3.py`), penambahan kolom `job_type` (`compress` vs `extract_audio`) dan check constraint preset MP3 (`128k`, `192k`, `320k`), serta adaptasi `VideoCompressionRepository`.
+  - `MP3-01`: Perluasan service `video_compressor.py` untuk ekstraksi audio FFmpeg `libmp3lame`, penolakan video tanpa audio (`NO_AUDIO_STREAM`), pemilihan audio stream default / 0:a:0, auto-downmix channel > 2 ke stereo (`-ac 2`), penghapusan metadata & cover art, dan penanganan job ekstraksi di `video_worker.py`.
+  - `MP3-02`: Adaptasi endpoint `POST /api/video-compressions` untuk menerima `job_type="extract_audio"`, validasi ekstensi strictly `.mp4`, preset 128k/192k/320k, checkbox konfirmasi hak kepemilikan/izin audio, output filename `<stem>_audio.mp3`, single-use download TTL 15 menit, dan audit log JSONL non-PII (`mp4_to_mp3_requested`, `mp4_to_mp3_downloaded`).
+  - `MP3-03`: Frontend UI modal `Mp4ToMp3Modal.tsx` (dropzone MP4, pilihan bitrate, checkbox kepemilikan audio wajib, upload streaming progress, status polling, penanganan error `NO_AUDIO_STREAM`, download), serta integrasi katalog alat ke-27 di `App.tsx` dengan guard login wajib (`requiresAuth: true`).
+  - `MP3-04`: Audit aksesibilitas WCAG 2.2 AA (`vitest-axe`), pembaruan Playwright E2E assertion `stat-tools-count` menjadi `'27'`, full regression backend/frontend (Pytest, Vitest, Oxlint, Ruff, tsc/vite build, scan_secrets), serta sinkronisasi dokumentasi penutupan fase.
+- **Detail Lengkap:** Lihat `docs/project/phases/phase-mp4-to-mp3.md`.
+- **Exit Criteria:** Seluruh unit, integrasi, API, keamanan, aksesibilitas, dan E2E test lulus di dev environment; kuota konkurensi bersama dengan video compression terbukti efektif; status `RISK-SEC-023` staging benchmark tetap dihormati sebagai release blocker produksi.
+
+## 8. Fase Fitur Video ke Teks (2026-11-13 — `CR-023`)
+
+### Phase: `phase-video-to-text` — Fitur Transkripsi Video ke Teks Asinkron (`CR-023`)
+- **Tujuan:** Menyediakan alat ke-28 Satukit (**Video ke Teks**) untuk mentranskripsikan video MP4 lokal (≤ 250 MB, ≤ 600 detik) menjadi teks dan subtitel bertimestamp (ID/EN) secara privat di VPS lokal menggunakan model AI CPU-only kuantisasi `int8` (`faster-whisper`), menyediakan pratinjau baca-saja penuh, serta menghasilkan paket unduhan arsip ZIP 3-file (`.txt`, `.srt`, `.docx`) sekali unduh TTL 15 menit dengan berbagi antrean bersama `CR-021` dan `CR-022`.
+- **Scope Task:**
+  - `VTT-00`: Sinkronisasi tata kelola, dokumen arsitektur/keamanan/strategi uji/traceability, rencana fase `phase-video-to-text`, dan persetujuan Gerbang 2.
+  - `VTT-01`: Migrasi database PostgreSQL (`006_video_to_text.py`) memperluas check constraint `job_type` (`compress`, `extract_audio`, `transcribe`) dan preset bahasa (`auto`, `id`, `en`), adaptasi repository `VideoCompressionRepository`, serta unit test DB.
+  - `VTT-02`: Audio extraction & transcription pipeline (`transcription_service.py`), probing audio, ekstraksi WAV 16kHz mono PCM, integrasi engine `faster-whisper` int8, generator format TXT, SRT, DOCX (via `python-docx`), pengemas arsip ZIP, pembersihan berkas perantara WAV, integrasi worker `video_worker.py`, dan tes unit backend.
+  - `VTT-03`: Integrasi endpoint HTTP API (`video_compression.py`), parsing metadata `job_type="transcribe"`, preset bahasa `auto`/`id`/`en`, checkbox kepemilikan & izin suara, penyajian pratinjau baca-saja via `preview.json`, streaming download ZIP sekali pakai (`succeeded -> claimed`), audit log non-PII, dan tes API backend.
+  - `VTT-04`: Frontend client service (`videoCompression.ts`), modal UI `VideoToTextModal.tsx` (dropzone MP4, selektor bahasa, checkbox ganda izin, progres tahapan worker, komponen pratinjau baca-saja, tombol unduh ZIP), serta integrasi katalog alat ke-28 di `App.tsx` dengan guard login wajib (`requiresAuth: true`).
+  - `VTT-05`: Audit aksesibilitas WCAG 2.2 AA (`vitest-axe`), pembaruan Playwright E2E assertion `stat-tools-count` menjadi `'28'`, pengujian regresi penuh backend & frontend (Pytest, Vitest, Oxlint, Ruff, build, secret scan), serta penutupan fase.
+- **Detail Lengkap:** Lihat `docs/project/phases/phase-video-to-text.md`.
+- **Exit Criteria:** Seluruh unit, integrasi, API, keamanan, aksesibilitas, dan E2E test lulus di dev environment; kuota antrean bersama terbukti membatasi konkurensi dengan benar; benchmark staging VPS Ubuntu (`RISK-SEC-023` / `Q-007` & akurasi transkripsi) tetap tercatat sebagai prasyarat rilis produksi.

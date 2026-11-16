@@ -27,7 +27,7 @@ export function resolveBackendUrl(
 const BACKEND_URL = resolveBackendUrl()
 
 export const NETWORK_ERROR_MESSAGE =
-  'Layanan Satukit sedang tidak dapat dihubungi. Silakan periksa koneksi atau coba beberapa saat lagi.'
+  'Layanan Beresin sedang tidak dapat dihubungi. Silakan periksa koneksi atau coba beberapa saat lagi.'
 
 let csrfToken: string | null = null
 let bootstrapPromise: Promise<string> | null = null

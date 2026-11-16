@@ -171,7 +171,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
           )}
         </div>
 
-        <div className="text-center text-3xs text-slate-400 pt-4">Satukit Executive</div>
+        <div className="text-center text-3xs text-slate-400 pt-4">Beresin Executive</div>
       </aside>
 
       {/* Kolom Kanan: Pengalaman & Narasi Utama (~65%) */}
@@ -249,7 +249,7 @@ export const VisualExecutiveTemplate: React.FC<TemplateProps> = ({ draft }) => {
         </div>
 
         <footer className="text-right text-3xs text-slate-300">
-          Dihasilkan secara aman dengan Satukit
+          Dihasilkan secara aman dengan Beresin by Satukit
         </footer>
       </main>
     </div>
