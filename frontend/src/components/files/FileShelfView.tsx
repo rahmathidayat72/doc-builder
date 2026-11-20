@@ -140,9 +140,15 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
     if (!hasChecking) return
 
     const timer = setInterval(() => {
-      fetchUserFiles()
-        .then((fresh) => {
-          setItems(fresh)
+      Promise.all([
+        fetchUserFiles(),
+        Promise.resolve(fetchFileMetrics()).catch(() => null),
+      ])
+        .then(([freshFiles, freshMetrics]) => {
+          setItems(freshFiles)
+          if (freshMetrics) {
+            setMetrics(freshMetrics)
+          }
         })
         .catch(() => {})
     }, 4000)
@@ -259,6 +265,13 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
   } else {
     currentState = 'available'
   }
+
+  const isWorkerOffline = Boolean(
+    metrics &&
+      (metrics.worker_fresh === false ||
+        metrics.worker_status === 'unavailable' ||
+        metrics.worker_status === 'stale')
+  )
 
   return (
     <div
@@ -438,9 +451,44 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
 
             <div className="space-y-1">
               <span className="text-stone-500 dark:text-stone-400 font-medium">Masa Simpan</span>
-              <div className="text-teal-700 dark:text-teal-400 font-semibold flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span>30 hari sejak berkas siap</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-teal-700 dark:text-teal-400 font-semibold flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>30 hari sejak berkas siap</span>
+                </div>
+                {metrics.worker_status && (
+                  <span
+                    data-testid="file-worker-badge"
+                    title={
+                      isWorkerOffline
+                        ? 'Worker pemindai Rak Berkas sedang tidak aktif atau tertunda, bukan ClamAV lambat.'
+                        : 'Worker pemindai Rak Berkas berjalan normal.'
+                    }
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      isWorkerOffline
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200'
+                    }`}
+                  >
+                    {isWorkerOffline ? (
+                      <>
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>
+                          Worker pemindai tidak aktif
+                          {metrics.worker_status === 'stale' &&
+                          metrics.heartbeat_age_seconds != null
+                            ? ` (${Math.round(metrics.heartbeat_age_seconds)}s)`
+                            : ''}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-3 h-3" />
+                        <span>Worker pemindai aktif</span>
+                      </>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -545,7 +593,9 @@ export function FileShelfView({ currentUser, onNavigate }: FileShelfViewProps) {
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200"
                           >
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            Memindai ClamAV...
+                            {isWorkerOffline
+                              ? 'Menunggu worker pemindai...'
+                              : 'Memproses & memindai...'}
                           </span>
                         )}
                         {item.status === 'AVAILABLE' && (

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.core.jobs import conversion_job_manager
@@ -267,7 +267,10 @@ async def convert_pdf_to_pptx(file: Annotated[UploadFile, File()]):
 
 
 @router.post("/spreadsheet-to-pdf")
-async def convert_spreadsheet_to_pdf(file: Annotated[UploadFile, File()]):
+async def convert_spreadsheet_to_pdf(
+    file: Annotated[UploadFile, File()],
+    orientation: Annotated[str, Form()] = "auto",
+):
     """Mengonversi berkas lembar kerja Excel (.xlsx / .xls) menjadi PDF."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nama berkas tidak valid.")
@@ -279,6 +282,13 @@ async def convert_spreadsheet_to_pdf(file: Annotated[UploadFile, File()]):
             detail="Format berkas tidak didukung. Harap unggah berkas .xlsx atau .xls.",
         )
 
+    norm_orientation = (orientation or "auto").strip().lower()
+    if norm_orientation not in ("auto", "portrait", "landscape"):
+        raise HTTPException(
+            status_code=400,
+            detail="Orientasi halaman tidak valid. Gunakan auto, portrait, atau landscape.",
+        )
+
     file_bytes = await file.read()
     if len(file_bytes) > MAX_CONVERSION_FILE_SIZE:
         raise HTTPException(
@@ -288,7 +298,11 @@ async def convert_spreadsheet_to_pdf(file: Annotated[UploadFile, File()]):
 
     try:
         with conversion_job_manager.run_job("spreadsheet-to-pdf") as job:
-            pdf_io, err_code = convert_spreadsheet_to_pdf_sandboxed(file_bytes, file.filename)
+            pdf_io, err_code = convert_spreadsheet_to_pdf_sandboxed(
+                file_bytes,
+                file.filename,
+                orientation=norm_orientation,  # type: ignore[arg-type]
+            )
 
             if err_code == "LIBREOFFICE_NOT_FOUND":
                 return JSONResponse(

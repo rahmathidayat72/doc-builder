@@ -10,6 +10,7 @@ import { LanguagesForm } from '../builder/LanguagesForm'
 import { ResumePreview } from '../preview/ResumePreview'
 import { DocxToPdfModal } from '../converter/DocxToPdfModal'
 import { PdfToDocxModal } from '../converter/PdfToDocxModal'
+import { WordPdfModal } from '../converter/WordPdfModal'
 import { PresentationConverterModal } from '../converter/PresentationConverterModal'
 import { SpreadsheetConverterModal } from '../converter/SpreadsheetConverterModal'
 import { PdfToolsModal } from '../pdf-tools/PdfToolsModal'
@@ -157,9 +158,10 @@ describe('WCAG 2.2 AA Accessibility Audits', () => {
     expect(results.violations).toEqual([])
   })
 
-  it('DocxToPdfModal & PdfToDocxModal bebas pelanggaran aksesibilitas', async () => {
+  it('WordPdfModal, DocxToPdfModal & PdfToDocxModal bebas pelanggaran aksesibilitas', async () => {
     const { container } = render(
       <div>
+        <WordPdfModal isOpen={true} onClose={vi.fn()} />
         <DocxToPdfModal isOpen={true} onClose={vi.fn()} />
         <PdfToDocxModal isOpen={true} onClose={vi.fn()} />
         <PresentationConverterModal isOpen={true} onClose={vi.fn()} />

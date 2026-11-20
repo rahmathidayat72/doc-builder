@@ -11,6 +11,11 @@ from app.core.disk_guard import get_disk_space_info
 from app.db.models import RuntimeState
 from app.db.postgres import get_db_session
 from app.services.video_compressor import detect_ffmpeg_binaries
+from app.workers.heartbeat import (
+    FILE_WORKER_HEARTBEAT_KEY,
+    FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+    evaluate_worker_heartbeat,
+)
 from app.workers.video_worker import HEARTBEAT_STATE_KEY
 
 router = APIRouter(tags=["Health"])
@@ -39,52 +44,69 @@ def check_database() -> bool:
         return False
 
 
+def _read_worker_health(
+    state_key: str,
+    *,
+    stale_seconds: float,
+    db_ok: bool,
+    now: float | None = None,
+    include_active_job: bool = False,
+) -> dict[str, object]:
+    """Membaca kesegaran heartbeat worker dari `runtime_state` tanpa path internal."""
+    if not db_ok and _ENGINE_OVERRIDE is None:
+        return evaluate_worker_heartbeat(
+            None,
+            stale_seconds=stale_seconds,
+            now=now,
+            include_active_job=include_active_job,
+        )
+
+    try:
+        with get_db_session(engine_override=_ENGINE_OVERRIDE) as session:
+            state = session.get(RuntimeState, state_key)
+            return evaluate_worker_heartbeat(
+                state,
+                stale_seconds=stale_seconds,
+                now=now,
+                include_active_job=include_active_job,
+            )
+    except Exception:
+        return evaluate_worker_heartbeat(
+            None,
+            stale_seconds=stale_seconds,
+            now=now,
+            include_active_job=include_active_job,
+        )
+
+
 def get_video_worker_health(
     *,
     db_ok: bool,
     now: float | None = None,
 ) -> dict[str, object]:
     """Mengambil kesegaran heartbeat worker video tanpa path filesystem internal."""
-    fallback: dict[str, object] = {
-        "status": "unavailable",
-        "fresh": False,
-        "worker_status": None,
-        "has_active_job": False,
-        "last_heartbeat_at": None,
-        "age_seconds": None,
-    }
-    if not db_ok and _ENGINE_OVERRIDE is None:
-        return fallback
+    return _read_worker_health(
+        HEARTBEAT_STATE_KEY,
+        stale_seconds=VIDEO_WORKER_HEARTBEAT_STALE_SECONDS,
+        db_ok=db_ok,
+        now=now,
+        include_active_job=True,
+    )
 
-    try:
-        with get_db_session(engine_override=_ENGINE_OVERRIDE) as session:
-            state = session.get(RuntimeState, HEARTBEAT_STATE_KEY)
-            if state is None:
-                return fallback
-            raw_val = state.value if isinstance(state.value, dict) else {}
-            raw_ts = raw_val.get("last_heartbeat_at", state.updated_at)
-            try:
-                last_hb = float(raw_ts)
-            except (TypeError, ValueError):
-                last_hb = float(state.updated_at)
 
-            raw_status = raw_val.get("status")
-            worker_status = raw_status if raw_status in ("idle", "processing") else "unknown"
-            has_active_job = bool(raw_val.get("has_active_job", False))
-    except Exception:
-        return fallback
-
-    ts = time.time() if now is None else now
-    age_seconds = max(0.0, round(ts - last_hb, 2))
-    is_fresh = age_seconds <= VIDEO_WORKER_HEARTBEAT_STALE_SECONDS
-    return {
-        "status": "healthy" if is_fresh else "stale",
-        "fresh": is_fresh,
-        "worker_status": worker_status,
-        "has_active_job": has_active_job,
-        "last_heartbeat_at": last_hb,
-        "age_seconds": age_seconds,
-    }
+def get_file_worker_health(
+    *,
+    db_ok: bool,
+    now: float | None = None,
+) -> dict[str, object]:
+    """Mengambil kesegaran heartbeat worker Rak Berkas tanpa path filesystem internal."""
+    return _read_worker_health(
+        FILE_WORKER_HEARTBEAT_KEY,
+        stale_seconds=FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+        db_ok=db_ok,
+        now=now,
+        include_active_job=False,
+    )
 
 
 def get_libreoffice_lease_health(
@@ -168,6 +190,7 @@ def get_health(response: Response):
     disk_info = get_disk_space_info()
     db_ok = check_database()
     worker_health = get_video_worker_health(db_ok=db_ok)
+    file_worker_health = get_file_worker_health(db_ok=db_ok)
     lo_lease_health = get_libreoffice_lease_health(db_ok=db_ok)
 
     is_healthy = db_ok
@@ -191,5 +214,6 @@ def get_health(response: Response):
         "ffmpeg_available": ffmpeg_bin is not None,
         "ffprobe_available": ffprobe_bin is not None,
         "video_worker": worker_health,
+        "file_worker": file_worker_health,
         "disk": disk_info.to_dict(),
     }

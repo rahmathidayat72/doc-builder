@@ -26,8 +26,10 @@ import {
   JobMatchModal,
   type TargetedDraftRequest
 } from './components/ats/JobMatchModal'
-import { DocxToPdfModal } from './components/converter/DocxToPdfModal'
-import { PdfToDocxModal } from './components/converter/PdfToDocxModal'
+import {
+  WordPdfModal,
+  type WordPdfTab
+} from './components/converter/WordPdfModal'
 import {
   PresentationConverterModal,
   type PresentationTab
@@ -104,8 +106,17 @@ import {
   Lock,
   Film,
   Music,
+  ArrowRightLeft,
   X
 } from 'lucide-react'
+
+const WordPdfIcon: React.FC<{ className?: string }> = () => (
+  <span className="inline-flex h-5 items-center justify-center gap-0.5" aria-hidden="true">
+    <FileCode className="w-4 h-4" />
+    <ArrowRightLeft className="w-2.5 h-2.5 opacity-75" />
+    <FileText className="w-4 h-4" />
+  </span>
+)
 
 type ToolCategory = 'convert' | 'organize' | 'extract' | 'security' | 'image' | 'media' | 'utility'
 
@@ -132,7 +143,15 @@ const TOOL_CATEGORIES: { id: ToolCategory; label: string }[] = [
   { id: 'utility', label: 'Utilitas Digital' }
 ]
 
-const GOOGLE_AUTH_STATUS_MAP: Record<string, { message: string; isError?: boolean; target: Workspace }> = {
+const GOOGLE_AUTH_STATUS_MAP: Record<
+  string,
+  { message: string; isError?: boolean; challengeRequired?: boolean; target: Workspace }
+> = {
+  google_challenge_required: {
+    message: 'Autentikasi Google terverifikasi. Selesaikan tantangan anti-bot untuk melanjutkan.',
+    challengeRequired: true,
+    target: 'login',
+  },
   google_login_success: {
     message: 'Berhasil masuk dengan akun Google!',
     target: 'home',
@@ -205,6 +224,7 @@ export function App() {
   const [authReady, setAuthReady] = useState(false)
   const [authNoticeMessage, setAuthNoticeMessage] = useState<string | undefined>()
   const [authErrorMessage, setAuthErrorMessage] = useState<string | undefined>()
+  const [googleChallengeRequired, setGoogleChallengeRequired] = useState(false)
   const [googleToast, setGoogleToast] = useState<{
     tone: 'success' | 'error' | 'info'
     title: string
@@ -255,8 +275,8 @@ export function App() {
   const [atsAnalysis, setAtsAnalysis] = useState<AtsAnalysisResult | null>(null)
   const [showAtsPanel, setShowAtsPanel] = useState(false)
   const [showJobMatchModal, setShowJobMatchModal] = useState(false)
-  const [showConverterModal, setShowConverterModal] = useState(false)
-  const [showPdfToDocxModal, setShowPdfToDocxModal] = useState(false)
+  const [showWordPdfModal, setShowWordPdfModal] = useState(false)
+  const [wordPdfTab, setWordPdfTab] = useState<WordPdfTab>('docx2pdf')
   const [showPresentationModal, setShowPresentationModal] = useState(false)
   const [presentationTab, setPresentationTab] = useState<PresentationTab>('pptx2pdf')
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false)
@@ -298,7 +318,7 @@ export function App() {
   useEffect(() => {
     let isMounted = true
     initAuthSession()
-      .catch(() => {})
+      .catch(() => { })
       .then(() => getCurrentUser())
       .then(user => {
         if (!isMounted) return
@@ -320,7 +340,14 @@ export function App() {
       if (authStatus) {
         const config = GOOGLE_AUTH_STATUS_MAP[authStatus]
         if (config) {
-          if (config.isError && config.target === 'login') {
+          if (config.challengeRequired) {
+            setAuthErrorMessage(undefined)
+            setAuthNoticeMessage(undefined)
+            setGoogleChallengeRequired(true)
+            setActiveWorkspace('login')
+            window.history.replaceState(null, '', '#/login')
+          } else if (config.isError && config.target === 'login') {
+            setGoogleChallengeRequired(false)
             setAuthErrorMessage(config.message)
             setActiveWorkspace('login')
             window.history.replaceState(null, '', '#/login')
@@ -351,6 +378,7 @@ export function App() {
       if (target !== 'login') {
         setAuthNoticeMessage(undefined)
         setAuthErrorMessage(undefined)
+        setGoogleChallengeRequired(false)
       }
       setActiveWorkspace(target)
     }
@@ -380,6 +408,8 @@ export function App() {
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user)
     setAuthNoticeMessage(undefined)
+    setAuthErrorMessage(undefined)
+    setGoogleChallengeRequired(false)
     if (pendingWorkspace === 'tools') {
       setPendingWorkspace(null)
       window.location.hash = '#/tools'
@@ -511,20 +541,15 @@ export function App() {
   const TOOLS: ToolItem[] = [
 
     {
-      title: 'DOCX ke PDF',
+      title: 'Word & PDF',
       category: 'convert' as ToolCategory,
-      desc: 'Konversi dokumen Word menjadi PDF standar.',
-      icon: FileCode,
+      desc: 'Konversi DOCX ke PDF atau rekonstruksi PDF menjadi dokumen Word.',
+      icon: WordPdfIcon,
       iconClass: 'bg-stone-100 text-stone-800',
-      action: () => setShowConverterModal(true)
-    },
-    {
-      title: 'PDF ke DOCX',
-      category: 'convert' as ToolCategory,
-      desc: 'Rekonstruksi PDF menjadi dokumen Word yang dapat diedit.',
-      icon: FileText,
-      iconClass: 'bg-stone-100 text-stone-800',
-      action: () => setShowPdfToDocxModal(true)
+      action: () => {
+        setWordPdfTab('docx2pdf')
+        setShowWordPdfModal(true)
+      }
     },
     {
       title: 'PowerPoint & PDF',
@@ -766,7 +791,7 @@ export function App() {
       iconClass: 'bg-teal-50 text-teal-800',
       requiresAuth: true,
       comingSoon: true,
-      action: () => {}
+      action: () => { }
     },
     {
       title: 'Pengunduh Media',
@@ -794,8 +819,8 @@ export function App() {
   const normalizedToolQuery = toolQuery.trim().toLowerCase()
   const visibleTools = normalizedToolQuery
     ? TOOLS.filter(tool =>
-        `${tool.title} ${tool.desc}`.toLowerCase().includes(normalizedToolQuery)
-      )
+      `${tool.title} ${tool.desc}`.toLowerCase().includes(normalizedToolQuery)
+    )
     : TOOLS
 
   const activeIndex = Math.max(0, SECTIONS.findIndex(s => s.id === activeSection))
@@ -894,247 +919,239 @@ export function App() {
 
       {activeWorkspace === 'builder' && (
         <>
-      {/* Switcher Tab Mobile (Editor vs Preview) */}
-      <div className="lg:hidden shrink-0 px-3 py-2 bg-[#fffaf1] dark:bg-stone-900 border-b border-[#b7ddd4] dark:border-stone-800 transition-colors">
-        <div className="relative grid grid-cols-2 p-1 bg-[#dff8f0] dark:bg-stone-800 border border-[#b7ddd4] dark:border-stone-700 rounded-2xl shadow-2xs">
-          <span
-            aria-hidden="true"
-            className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white dark:bg-stone-900 shadow-[0_4px_14px_rgba(15,118,110,0.12)] transition-transform duration-300 ease-out ${
-              mobileTab === 'preview' ? 'translate-x-full' : 'translate-x-0'
-            }`}
-          />
-          <button
-            type="button"
-            onClick={() => setMobileTab('editor')}
-            aria-pressed={mobileTab === 'editor'}
-            className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${
-              mobileTab === 'editor' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
-            }`}
-          >
-            <Edit3 className="w-4 h-4" />
-            Form Editor
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab('preview')}
-            aria-pressed={mobileTab === 'preview'}
-            className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${
-              mobileTab === 'preview' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
-            }`}
-          >
-            <Eye className="w-4 h-4" />
-            Pratinjau A4
-          </button>
-        </div>
-      </div>
-
-      {/* Workspace Konten Utama */}
-      <main className="flex-1 min-h-0 flex overflow-hidden animate-fade-in">
-        {/* Kolom Kiri: Form Editor */}
-        <section
-          className={`w-full lg:w-[44%] min-w-0 min-h-0 flex-col bg-[#fffdf8] dark:bg-stone-900 border-r border-[#b7ddd4] dark:border-stone-800 transition-colors ${
-            mobileTab === 'editor' ? 'flex' : 'hidden lg:flex'
-          }`}
-          data-testid="builder-editor-panel"
-        >
-          {/* Section Tabs Navigation */}
-          <nav
-            className="shrink-0 flex overflow-x-auto border-b border-[#b7ddd4] dark:border-stone-800 px-2 sm:px-4 gap-1 bg-[#effbf6]/90 dark:bg-stone-900/60 transition-colors [scrollbar-width:thin] sm:scrollbar-none"
-            aria-label="Bagian CV"
-          >
-            {SECTIONS.map(s => {
-              const Icon = s.icon
-              const isActive = activeSection === s.id
-              return (
-                <button
-                  key={s.id}
-                  ref={isActive ? activeTabRef : undefined}
-                  type="button"
-                  onClick={() => setActiveSection(s.id)}
-                  aria-current={isActive ? 'step' : undefined}
-                  className={`group relative flex items-center gap-1.5 px-3 py-3 text-xs font-bold whitespace-nowrap rounded-t-xl transition-colors duration-150 ${
-                    isActive ? 'bg-white/80 text-[#0f766e] dark:bg-stone-800/70 dark:text-teal-300' : 'text-[#53676b] dark:text-stone-400 hover:bg-white/50 hover:text-[#26343a] dark:hover:text-stone-200'
+          {/* Switcher Tab Mobile (Editor vs Preview) */}
+          <div className="lg:hidden shrink-0 px-3 py-2 bg-[#fffaf1] dark:bg-stone-900 border-b border-[#b7ddd4] dark:border-stone-800 transition-colors">
+            <div className="relative grid grid-cols-2 p-1 bg-[#dff8f0] dark:bg-stone-800 border border-[#b7ddd4] dark:border-stone-700 rounded-2xl shadow-2xs">
+              <span
+                aria-hidden="true"
+                className={`absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-xl bg-white dark:bg-stone-900 shadow-[0_4px_14px_rgba(15,118,110,0.12)] transition-transform duration-300 ease-out ${mobileTab === 'preview' ? 'translate-x-full' : 'translate-x-0'
                   }`}
-                  data-testid={`tab-${s.id}`}
-                >
-                  <Icon
-                    className={`w-3.5 h-3.5 transition-colors ${
-                      isActive ? 'text-[#079875] dark:text-teal-400' : 'text-[#66807d] dark:text-stone-500 group-hover:text-[#26343a] dark:group-hover:text-stone-300'
-                    }`}
-                  />
-                  {s.label}
-                  <span
-                    aria-hidden="true"
-                    className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#079875] dark:bg-teal-400 origin-center transition-transform duration-300 ease-out ${
-                      isActive ? 'scale-x-100' : 'scale-x-0'
-                    }`}
-                  />
-                </button>
-              )
-            })}
-          </nav>
-
-          {/* Form Content Area (scroll independen) */}
-          <div ref={formScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[linear-gradient(180deg,#fffdf8_0%,#fff8ec_100%)] dark:bg-none dark:bg-stone-900">
-          <div className="p-4 sm:p-6 max-w-2xl mx-auto w-full">
-            {!draft ? (
-              <div
-                className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in"
-                data-testid="builder-empty-state"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-[#dff8f0] dark:bg-stone-800 text-[#079875] dark:text-teal-300 border border-[#b7ddd4] dark:border-stone-700 flex items-center justify-center shadow-2xs">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div className="max-w-sm">
-                  <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Belum ada CV yang dipilih</h3>
-                  <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
-                    Mulai buat CV baru dari template atau impor data teks dari berkas PDF/DOCX yang sudah ada.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
-                    className="px-4 py-2.5 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full transition shadow-[0_8px_20px_rgba(7,152,117,0.2)] cursor-pointer"
-                    data-testid="btn-builder-create-new"
-                  >
-                    + Buat CV Baru Sekarang
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleImportFromDashboard}
-                    className="px-4 py-2.5 text-xs font-bold text-[#17383c] dark:text-stone-200 bg-white dark:bg-stone-800 border-2 border-[#079875] dark:border-teal-600 hover:bg-[#effbf6] dark:hover:bg-stone-700 rounded-full transition cursor-pointer"
-                    data-testid="btn-builder-import"
-                  >
-                    Impor Berkas
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <SectionOrderForm
-                  order={draft.data.sectionOrder}
-                  templateId={draft.templateId}
-                  onChange={sectionOrder =>
-                    updateData(prev => ({ ...prev, sectionOrder }))
-                  }
-                />
-                <div key={activeSection} className="animate-fade-up">
-                {activeSection === 'contact' && (
-                  <ContactForm
-                    contact={draft.data.contact}
-                    onChange={contact => updateData(prev => ({ ...prev, contact }))}
-                  />
-                )}
-                {activeSection === 'summary' && (
-                  <SummaryForm
-                    summary={draft.data.summary}
-                    onChange={summary => updateData(prev => ({ ...prev, summary }))}
-                  />
-                )}
-                {activeSection === 'experience' && (
-                  <ExperienceForm
-                    experiences={draft.data.experiences}
-                    onChange={experiences => updateData(prev => ({ ...prev, experiences }))}
-                  />
-                )}
-                {activeSection === 'education' && (
-                  <EducationForm
-                    education={draft.data.education}
-                    onChange={education => updateData(prev => ({ ...prev, education }))}
-                  />
-                )}
-                {activeSection === 'skills' && (
-                  <SkillsForm
-                    skills={draft.data.skills}
-                    onChange={skills => updateData(prev => ({ ...prev, skills }))}
-                  />
-                )}
-                {activeSection === 'languages' && (
-                  <LanguagesForm
-                    languages={draft.data.languages}
-                    onChange={languages => updateData(prev => ({ ...prev, languages }))}
-                  />
-                )}
-                {activeSection === 'custom' && (
-                  <CustomSectionsForm
-                    sections={draft.data.customSections}
-                    onChange={customSections =>
-                      updateData(prev => ({ ...prev, customSections }))
-                    }
-                  />
-                )}
-                </div>
-              </>
-            )}
-          </div>
-          </div>
-
-          {/* Footer Navigasi Langkah */}
-          {draft && (
-            <div className="shrink-0 border-t border-[#b7ddd4] dark:border-stone-800 bg-[#effbf6]/95 dark:bg-stone-900/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3 transition-colors shadow-[0_-8px_24px_rgba(15,118,110,0.05)]">
+              />
               <button
                 type="button"
-                onClick={() => goToSection(activeIndex - 1)}
-                disabled={isFirstSection}
-                className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-[#40565b] dark:text-stone-300 bg-white dark:bg-stone-800 rounded-full border border-[#b7ddd4] dark:border-stone-700 hover:bg-[#fffaf1] dark:hover:bg-stone-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Bagian sebelumnya"
-                data-testid="btn-section-prev"
+                onClick={() => setMobileTab('editor')}
+                aria-pressed={mobileTab === 'editor'}
+                className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${mobileTab === 'editor' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
+                  }`}
               >
-                <ChevronLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Sebelumnya</span>
+                <Edit3 className="w-4 h-4" />
+                Form Editor
               </button>
+              <button
+                type="button"
+                onClick={() => setMobileTab('preview')}
+                aria-pressed={mobileTab === 'preview'}
+                className={`relative z-10 py-2 text-xs font-semibold flex items-center justify-center gap-1.5 rounded-lg transition-colors ${mobileTab === 'preview' ? 'text-teal-900 dark:text-teal-300' : 'text-stone-600 dark:text-stone-400'
+                  }`}
+              >
+                <Eye className="w-4 h-4" />
+                Pratinjau A4
+              </button>
+            </div>
+          </div>
 
-              <div className="flex-1 min-w-0" aria-live="polite">
-                <div className="flex items-center justify-between text-2xs font-medium text-stone-600 dark:text-stone-400 mb-1">
-                  <span className="truncate">
-                    Langkah {activeIndex + 1} dari {SECTIONS.length} · <span className="text-stone-900 dark:text-stone-100 font-semibold">{SECTIONS[activeIndex].label}</span>
-                  </span>
-                </div>
-                <div className="h-1 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,#079875,#a3e635)] dark:bg-teal-400 transition-[width] duration-500 ease-out"
-                    style={{ width: `${((activeIndex + 1) / SECTIONS.length) * 100}%` }}
-                  />
+          {/* Workspace Konten Utama */}
+          <main className="flex-1 min-h-0 flex overflow-hidden animate-fade-in">
+            {/* Kolom Kiri: Form Editor */}
+            <section
+              className={`w-full lg:w-[44%] min-w-0 min-h-0 flex-col bg-[#fffdf8] dark:bg-stone-900 border-r border-[#b7ddd4] dark:border-stone-800 transition-colors ${mobileTab === 'editor' ? 'flex' : 'hidden lg:flex'
+                }`}
+              data-testid="builder-editor-panel"
+            >
+              {/* Section Tabs Navigation */}
+              <nav
+                className="shrink-0 flex overflow-x-auto border-b border-[#b7ddd4] dark:border-stone-800 px-2 sm:px-4 gap-1 bg-[#effbf6]/90 dark:bg-stone-900/60 transition-colors [scrollbar-width:thin] sm:scrollbar-none"
+                aria-label="Bagian CV"
+              >
+                {SECTIONS.map(s => {
+                  const Icon = s.icon
+                  const isActive = activeSection === s.id
+                  return (
+                    <button
+                      key={s.id}
+                      ref={isActive ? activeTabRef : undefined}
+                      type="button"
+                      onClick={() => setActiveSection(s.id)}
+                      aria-current={isActive ? 'step' : undefined}
+                      className={`group relative flex items-center gap-1.5 px-3 py-3 text-xs font-bold whitespace-nowrap rounded-t-xl transition-colors duration-150 ${isActive ? 'bg-white/80 text-[#0f766e] dark:bg-stone-800/70 dark:text-teal-300' : 'text-[#53676b] dark:text-stone-400 hover:bg-white/50 hover:text-[#26343a] dark:hover:text-stone-200'
+                        }`}
+                      data-testid={`tab-${s.id}`}
+                    >
+                      <Icon
+                        className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-[#079875] dark:text-teal-400' : 'text-[#66807d] dark:text-stone-500 group-hover:text-[#26343a] dark:group-hover:text-stone-300'
+                          }`}
+                      />
+                      {s.label}
+                      <span
+                        aria-hidden="true"
+                        className={`absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#079875] dark:bg-teal-400 origin-center transition-transform duration-300 ease-out ${isActive ? 'scale-x-100' : 'scale-x-0'
+                          }`}
+                      />
+                    </button>
+                  )
+                })}
+              </nav>
+
+              {/* Form Content Area (scroll independen) */}
+              <div ref={formScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[linear-gradient(180deg,#fffdf8_0%,#fff8ec_100%)] dark:bg-none dark:bg-stone-900">
+                <div className="p-4 sm:p-6 max-w-2xl mx-auto w-full">
+                  {!draft ? (
+                    <div
+                      className="flex flex-col items-center justify-center py-16 text-center space-y-3 animate-fade-in"
+                      data-testid="builder-empty-state"
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-[#dff8f0] dark:bg-stone-800 text-[#079875] dark:text-teal-300 border border-[#b7ddd4] dark:border-stone-700 flex items-center justify-center shadow-2xs">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div className="max-w-sm">
+                        <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Belum ada CV yang dipilih</h3>
+                        <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                          Mulai buat CV baru dari template atau impor data teks dari berkas PDF/DOCX yang sudah ada.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => createNewDraft('Resume Baru', 'ats-clean')}
+                          className="px-4 py-2.5 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full transition shadow-[0_8px_20px_rgba(7,152,117,0.2)] cursor-pointer"
+                          data-testid="btn-builder-create-new"
+                        >
+                          + Buat CV Baru Sekarang
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleImportFromDashboard}
+                          className="px-4 py-2.5 text-xs font-bold text-[#17383c] dark:text-stone-200 bg-white dark:bg-stone-800 border-2 border-[#079875] dark:border-teal-600 hover:bg-[#effbf6] dark:hover:bg-stone-700 rounded-full transition cursor-pointer"
+                          data-testid="btn-builder-import"
+                        >
+                          Impor Berkas
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <SectionOrderForm
+                        order={draft.data.sectionOrder}
+                        templateId={draft.templateId}
+                        onChange={sectionOrder =>
+                          updateData(prev => ({ ...prev, sectionOrder }))
+                        }
+                      />
+                      <div key={activeSection} className="animate-fade-up">
+                        {activeSection === 'contact' && (
+                          <ContactForm
+                            contact={draft.data.contact}
+                            onChange={contact => updateData(prev => ({ ...prev, contact }))}
+                          />
+                        )}
+                        {activeSection === 'summary' && (
+                          <SummaryForm
+                            summary={draft.data.summary}
+                            onChange={summary => updateData(prev => ({ ...prev, summary }))}
+                          />
+                        )}
+                        {activeSection === 'experience' && (
+                          <ExperienceForm
+                            experiences={draft.data.experiences}
+                            onChange={experiences => updateData(prev => ({ ...prev, experiences }))}
+                          />
+                        )}
+                        {activeSection === 'education' && (
+                          <EducationForm
+                            education={draft.data.education}
+                            onChange={education => updateData(prev => ({ ...prev, education }))}
+                          />
+                        )}
+                        {activeSection === 'skills' && (
+                          <SkillsForm
+                            skills={draft.data.skills}
+                            onChange={skills => updateData(prev => ({ ...prev, skills }))}
+                          />
+                        )}
+                        {activeSection === 'languages' && (
+                          <LanguagesForm
+                            languages={draft.data.languages}
+                            onChange={languages => updateData(prev => ({ ...prev, languages }))}
+                          />
+                        )}
+                        {activeSection === 'custom' && (
+                          <CustomSectionsForm
+                            sections={draft.data.customSections}
+                            onChange={customSections =>
+                              updateData(prev => ({ ...prev, customSections }))
+                            }
+                          />
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {isLastSection ? (
-                <button
-                  type="button"
-                  onClick={() => openExportModal('pdf')}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
-                  data-testid="btn-section-finish"
-                >
-                  <Download className="w-4 h-4" />
-                  <span className="hidden sm:inline">Periksa &amp; Unduh</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => goToSection(activeIndex + 1)}
-                  className="flex items-center gap-1 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
-                  aria-label="Bagian berikutnya"
-                  data-testid="btn-section-next"
-                >
-                  <span className="hidden sm:inline">Berikutnya</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
-        </section>
+              {/* Footer Navigasi Langkah */}
+              {draft && (
+                <div className="shrink-0 border-t border-[#b7ddd4] dark:border-stone-800 bg-[#effbf6]/95 dark:bg-stone-900/95 backdrop-blur px-3 sm:px-5 py-2.5 flex items-center gap-3 transition-colors shadow-[0_-8px_24px_rgba(15,118,110,0.05)]">
+                  <button
+                    type="button"
+                    onClick={() => goToSection(activeIndex - 1)}
+                    disabled={isFirstSection}
+                    className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-[#40565b] dark:text-stone-300 bg-white dark:bg-stone-800 rounded-full border border-[#b7ddd4] dark:border-stone-700 hover:bg-[#fffaf1] dark:hover:bg-stone-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Bagian sebelumnya"
+                    data-testid="btn-section-prev"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span className="hidden sm:inline">Sebelumnya</span>
+                  </button>
 
-        {/* Kolom Kanan: Live Preview A4 */}
-        <aside
-          className={`w-full lg:w-[56%] min-w-0 h-full min-h-0 bg-[#e8f7f1] dark:bg-stone-950 ${
-            mobileTab === 'preview' ? 'block animate-fade-in' : 'hidden lg:block'
-          }`}
-          data-testid="builder-preview-panel"
-        >
-          <ResumePreview draft={draft} onPageCountChange={setExportPageCount} />
-        </aside>
-      </main>
+                  <div className="flex-1 min-w-0" aria-live="polite">
+                    <div className="flex items-center justify-between text-2xs font-medium text-stone-600 dark:text-stone-400 mb-1">
+                      <span className="truncate">
+                        Langkah {activeIndex + 1} dari {SECTIONS.length} · <span className="text-stone-900 dark:text-stone-100 font-semibold">{SECTIONS[activeIndex].label}</span>
+                      </span>
+                    </div>
+                    <div className="h-1 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-[linear-gradient(90deg,#079875,#a3e635)] dark:bg-teal-400 transition-[width] duration-500 ease-out"
+                        style={{ width: `${((activeIndex + 1) / SECTIONS.length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {isLastSection ? (
+                    <button
+                      type="button"
+                      onClick={() => openExportModal('pdf')}
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
+                      data-testid="btn-section-finish"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span className="hidden sm:inline">Periksa &amp; Unduh</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => goToSection(activeIndex + 1)}
+                      className="flex items-center gap-1 px-3.5 py-2 text-xs font-bold text-white bg-[#079875] hover:bg-[#087b64] dark:bg-teal-700 dark:hover:bg-teal-600 rounded-full shadow-2xs transition"
+                      aria-label="Bagian berikutnya"
+                      data-testid="btn-section-next"
+                    >
+                      <span className="hidden sm:inline">Berikutnya</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Kolom Kanan: Live Preview A4 */}
+            <aside
+              className={`w-full lg:w-[56%] min-w-0 h-full min-h-0 bg-[#e8f7f1] dark:bg-stone-950 ${mobileTab === 'preview' ? 'block animate-fade-in' : 'hidden lg:block'
+                }`}
+              data-testid="builder-preview-panel"
+            >
+              <ResumePreview draft={draft} onPageCountChange={setExportPageCount} />
+            </aside>
+          </main>
         </>
       )}
 
@@ -1296,11 +1313,10 @@ export function App() {
                             disabled={Boolean(tool.comingSoon)}
                             onClick={() => handleExecuteTool(tool)}
                             style={{ '--i': index } as CSSProperties}
-                            className={`stagger-item group text-left p-5 rounded-2xl shadow-2xs transition duration-150 min-h-44 flex flex-col relative ${
-                              tool.comingSoon
-                                ? 'bg-stone-50/90 dark:bg-stone-900/60 border border-stone-200/80 dark:border-stone-800/80 opacity-75 cursor-not-allowed'
-                                : 'bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-700 dark:hover:border-teal-500 cursor-pointer'
-                            }`}
+                            className={`stagger-item group text-left p-5 rounded-2xl shadow-2xs transition duration-150 min-h-44 flex flex-col relative ${tool.comingSoon
+                              ? 'bg-stone-50/90 dark:bg-stone-900/60 border border-stone-200/80 dark:border-stone-800/80 opacity-75 cursor-not-allowed'
+                              : 'bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:border-teal-700 dark:hover:border-teal-500 cursor-pointer'
+                              }`}
                             data-testid={`tool-card-${tool.title.toLowerCase().replace(/\s+/g, '-')}`}
                           >
                             <div className="flex items-center justify-between w-full">
@@ -1331,17 +1347,15 @@ export function App() {
                                 )}
                               </div>
                             </div>
-                            <h3 className={`text-base font-bold mt-4 transition-colors ${
-                              tool.comingSoon
-                                ? 'text-stone-700 dark:text-stone-300'
-                                : 'text-stone-900 dark:text-stone-100 group-hover:text-teal-900 dark:group-hover:text-teal-300'
-                            }`}>{tool.title}</h3>
+                            <h3 className={`text-base font-bold mt-4 transition-colors ${tool.comingSoon
+                              ? 'text-stone-700 dark:text-stone-300'
+                              : 'text-stone-900 dark:text-stone-100 group-hover:text-teal-900 dark:group-hover:text-teal-300'
+                              }`}>{tool.title}</h3>
                             <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-400 mt-1.5 flex-1">{tool.desc}</p>
-                            <span className={`mt-4 text-xs font-semibold ${
-                              tool.comingSoon
-                                ? 'text-stone-500 dark:text-stone-400'
-                                : 'text-teal-800 dark:text-teal-400'
-                            }`}>
+                            <span className={`mt-4 text-xs font-semibold ${tool.comingSoon
+                              ? 'text-stone-500 dark:text-stone-400'
+                              : 'text-teal-800 dark:text-teal-400'
+                              }`}>
                               {tool.comingSoon ? 'Coming Soon' : tool.isBrowserOnly ? 'Buka di browser' : !currentUser && toolRequiresAuth(tool) ? 'Masuk untuk membuka' : 'Buka utilitas'}
                             </span>
                           </button>
@@ -1380,6 +1394,8 @@ export function App() {
           onNavigateHome={() => navigateTo('home')}
           noticeMessage={authNoticeMessage}
           initialErrorMessage={authErrorMessage}
+          googleChallengeRequired={googleChallengeRequired}
+          onGoogleChallengeReset={() => setGoogleChallengeRequired(false)}
         />
       )}
 
@@ -1460,16 +1476,11 @@ export function App() {
         onCreateTargetedDraft={handleCreateTargetedDraft}
       />
 
-      {/* Modal Konversi DOCX ke PDF */}
-      <DocxToPdfModal
-        isOpen={showConverterModal}
-        onClose={() => setShowConverterModal(false)}
-      />
-
-      {/* Modal Konversi PDF ke DOCX */}
-      <PdfToDocxModal
-        isOpen={showPdfToDocxModal}
-        onClose={() => setShowPdfToDocxModal(false)}
+      {/* Modal Gabungan Konversi Word & PDF */}
+      <WordPdfModal
+        isOpen={showWordPdfModal}
+        onClose={() => setShowWordPdfModal(false)}
+        initialTab={wordPdfTab}
       />
 
       {/* Modal Konversi PowerPoint & PDF */}

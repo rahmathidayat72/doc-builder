@@ -7,16 +7,21 @@ import openpyxl
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl.styles import Border, Font, PatternFill, Side
+from openpyxl.worksheet.pagebreak import Break
 from pptx import Presentation
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app.api.health import detect_libreoffice
 from app.core.security import CSRF_HEADER_NAME, SESSION_COOKIE_NAME, session_manager
 from app.main import app
+from app.services.libreoffice import convert_bytes_to_format_sandboxed
 from app.services.office_converter import (
     OLE_MAGIC_BYTES,
     convert_presentation_to_pdf_sandboxed,
     convert_spreadsheet_to_pdf_sandboxed,
+    normalize_spreadsheet_workbook_bytes,
     validate_presentation_magic_bytes,
     validate_spreadsheet_magic_bytes,
 )
@@ -172,6 +177,327 @@ def test_convert_spreadsheet_endpoint_libreoffice_handling():
         data = response.json()
         assert data["error_code"] == "LIBREOFFICE_NOT_FOUND"
         assert "LibreOffice belum terpasang" in data["message"]
+
+
+def make_messy_xlsx_bytes() -> bytes:
+    """Workbook dengan sheet awal kosong, print_area rusak, page break manual, formula, style."""
+    wb = openpyxl.Workbook()
+    empty_ws = wb.active
+    empty_ws.title = "KosongAwal"
+
+    ws = wb.create_sheet("Laporan")
+    ws.print_area = "Z80:AB95"
+    ws.row_breaks.append(Break(id=1))
+    ws.col_breaks.append(Break(id=1))
+    ws.page_setup.scale = 45
+
+    thin = Side(style="thin", color="334155")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill(fill_type="solid", fgColor="D1FAE5")
+    header_font = Font(bold=True)
+
+    ws.merge_cells("B2:E2")
+    title_cell = ws["B2"]
+    title_cell.value = "REKAP PENJUALAN"
+    title_cell.font = header_font
+    title_cell.fill = header_fill
+
+    headers = ["Produk", "Qty", "Harga", "Total"]
+    for offset, title in enumerate(headers):
+        cell = ws.cell(row=3, column=2 + offset, value=title)
+        cell.font = header_font
+        cell.border = border
+
+    ws.cell(row=4, column=2, value="Item A").border = border
+    ws.cell(row=4, column=3, value=0).border = border
+    ws.cell(row=4, column=4, value=15000).border = border
+    ws.cell(row=4, column=5, value="=D4*C4").border = border
+
+    ws.cell(row=5, column=2, value="Item B").border = border
+    ws.cell(row=5, column=3, value=3).border = border
+    ws.cell(row=5, column=4, value=20000).border = border
+    ws.cell(row=5, column=5, value="=C5*D5").border = border
+
+    ws.cell(row=6, column=2, value="Grand Total").font = header_font
+    ws.cell(row=6, column=5, value="=SUM(E4:E5)").border = border
+
+    ws.column_dimensions["B"].width = 24.0
+    # Simulasikan accidental formatting sangat jauh (kolom 500)
+    ws.cell(row=2, column=500).border = border
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def make_formula_tail_xlsx_bytes() -> bytes:
+    """Formula nol tersalin jauh ke bawah tanpa data input tidak boleh memperpanjang print area."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "RAB"
+
+    headers = ["Uraian", "Satuan", "Harga (Rp)", "Jumlah (Rp)", "Keterangan"]
+    for col, title in enumerate(headers, start=1):
+        ws.cell(row=2, column=col, value=title)
+
+    ws.cell(row=3, column=1, value="Pekerjaan A")
+    ws.cell(row=3, column=2, value="unit")
+    ws.cell(row=3, column=3, value=10000)
+    ws.cell(row=3, column=4, value="=C3*1")
+
+    for row in range(4, 204):
+        ws.cell(row=row, column=4, value=f"=IF(A{row}=\"\",0,C{row})")
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def make_wide_xlsx_bytes(col_count: int = 10) -> bytes:
+    """Workbook tabel lebar dengan banyak kolom untuk menguji orientasi otomatis landscape."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "TabelLebar"
+    ws.page_setup.orientation = ws.ORIENTATION_PORTRAIT
+    ws.print_area = "A1:C2"
+
+    for col in range(1, col_count + 1):
+        col_letter = openpyxl.utils.get_column_letter(col)
+        ws.column_dimensions[col_letter].width = 14.0
+        ws.cell(row=1, column=col, value=f"Kolom{col:02d}")
+        ws.cell(row=2, column=col, value=col * 100)
+        ws.cell(row=3, column=col, value=f"Val{col:02d}")
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_normalize_spreadsheet_resets_broken_print_area_breaks_and_hides_empty_sheet():
+    normalized = normalize_spreadsheet_workbook_bytes(make_messy_xlsx_bytes())
+    wb = openpyxl.load_workbook(io.BytesIO(normalized), data_only=False)
+    try:
+        assert wb["KosongAwal"].sheet_state == "hidden"
+        assert wb.active.title == "Laporan"
+
+        ws = wb["Laporan"]
+        assert ws.print_area == "'Laporan'!$B$2:$E$6"
+        assert len(ws.row_breaks.brk) == 0
+        assert len(ws.col_breaks.brk) == 0
+        assert ws.sheet_properties.pageSetUpPr.fitToPage is True
+        assert ws.page_setup.fitToWidth == 1
+        assert ws.page_setup.fitToHeight == 0
+        assert ws.page_setup.scale is None
+        assert ws.page_margins.left == pytest.approx(0.4)
+        assert ws.page_margins.right == pytest.approx(0.4)
+        assert ws.page_margins.top == pytest.approx(0.5)
+        assert ws.page_margins.bottom == pytest.approx(0.5)
+
+        # Formula, angka 0, style, merged cells, dan lebar kolom tetap utuh
+        assert ws["C4"].value == 0
+        assert ws["E4"].value == "=D4*C4"
+        assert ws["E6"].value == "=SUM(E4:E5)"
+        assert ws["B2"].font.bold is True
+        assert ws["B4"].border.left.style == "thin"
+        assert "B2:E2" in {str(r) for r in ws.merged_cells.ranges}
+        assert ws.column_dimensions["B"].width == pytest.approx(24.0)
+    finally:
+        wb.close()
+
+
+def test_normalize_spreadsheet_ignores_zero_formula_tail_without_row_input():
+    normalized = normalize_spreadsheet_workbook_bytes(make_formula_tail_xlsx_bytes())
+    wb = openpyxl.load_workbook(io.BytesIO(normalized), data_only=False)
+    try:
+        ws = wb["RAB"]
+        assert ws.print_area == "'RAB'!$A$2:$E$3"
+        assert ws["D203"].value == '=IF(A203="",0,C203)'
+    finally:
+        wb.close()
+
+
+def test_normalize_spreadsheet_auto_and_explicit_orientation():
+    narrow_auto = openpyxl.load_workbook(
+        io.BytesIO(
+            normalize_spreadsheet_workbook_bytes(make_dummy_xlsx_bytes(), orientation="auto")
+        )
+    )
+    assert narrow_auto.active.page_setup.orientation == narrow_auto.active.ORIENTATION_PORTRAIT
+    narrow_auto.close()
+
+    narrow_landscape = openpyxl.load_workbook(
+        io.BytesIO(
+            normalize_spreadsheet_workbook_bytes(make_dummy_xlsx_bytes(), orientation="landscape")
+        )
+    )
+    assert (
+        narrow_landscape.active.page_setup.orientation
+        == narrow_landscape.active.ORIENTATION_LANDSCAPE
+    )
+    narrow_landscape.close()
+
+    wide_auto = openpyxl.load_workbook(
+        io.BytesIO(
+            normalize_spreadsheet_workbook_bytes(make_wide_xlsx_bytes(10), orientation="auto")
+        )
+    )
+    assert wide_auto.active.page_setup.orientation == wide_auto.active.ORIENTATION_LANDSCAPE
+    wide_auto.close()
+
+    wide_portrait = openpyxl.load_workbook(
+        io.BytesIO(
+            normalize_spreadsheet_workbook_bytes(make_wide_xlsx_bytes(10), orientation="portrait")
+        )
+    )
+    assert wide_portrait.active.page_setup.orientation == wide_portrait.active.ORIENTATION_PORTRAIT
+    wide_portrait.close()
+
+
+def test_convert_spreadsheet_xls_preconverts_normalizes_then_renders_pdf():
+    messy_xlsx = make_messy_xlsx_bytes()
+    captured: dict[str, object] = {}
+
+    def fake_pdf_convert(file_bytes: bytes, filename: str, **_kwargs):
+        captured["bytes"] = file_bytes
+        captured["filename"] = filename
+        return io.BytesIO(b"%PDF-1.4\n%%EOF"), None
+
+    with (
+        patch("app.services.office_converter.detect_libreoffice", return_value=(True, "soffice")),
+        patch(
+            "app.services.office_converter.convert_bytes_to_format_sandboxed",
+            return_value=(messy_xlsx, None),
+        ) as mock_preconvert,
+        patch(
+            "app.services.office_converter.convert_bytes_to_pdf_sandboxed",
+            side_effect=fake_pdf_convert,
+        ),
+    ):
+        pdf_io, err = convert_spreadsheet_to_pdf_sandboxed(
+            OLE_MAGIC_BYTES + b"\x00" * 64,
+            "rekap_lama.xls",
+            orientation="landscape",
+        )
+
+    assert err is None
+    assert pdf_io is not None
+    assert mock_preconvert.call_count == 1
+    assert mock_preconvert.call_args.kwargs["target_format"] == "xlsx"
+    assert captured["filename"] == "rekap_lama.xlsx"
+
+    wb = openpyxl.load_workbook(io.BytesIO(captured["bytes"]), data_only=False)
+    try:
+        ws = wb["Laporan"]
+        assert ws.print_area == "'Laporan'!$B$2:$E$6"
+        assert ws.page_setup.orientation == ws.ORIENTATION_LANDSCAPE
+        assert ws.page_setup.fitToWidth == 1
+    finally:
+        wb.close()
+
+
+def test_convert_spreadsheet_endpoint_orientation_validation_and_forwarding():
+    files = {
+        "file": (
+            "data.xlsx",
+            make_dummy_xlsx_bytes(),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    }
+    bad_resp = client.post(
+        "/api/converter/spreadsheet-to-pdf",
+        files=files,
+        data={"orientation": "diagonal"},
+        headers=auth_headers(),
+    )
+    assert bad_resp.status_code == 400
+    assert "Orientasi halaman tidak valid" in bad_resp.json()["detail"]
+
+    with patch(
+        "app.api.converter.convert_spreadsheet_to_pdf_sandboxed",
+        return_value=(io.BytesIO(b"%PDF-1.4\n%%EOF"), None),
+    ) as mock_conv:
+        ok_resp = client.post(
+            "/api/converter/spreadsheet-to-pdf",
+            files=files,
+            data={"orientation": "landscape"},
+            headers=auth_headers(),
+        )
+    assert ok_resp.status_code == 200
+    assert mock_conv.call_args.kwargs["orientation"] == "landscape"
+
+
+@pytest.mark.skipif(
+    not detect_libreoffice()[0], reason="LibreOffice tidak terpasang di lingkungan uji"
+)
+def test_convert_spreadsheet_to_pdf_real_page1_has_table_no_blank_first_page():
+    pdf_io, err = convert_spreadsheet_to_pdf_sandboxed(make_messy_xlsx_bytes(), "laporan.xlsx")
+    assert err is None
+    assert pdf_io is not None
+
+    doc = pymupdf.open(stream=pdf_io.getvalue(), filetype="pdf")
+    try:
+        assert len(doc) >= 1
+        page1_text = doc[0].get_text()
+        assert "REKAP PENJUALAN" in page1_text
+        assert "Item A" in page1_text
+        assert "Grand Total" in page1_text
+    finally:
+        doc.close()
+
+
+@pytest.mark.skipif(
+    not detect_libreoffice()[0], reason="LibreOffice tidak terpasang di lingkungan uji"
+)
+def test_convert_spreadsheet_to_pdf_real_wide_table_auto_landscape_no_column_split():
+    pdf_io, err = convert_spreadsheet_to_pdf_sandboxed(
+        make_wide_xlsx_bytes(10),
+        "tabel_lebar.xlsx",
+        orientation="auto",
+    )
+    assert err is None
+    assert pdf_io is not None
+
+    doc = pymupdf.open(stream=pdf_io.getvalue(), filetype="pdf")
+    try:
+        assert len(doc) == 1
+        page1 = doc[0]
+        assert page1.rect.width > page1.rect.height
+        page1_text = page1.get_text()
+        for col in range(1, 11):
+            assert f"Kolom{col:02d}" in page1_text
+    finally:
+        doc.close()
+
+
+@pytest.mark.skipif(
+    not detect_libreoffice()[0], reason="LibreOffice tidak terpasang di lingkungan uji"
+)
+def test_convert_spreadsheet_to_pdf_real_xls_end_to_end():
+    xls_bytes, xls_err = convert_bytes_to_format_sandboxed(
+        file_bytes=make_messy_xlsx_bytes(),
+        filename="seed_legacy.xlsx",
+        target_format="xls",
+        expected_ext=".xls",
+        prefix="docbuilder_xls2pdf_",
+        timeout_sec=120.0,
+        job_type="test_xls_seed",
+    )
+    assert xls_err is None
+    assert xls_bytes is not None
+    assert validate_spreadsheet_magic_bytes(xls_bytes, "legacy.xls") is True
+
+    pdf_io, err = convert_spreadsheet_to_pdf_sandboxed(xls_bytes, "legacy.xls")
+    assert err is None
+    assert pdf_io is not None
+
+    doc = pymupdf.open(stream=pdf_io.getvalue(), filetype="pdf")
+    try:
+        assert len(doc) >= 1
+        page1_text = doc[0].get_text()
+        assert "REKAP PENJUALAN" in page1_text
+        assert "Item A" in page1_text
+    finally:
+        doc.close()
 
 
 # --- PDF TO PPTX TESTS ---

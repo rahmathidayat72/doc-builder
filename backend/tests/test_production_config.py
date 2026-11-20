@@ -16,6 +16,8 @@ def test_production_validation_fails_on_default_secrets() -> None:
         SHORTENER_ADMIN_HMAC_SECRET="satukit-shortener-secret-local",
         DATABASE_URL="postgresql+psycopg://satukit_user:satukit_pass@127.0.0.1:5432/satukit",
         PUBLIC_BASE_URL="http://localhost:5173",
+        GOOGLE_CLIENT_ID=None,
+        GOOGLE_CLIENT_SECRET=None,
     )
     with pytest.raises(ValueError) as exc:
         s.validate_production()

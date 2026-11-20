@@ -38,6 +38,11 @@ from app.db.repositories.file_shelf_repository import (
 from app.services.file_crypto import decrypt_file_envelope
 from app.services.file_inspector import QuarantineManager
 from app.services.r2_storage import get_r2_storage
+from app.workers.heartbeat import (
+    FILE_WORKER_HEARTBEAT_KEY,
+    FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+    evaluate_worker_heartbeat,
+)
 
 router = APIRouter(prefix="/files", tags=["Rak Berkas"])
 
@@ -321,7 +326,7 @@ def download_file(item_id: str, request: Request, background_tasks: BackgroundTa
     # 7. Build RFC 5987 Content-Disposition header
     ascii_name = item_filename.encode("ascii", "ignore").decode("ascii") or "download.bin"
     quoted_name = quote(item_filename)
-    disp = f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quoted_name}'
+    disp = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted_name}"
     headers = {
         "Content-Disposition": disp,
         "Content-Length": str(len(decrypted_bytes)),
@@ -387,6 +392,12 @@ def get_user_file_metrics(request: Request):
         )
 
         r2_status, _, _ = check_r2_storage_health(session)
+        hb_state = session.get(RuntimeState, FILE_WORKER_HEARTBEAT_KEY)
+        hb_health = evaluate_worker_heartbeat(
+            hb_state,
+            stale_seconds=FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+            now=now,
+        )
 
     return {
         "success": True,
@@ -401,5 +412,8 @@ def get_user_file_metrics(request: Request):
             "max_downloads_per_hour": 30,
             "r2_storage_status": r2_status,
             "retention_days": 30,
+            "worker_status": hb_health["status"],
+            "worker_fresh": hb_health["fresh"],
+            "heartbeat_age_seconds": hb_health["heartbeat_age_seconds"],
         },
     }

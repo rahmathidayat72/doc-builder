@@ -465,6 +465,31 @@ def test_metrics_endpoint(shelf_test_env: dict):
     assert m["slots_total"] == 5
     assert m["storage_used_bytes"] == 2500
     assert m["r2_storage_status"] == "HEALTHY"
+    assert m["worker_status"] == "unavailable"
+    assert m["worker_fresh"] is False
+    assert m["heartbeat_age_seconds"] is None
+
+    # Simulasikan heartbeat file_worker aktif
+    from app.workers.heartbeat import FILE_WORKER_HEARTBEAT_KEY
+
+    now = time.time()
+    with session_factory() as session:
+        session.add(
+            RuntimeState(
+                key=FILE_WORKER_HEARTBEAT_KEY,
+                value={"status": "idle", "last_heartbeat_at": now - 2.0},
+                updated_at=now - 2.0,
+            )
+        )
+        session.commit()
+
+    res_hb = client.get("/api/files/metrics")
+    assert res_hb.status_code == 200
+    m_hb = res_hb.json()["data"]
+    assert m_hb["worker_status"] == "healthy"
+    assert m_hb["worker_fresh"] is True
+    assert isinstance(m_hb["heartbeat_age_seconds"], (int, float))
+    assert m_hb["heartbeat_age_seconds"] < 60.0
 
 
 def test_r2_storage_fail_closed_blocking(shelf_test_env: dict):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -7,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import Engine, create_engine, delete, select
+from sqlalchemy import Engine, create_engine, delete, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import AuthToken, OAuthAccount, OAuthTransaction, User, UserSession
@@ -355,6 +356,40 @@ class AuthRepository:
     def revoke_all_user_sessions(self, user_id: str) -> None:
         with self._session() as session:
             session.execute(delete(UserSession).where(UserSession.user_id == user_id))
+
+    def shorten_existing_sessions(
+        self,
+        *,
+        ttl_hours: int = 6,
+        now: float | None = None,
+        delete_expired: bool = False,
+    ) -> dict[str, int]:
+        """Memendekkan masa berlaku sesi lama menjadi maksimal created_at + ttl_hours jam."""
+        ttl_seconds = float(ttl_hours * 3600)
+        ts = time.time() if now is None else now
+        with self._session() as session:
+            upd = session.execute(
+                update(UserSession)
+                .where(UserSession.expires_at > (UserSession.created_at + ttl_seconds))
+                .values(expires_at=UserSession.created_at + ttl_seconds)
+            )
+            shortened = int(upd.rowcount or 0)
+
+            expired = int(
+                session.execute(
+                    select(func.count())
+                    .select_from(UserSession)
+                    .where(UserSession.expires_at <= ts)
+                ).scalar()
+                or 0
+            )
+
+            deleted = 0
+            if delete_expired:
+                d_res = session.execute(delete(UserSession).where(UserSession.expires_at <= ts))
+                deleted = int(d_res.rowcount or 0)
+
+        return {"shortened": shortened, "expired": expired, "deleted": deleted}
 
     def create_password_reset_token(
         self,

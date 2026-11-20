@@ -40,11 +40,14 @@ from app.services.file_scanner import (
 )
 from app.services.r2_storage import InMemoryR2StorageClient, set_global_r2_storage
 from app.workers.file_worker import (
+    FILE_WORKER_HEARTBEAT_KEY,
     poll_cloudflare_graphql_metrics,
     process_checking_items,
     process_deletion_jobs,
     process_retention_sweep,
+    recover_stale_checking_items,
     run_worker_pass,
+    write_file_worker_heartbeat,
 )
 
 
@@ -428,7 +431,73 @@ def test_run_worker_pass(worker_test_env: dict):
     session_factory: sessionmaker[Session] = worker_test_env["session_factory"]
     with session_factory() as session:
         stats = run_worker_pass(session, poll_metrics=False)
+        session.commit()
+        assert "recovered" in stats
         assert "checked" in stats
         assert "deleted" in stats
         assert "expired" in stats
         assert stats["checked"] == 0
+
+        hb = session.get(RuntimeState, FILE_WORKER_HEARTBEAT_KEY)
+        assert hb is not None
+        assert hb.value["status"] == "idle"
+        assert isinstance(hb.value["last_heartbeat_at"], float)
+        assert hb.value["checked"] == 0
+        assert hb.value["recovered"] == 0
+
+
+def test_file_worker_heartbeat_and_stale_checking_recovery(
+    worker_test_env: dict,
+    caplog: pytest.LogCaptureFixture,
+):
+    """Heartbeat disimpan tiap pass; CHECKING >15 menit dipulihkan hanya bila heartbeat aktif."""
+    import logging
+
+    session_factory: sessionmaker[Session] = worker_test_env["session_factory"]
+    user_id = worker_test_env["user_id"]
+    now = time.time()
+
+    with session_factory() as session:
+        # 1. Item CHECKING lama (> 15 menit) dan item CHECKING baru (60 detik)
+        stale_item = FileShelfItem(
+            id="item-stale-checking",
+            user_id=user_id,
+            filename="rahasia_lama.pdf",
+            content_type="application/pdf",
+            size_bytes=500,
+            status="CHECKING",
+            uploaded_at=now - 1000.0,
+        )
+        fresh_item = FileShelfItem(
+            id="item-fresh-checking",
+            user_id=user_id,
+            filename="baru.pdf",
+            content_type="application/pdf",
+            size_bytes=500,
+            status="CHECKING",
+            uploaded_at=now - 60.0,
+        )
+        session.add_all([stale_item, fresh_item])
+        session.commit()
+
+        # 2. Tanpa heartbeat worker -> tidak boleh memulihkan
+        assert recover_stale_checking_items(session, now=now) == 0
+
+        # 3. Heartbeat ada tetapi stale (> 60 detik) -> tidak boleh memulihkan
+        write_file_worker_heartbeat(session, status="idle", now=now - 120.0)
+        assert recover_stale_checking_items(session, now=now) == 0
+
+        # 4. Heartbeat aktif/baru -> pulihkan item CHECKING lama saja, item baru tidak disentuh
+        write_file_worker_heartbeat(session, status="processing", now=now - 2.0)
+        with caplog.at_level(logging.WARNING, logger="satukit.file_worker"):
+            recovered = recover_stale_checking_items(session, now=now)
+        session.commit()
+
+        assert recovered == 1
+        session.refresh(stale_item)
+        session.refresh(fresh_item)
+        assert stale_item.status == "CHECKING"
+        assert fresh_item.status == "CHECKING"
+        assert "item-stale-checking" in caplog.text
+        assert "item-fresh-checking" not in caplog.text
+        assert "rahasia_lama.pdf" not in caplog.text

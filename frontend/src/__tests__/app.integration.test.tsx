@@ -3,7 +3,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from '../App'
 import { exportResumePdf } from '../services/export'
 import { ResumeStorage } from '../services/storage'
-import { getCurrentUser } from '../services/auth'
+import {
+  getCurrentUser,
+  getGoogleChallenge,
+  verifyGoogleChallenge
+} from '../services/auth'
 import {
   createEmptyResumeData,
   type ResumeDraft
@@ -51,6 +55,16 @@ vi.mock('../services/auth', async importOriginal => {
       id: 'test-user-id',
       email: 'user@example.com',
       name: 'User Terdaftar'
+    }),
+    getGoogleChallenge: vi.fn().mockResolvedValue({
+      challenge_token: 'g.tok.sig',
+      question: 'Berapa 6 + 2?',
+      expires_in: 300
+    }),
+    verifyGoogleChallenge: vi.fn().mockResolvedValue({
+      id: 'google-user-id',
+      email: 'google@example.com',
+      name: 'Google User'
     }),
     getBotChallenge: vi.fn().mockResolvedValue({
       challenge_token: 'test.nonce.sig',
@@ -346,6 +360,16 @@ describe('App integration', () => {
     })
 
     expect(screen.getByRole('heading', { name: 'Konversi Dokumen' })).toBeInTheDocument()
+    const convertSection = screen
+      .getByRole('heading', { name: 'Konversi Dokumen' })
+      .closest('section')
+    expect(convertSection).not.toBeNull()
+    expect(convertSection).toHaveTextContent('3 alat')
+    expect(screen.getByTestId('tool-card-word-&-pdf')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-card-powerpoint-&-pdf')).toBeInTheDocument()
+    expect(screen.getByTestId('tool-card-excel-&-pdf')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-card-docx-ke-pdf')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tool-card-pdf-ke-docx')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Kelola & Optimasi PDF' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Ekstraksi & Digitalisasi' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Keamanan & Tanda Tangan' })).toBeInTheDocument()
@@ -475,7 +499,7 @@ describe('App integration', () => {
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-view')).toBeInTheDocument()
     })
-    expect(screen.getByTestId('stat-tools-count')).toHaveTextContent('19')
+    expect(screen.getByTestId('stat-tools-count')).toHaveTextContent('18')
     expect(screen.getByTestId('stat-tools-coming-soon')).toHaveTextContent('9 Coming Soon')
 
     // 1. Klik tombol navigasi Tools di navbar -> pengguna anonim bisa melihat direktori tools
@@ -505,18 +529,23 @@ describe('App integration', () => {
     // Tutup modal Generate QR Code
     fireEvent.click(screen.getByTestId('btn-close-qr-modal'))
 
-    // 3. Klik alat kelompok Konversi Dokumen (DOCX ke PDF) -> modal terbuka langsung tanpa login
-    const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
-    expect(docxToolBtn).toBeInTheDocument()
-    expect(docxToolBtn).not.toHaveTextContent('Perlu Akun')
-    fireEvent.click(docxToolBtn)
+    // 3. Klik alat kelompok Konversi Dokumen (Word & PDF) -> modal bertab terbuka tanpa login
+    const wordPdfToolBtn = screen.getByTestId('tool-card-word-&-pdf')
+    expect(wordPdfToolBtn).toBeInTheDocument()
+    expect(wordPdfToolBtn).not.toHaveTextContent('Perlu Akun')
+    fireEvent.click(wordPdfToolBtn)
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Konversi DOCX ke PDF' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Word & PDF' })).toBeInTheDocument()
+      expect(screen.getByTestId('dropzone-docx')).toBeInTheDocument()
     })
 
-    // Tutup modal Konversi DOCX ke PDF
-    fireEvent.click(screen.getByRole('button', { name: 'Tutup modal konversi Word ke PDF' }))
+    // Uji perpindahan tab ke PDF ke Word
+    fireEvent.click(screen.getByTestId('tab-pdf2docx'))
+    expect(screen.getByTestId('dropzone-pdf')).toBeInTheDocument()
+
+    // Tutup modal Word & PDF
+    fireEvent.click(screen.getByTestId('btn-close-pdf2docx'))
 
     // 4. Klik alat komputasi server kategori lain (Split PDF) -> dialihkan ke login dengan pesan guard
     const splitToolBtn = screen.getByTestId('tool-card-split-pdf')
@@ -559,7 +588,7 @@ describe('App integration', () => {
     expect(screen.queryByTestId('btn-close-watermark-removal')).not.toBeInTheDocument()
   })
 
-  it('kartu Coming Soon tetap nonaktif bagi pengguna anonim tanpa mengalihkan ke login sementara DOCX ke PDF tetap terbuka tanpa login', async () => {
+  it('kartu Coming Soon tetap nonaktif bagi pengguna anonim tanpa mengalihkan ke login sementara Word & PDF tetap terbuka tanpa login', async () => {
     vi.mocked(getCurrentUser).mockResolvedValue(null)
     window.location.hash = '#/tools'
     render(<App />)
@@ -569,9 +598,9 @@ describe('App integration', () => {
       expect(screen.getByTestId('tool-card-compress-video')).toBeInTheDocument()
     })
 
-    const docxToolBtn = screen.getByTestId('tool-card-docx-ke-pdf')
-    expect(docxToolBtn).not.toHaveTextContent('Perlu Akun')
-    expect(docxToolBtn).toHaveTextContent('Buka utilitas')
+    const wordPdfToolBtn = screen.getByTestId('tool-card-word-&-pdf')
+    expect(wordPdfToolBtn).not.toHaveTextContent('Perlu Akun')
+    expect(wordPdfToolBtn).toHaveTextContent('Buka utilitas')
 
     const compressVideoBtn = screen.getByTestId('tool-card-compress-video')
     expect(compressVideoBtn).toBeDisabled()
@@ -594,5 +623,31 @@ describe('App integration', () => {
     expect(window.location.hash).toBe('#/tools')
     expect(screen.queryByTestId('login-page-container')).not.toBeInTheDocument()
     expect(screen.queryByTestId('btn-close-compress-video')).not.toBeInTheDocument()
+  })
+
+  it('rute #/login?auth_status=google_challenge_required membuka verifikasi anti-bot Google tanpa alert error lalu masuk setelah terjawab', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null)
+    window.location.hash = '#/login?auth_status=google_challenge_required'
+    render(<App />)
+
+    await waitFor(() => {
+      expect(getGoogleChallenge).toHaveBeenCalled()
+      expect(screen.getByTestId('form-step-2')).toBeInTheDocument()
+      expect(screen.getByTestId('challenge-question')).toHaveTextContent('Berapa 6 + 2?')
+    })
+
+    expect(screen.queryByTestId('auth-error-alert')).not.toBeInTheDocument()
+    expect(window.location.hash).toBe('#/login')
+
+    fireEvent.change(screen.getByTestId('input-challenge-answer'), { target: { value: '8' } })
+    fireEvent.click(screen.getByTestId('btn-verify-and-login'))
+
+    await waitFor(() => {
+      expect(verifyGoogleChallenge).toHaveBeenCalledWith({
+        challenge_token: 'g.tok.sig',
+        challenge_answer: '8'
+      })
+      expect(window.location.hash).toBe('#/home')
+    })
   })
 })

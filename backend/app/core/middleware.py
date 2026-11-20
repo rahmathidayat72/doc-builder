@@ -34,6 +34,9 @@ PUBLIC_PATHS = {
     "/api/auth/reset-password",
     "/api/auth/google/start",
     "/api/auth/google/callback",
+    "/api/auth/google/challenge",
+    "/api/auth/google/challenge/refresh",
+    "/api/auth/google/challenge/verify",
     "/docs",
     "/openapi.json",
 }

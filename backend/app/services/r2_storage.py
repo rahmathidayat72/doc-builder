@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import os
+from pathlib import Path
 from typing import Any
 
 
 class R2StorageError(Exception):
     """Base exception for R2 storage operations."""
+
     pass
 
 
@@ -93,6 +95,77 @@ class InMemoryR2StorageClient(R2StorageClient):
 
     def clear(self) -> None:
         self._objects.clear()
+
+
+class LocalDiskR2StorageClient(R2StorageClient):
+    """Penyimpanan R2 fallback berbasis berkas lokal aman untuk dev multi-proses."""
+
+    def __init__(self, root_dir: Path | str | None = None) -> None:
+        default_root = (
+            Path(__file__).resolve().parent.parent.parent.parent / ".local_security" / "r2_dev"
+        )
+        self.root = Path(root_dir or default_root).resolve()
+        self.root.mkdir(parents=True, exist_ok=True)
+
+    def _resolve_key(self, key: str) -> Path:
+        clean = key.lstrip("/")
+        if not clean or "\\" in clean or ".." in Path(clean).parts:
+            raise R2StorageError("Kunci objek storage tidak valid.")
+        target = (self.root / clean).resolve()
+        if not target.is_relative_to(self.root):
+            raise R2StorageError("Kunci objek melampaui direktori penyimpanan.")
+        return target
+
+    def upload_object(
+        self,
+        key: str,
+        data: bytes,
+        content_type: str = "application/octet-stream",
+    ) -> str:
+        _ = content_type
+        target = self._resolve_key(key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        if hasattr(os, "chmod"):
+            try:
+                os.chmod(target, 0o600)
+            except OSError:
+                pass
+        return f'"{hashlib.md5(data).hexdigest()}"'
+
+    def get_object(self, key: str) -> bytes:
+        target = self._resolve_key(key)
+        if not target.is_file():
+            raise R2ObjectNotFoundError(f"Objek '{key}' tidak ditemukan di storage R2.")
+        return target.read_bytes()
+
+    def delete_object(self, key: str) -> bool:
+        target = self._resolve_key(key)
+        if target.is_file():
+            target.unlink()
+            return True
+        return False
+
+    def head_object(self, key: str) -> dict[str, Any] | None:
+        target = self._resolve_key(key)
+        if not target.is_file():
+            return None
+        data = target.read_bytes()
+        return {
+            "key": key,
+            "size": len(data),
+            "content_type": "application/octet-stream",
+            "etag": f'"{hashlib.md5(data).hexdigest()}"',
+        }
+
+    def list_objects(self, prefix: str = "") -> list[str]:
+        results: list[str] = []
+        for path in self.root.rglob("*"):
+            if path.is_file():
+                rel = path.relative_to(self.root).as_posix()
+                if rel.startswith(prefix):
+                    results.append(rel)
+        return sorted(results)
 
 
 class Boto3R2StorageClient(R2StorageClient):
@@ -194,16 +267,25 @@ def get_r2_storage() -> R2StorageClient:
     secret_key = os.environ.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
     bucket_name = os.environ.get("CLOUDFLARE_R2_BUCKET_NAME")
     use_in_memory = os.environ.get("USE_IN_MEMORY_R2", "").lower() in ("1", "true", "yes")
+    is_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+    is_prod = os.environ.get("ENVIRONMENT", "development").strip().lower() in (
+        "production",
+        "prod",
+    )
 
-    if use_in_memory or not (account_id and access_key and secret_key and bucket_name):
+    if use_in_memory:
         _GLOBAL_R2_STORAGE = InMemoryR2StorageClient()
-    else:
+    elif account_id and access_key and secret_key and bucket_name:
         _GLOBAL_R2_STORAGE = Boto3R2StorageClient(
             account_id=account_id,
             access_key_id=access_key,
             secret_access_key=secret_key,
             bucket_name=bucket_name,
         )
+    elif is_pytest or is_prod:
+        _GLOBAL_R2_STORAGE = InMemoryR2StorageClient()
+    else:
+        _GLOBAL_R2_STORAGE = LocalDiskR2StorageClient()
 
     return _GLOBAL_R2_STORAGE
 

@@ -26,6 +26,7 @@ HEADER_SIZE_BYTES = 1 + IV_SIZE_BYTES + TAG_SIZE_BYTES + KEY_HASH_SIZE_BYTES  # 
 
 class FileCryptoError(Exception):
     """Base exception for file shelf cryptographic operations."""
+
     pass
 
 
@@ -96,8 +97,46 @@ class KeyringManager:
             self._load_from_file(str(dev_path))
             return
 
-        # Generate ephemeral in-memory test key if no persistent keyring found in dev/test
+        # 5. Persistent local dev keyring (cross-process for uvicorn + file_worker)
+        is_pytest = bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        is_prod = os.environ.get("ENVIRONMENT", "development").strip().lower() in (
+            "production",
+            "prod",
+        )
+        if not is_pytest and not is_prod:
+            local_dev_path = (
+                Path(__file__).resolve().parent.parent.parent.parent
+                / ".local_security"
+                / "file_shelf_dev_keyring.json"
+            )
+            self._ensure_dev_keyring_file(local_dev_path)
+            self._load_from_file(str(local_dev_path))
+            return
+
+        # Generate ephemeral in-memory test key if no persistent keyring found in test/isolated env
         self._generate_ephemeral_key()
+
+    def _ensure_dev_keyring_file(self, filepath: Path) -> None:
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        if filepath.exists():
+            return
+        doc = {
+            "version": 1,
+            "active_key_id": "k_dev_local_1",
+            "keys": [
+                {
+                    "id": "k_dev_local_1",
+                    "secret_b64": base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii"),
+                }
+            ],
+        }
+        payload = json.dumps(doc).encode("utf-8")
+        try:
+            fd = os.open(str(filepath), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            return
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
 
     def _generate_ephemeral_key(self) -> None:
         key_id = "k_ephemeral_test"
@@ -225,11 +264,13 @@ def decrypt_file_envelope(
     if version != ENVELOPE_VERSION:
         raise CryptoEnvelopeError(f"Versi envelope enkripsi tidak didukung (0x{version:02x}).")
 
-    iv = envelope[1:1 + IV_SIZE_BYTES]
-    tag = envelope[1 + IV_SIZE_BYTES:1 + IV_SIZE_BYTES + TAG_SIZE_BYTES]
+    iv = envelope[1 : 1 + IV_SIZE_BYTES]
+    tag = envelope[1 + IV_SIZE_BYTES : 1 + IV_SIZE_BYTES + TAG_SIZE_BYTES]
     key_hash = envelope[
-        1 + IV_SIZE_BYTES + TAG_SIZE_BYTES:
-        1 + IV_SIZE_BYTES + TAG_SIZE_BYTES + KEY_HASH_SIZE_BYTES
+        1 + IV_SIZE_BYTES + TAG_SIZE_BYTES : 1
+        + IV_SIZE_BYTES
+        + TAG_SIZE_BYTES
+        + KEY_HASH_SIZE_BYTES
     ]
     ciphertext = envelope[HEADER_SIZE_BYTES:]
 

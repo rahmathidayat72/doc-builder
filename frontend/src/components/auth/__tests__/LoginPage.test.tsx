@@ -7,6 +7,9 @@ vi.mock('../../../services/auth', () => ({
   loginInit: vi.fn(),
   loginVerify: vi.fn(),
   refreshLoginChallenge: vi.fn(),
+  getGoogleChallenge: vi.fn(),
+  refreshGoogleChallenge: vi.fn(),
+  verifyGoogleChallenge: vi.fn(),
   registerUser: vi.fn(),
   forgotPassword: vi.fn(),
   resetPassword: vi.fn(),
@@ -469,5 +472,171 @@ describe('LoginPage Component', () => {
     expect(screen.getByTestId('auth-error-alert')).toHaveTextContent(
       'Alamat email telah terdaftar dengan kata sandi.'
     )
+  })
+
+  it('pada mode googleChallengeRequired, langsung memanggil tantangan Google dan menampilkan soal matematika tanpa alert error', async () => {
+    vi.mocked(authService.getGoogleChallenge).mockResolvedValue({
+      challenge_token: 'g-tok-1',
+      question: 'Berapa 4 + 3?',
+      expires_in: 300,
+    })
+
+    render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+        googleChallengeRequired
+      />
+    )
+
+    await waitFor(() => {
+      expect(authService.getGoogleChallenge).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('form-step-2')).toBeInTheDocument()
+      expect(screen.getByTestId('challenge-question')).toHaveTextContent('Berapa 4 + 3?')
+    })
+
+    expect(screen.queryByTestId('auth-error-alert')).not.toBeInTheDocument()
+    expect(screen.getByText('Tahap 1: Akun Google Terverifikasi')).toBeInTheDocument()
+  })
+
+  it('dapat mengganti soal, menangani jawaban salah, dan menyelesaikan verifikasi Google challenge', async () => {
+    const mockGoogleUser = {
+      id: 'g-user-1',
+      email: 'google@example.com',
+      name: 'Google User',
+    }
+
+    vi.mocked(authService.getGoogleChallenge).mockResolvedValue({
+      challenge_token: 'g-tok-initial',
+      question: 'Berapa 2 + 6?',
+      expires_in: 300,
+    })
+    vi.mocked(authService.refreshGoogleChallenge)
+      .mockResolvedValueOnce({
+        challenge_token: 'g-tok-refreshed-1',
+        question: 'Berapa 9 - 4?',
+        expires_in: 300,
+      })
+      .mockResolvedValueOnce({
+        challenge_token: 'g-tok-refreshed-2',
+        question: 'Berapa 3 + 5?',
+        expires_in: 300,
+      })
+    vi.mocked(authService.verifyGoogleChallenge)
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Jawaban soal anti-bot salah. Silakan coba lagi.'), { status: 400 })
+      )
+      .mockResolvedValueOnce(mockGoogleUser)
+
+    render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+        googleChallengeRequired
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('challenge-question')).toHaveTextContent('Berapa 2 + 6?')
+    })
+
+    // 1. Klik Ganti Soal
+    fireEvent.click(screen.getByTestId('btn-refresh-challenge'))
+    await waitFor(() => {
+      expect(authService.refreshGoogleChallenge).toHaveBeenCalledWith('g-tok-initial')
+      expect(screen.getByTestId('challenge-question')).toHaveTextContent('Berapa 9 - 4?')
+    })
+
+    // 2. Jawaban salah -> error alert muncul, soal diperbarui, belum login
+    fireEvent.change(screen.getByTestId('input-challenge-answer'), { target: { value: '99' } })
+    fireEvent.click(screen.getByTestId('btn-verify-and-login'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-error-alert')).toHaveTextContent(
+        'Jawaban soal anti-bot salah. Silakan coba lagi.'
+      )
+      expect(screen.getByTestId('challenge-question')).toHaveTextContent('Berapa 3 + 5?')
+    })
+    expect(mockOnLoginSuccess).not.toHaveBeenCalled()
+
+    // 3. Jawaban benar -> panggil verifyGoogleChallenge & onLoginSuccess
+    fireEvent.change(screen.getByTestId('input-challenge-answer'), { target: { value: '8' } })
+    fireEvent.click(screen.getByTestId('btn-verify-and-login'))
+
+    await waitFor(() => {
+      expect(authService.verifyGoogleChallenge).toHaveBeenLastCalledWith({
+        challenge_token: 'g-tok-refreshed-2',
+        challenge_answer: '8',
+      })
+      expect(mockOnLoginSuccess).toHaveBeenCalledWith(mockGoogleUser)
+    })
+  })
+
+  it('jika pending cookie Google kedaluwarsa saat muat awal atau verifikasi, kembali ke Step 1 dengan pesan ulangi login Google', async () => {
+    const mockReset = vi.fn()
+    vi.mocked(authService.getGoogleChallenge).mockRejectedValueOnce(
+      Object.assign(
+        new Error('Sesi verifikasi Google tidak ditemukan atau telah kedaluwarsa. Silakan masuk kembali dengan Google.'),
+        { status: 401 }
+      )
+    )
+
+    const { unmount } = render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+        googleChallengeRequired
+        onGoogleChallengeReset={mockReset}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('form-step-1')).toBeInTheDocument()
+      expect(screen.getByTestId('btn-google-auth')).toBeInTheDocument()
+      expect(screen.getByTestId('auth-error-alert')).toHaveTextContent(
+        'Silakan masuk kembali dengan Google'
+      )
+    })
+    expect(mockReset).toHaveBeenCalledTimes(1)
+    unmount()
+
+    // Skenario 2: pending cookie kedaluwarsa saat submit jawaban
+    const mockResetVerify = vi.fn()
+    vi.mocked(authService.getGoogleChallenge).mockResolvedValueOnce({
+      challenge_token: 'g-tok-ok',
+      question: 'Berapa 1 + 1?',
+      expires_in: 300,
+    })
+    vi.mocked(authService.verifyGoogleChallenge).mockRejectedValueOnce(
+      Object.assign(
+        new Error('Sesi verifikasi Google telah kedaluwarsa. Silakan masuk kembali dengan Google.'),
+        { status: 401 }
+      )
+    )
+
+    render(
+      <LoginPage
+        onLoginSuccess={mockOnLoginSuccess}
+        onNavigateHome={mockOnNavigateHome}
+        googleChallengeRequired
+        onGoogleChallengeReset={mockResetVerify}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('form-step-2')).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByTestId('input-challenge-answer'), { target: { value: '2' } })
+    fireEvent.click(screen.getByTestId('btn-verify-and-login'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('form-step-1')).toBeInTheDocument()
+      expect(screen.getByTestId('auth-error-alert')).toHaveTextContent(
+        'Silakan masuk kembali dengan Google'
+      )
+    })
+    expect(mockResetVerify).toHaveBeenCalledTimes(1)
+    expect(mockOnLoginSuccess).not.toHaveBeenCalled()
   })
 })

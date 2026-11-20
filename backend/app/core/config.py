@@ -172,7 +172,7 @@ class Settings(BaseModel):
     # Konfigurasi autentikasi & sesi
     SESSION_COOKIE_NAME: str = "satukit_session"
     LEGACY_SESSION_COOKIE_NAME: str = "docbuilder_session"
-    SESSION_TTL_DAYS: int = 30  # 30 hari sesi aktif
+    SESSION_TTL_HOURS: int = Field(default_factory=lambda: _env_int("SESSION_TTL_HOURS", 6))
     AUTH_TOKEN_TTL_MINUTES: int = 15  # TTL token reset password / verifikasi 15 menit (NFR-SEC-006)
     GOOGLE_CLIENT_ID: str | None = Field(default_factory=lambda: _env_opt_str("GOOGLE_CLIENT_ID"))
     GOOGLE_CLIENT_SECRET: str | None = Field(
@@ -182,6 +182,10 @@ class Settings(BaseModel):
         default_factory=lambda: _env_int("GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS", 600)
     )
     GOOGLE_OAUTH_COOKIE_NAME: str = "satukit_google_oauth_tx"
+    GOOGLE_PENDING_COOKIE_NAME: str = "satukit_google_pending"
+    GOOGLE_PENDING_TTL_SECONDS: int = Field(
+        default_factory=lambda: _env_int("GOOGLE_PENDING_TTL_SECONDS", 600)
+    )
     BOT_CHALLENGE_SECRET: str = Field(
         default_factory=lambda: _env_str(
             "BOT_CHALLENGE_SECRET", "satukit-bot-challenge-secret-local-2026"

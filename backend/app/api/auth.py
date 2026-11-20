@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import logging
 import secrets
 import time
 from typing import Any
@@ -8,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+from app.core import audit
 from app.core.config import settings
 from app.core.middleware import is_allowed_origin
 from app.core.rate_limiter import get_client_ip, rate_limiter
@@ -21,9 +25,16 @@ from app.core.security import (
 from app.services.auth_service import AccountMergeRequiredError, auth_service
 from app.services.bot_challenge import bot_challenge_service
 from app.services.brevo import brevo_service
-from app.services.google_oidc import generate_pkce_pair, google_oidc_service
+from app.services.google_oidc import (
+    GoogleOIDCInvalidTokenError,
+    GoogleOIDCTransientError,
+    generate_pkce_pair,
+    google_oidc_service,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+logger = logging.getLogger("satukit.auth")
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -35,7 +46,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         samesite="lax",
         path="/",
         secure=settings.IS_PRODUCTION,
-        max_age=settings.SESSION_TTL_DAYS * 86400,
+        max_age=settings.SESSION_TTL_HOURS * 3600,
     )
 
 
@@ -78,6 +89,95 @@ def _clear_oauth_tx_cookie(response: Response) -> None:
     )
 
 
+_GOOGLE_PENDING_COOKIE_PATH = "/api/auth/google/challenge"
+
+
+def _set_google_pending_cookie(response: Response, pending_token: str) -> None:
+    """Menyetel cookie HttpOnly sementara sebelum tantangan anti-bot Google selesai."""
+    response.set_cookie(
+        key=settings.GOOGLE_PENDING_COOKIE_NAME,
+        value=pending_token,
+        httponly=True,
+        samesite="lax",
+        path=_GOOGLE_PENDING_COOKIE_PATH,
+        secure=settings.IS_PRODUCTION,
+        max_age=settings.GOOGLE_PENDING_TTL_SECONDS,
+    )
+
+
+def _clear_google_pending_cookie(response: Response) -> None:
+    """Menghapus cookie sementara verifikasi Google."""
+    response.delete_cookie(
+        key=settings.GOOGLE_PENDING_COOKIE_NAME,
+        path=_GOOGLE_PENDING_COOKIE_PATH,
+        httponly=True,
+        samesite="lax",
+    )
+
+
+def _create_google_pending_token(user_id: str) -> str:
+    """Membuat token HMAC untuk mengikat identitas Google ke tantangan anti-bot."""
+    if not user_id or "." in user_id:
+        raise ValueError("Identitas pengguna tidak valid untuk token verifikasi Google.")
+    expires_at = int(time.time()) + settings.GOOGLE_PENDING_TTL_SECONDS
+    nonce = secrets.token_urlsafe(16)
+    payload = f"google_pending:{user_id}:{expires_at}:{nonce}"
+    sig = hmac.new(
+        settings.BOT_CHALLENGE_SECRET.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"{user_id}.{expires_at}.{nonce}.{sig}"
+
+
+def _verify_google_pending_token(raw_token: str | None) -> str | None:
+    """Memvalidasi tanda tangan HMAC & kedaluwarsa token Google, kembalikan user_id."""
+    if not raw_token:
+        return None
+    parts = raw_token.split(".")
+    if len(parts) != 4:
+        return None
+    user_id, expires_str, nonce, provided_sig = parts
+    if not all((user_id, expires_str, nonce, provided_sig)):
+        return None
+    try:
+        expires_at = int(expires_str)
+    except ValueError:
+        return None
+    if time.time() > expires_at:
+        return None
+    payload = f"google_pending:{user_id}:{expires_at}:{nonce}"
+    expected_sig = hmac.new(
+        settings.BOT_CHALLENGE_SECRET.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(provided_sig, expected_sig):
+        return None
+    return user_id
+
+
+def _require_pending_google_user(request: Request) -> Any:
+    """Mengambil dan memvalidasi pengguna dari cookie HttpOnly satukit_google_pending."""
+    pending_token = request.cookies.get(settings.GOOGLE_PENDING_COOKIE_NAME)
+    user_id = _verify_google_pending_token(pending_token)
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Sesi verifikasi Google tidak ditemukan atau telah kedaluwarsa. "
+                "Silakan masuk kembali dengan Google."
+            ),
+        )
+    user = auth_service.repo.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Akun verifikasi Google tidak ditemukan. Silakan masuk kembali dengan Google.",
+        )
+    return user
+
+
 def _google_redirect(status: str) -> RedirectResponse:
     """Menghasilkan respon pengalihan callback Google yang aman (anti-open-redirect)."""
     if status.startswith("google_login_success") or status.startswith("google_link_success"):
@@ -92,7 +192,7 @@ def _google_redirect(status: str) -> RedirectResponse:
 
 
 def _resolve_base_url(request: Request) -> str:
-    """Mengembalikan base URL aplikasi. Di development, menyesuaikan host request (127.0.0.1 / localhost)."""
+    """Base URL aplikasi; di development ikuti host request (127.0.0.1 / localhost)."""
     if not settings.IS_PRODUCTION:
         host = request.headers.get("host")
         if host and ("127.0.0.1" in host or "localhost" in host):
@@ -140,6 +240,11 @@ class LoginInitResponse(BaseModel):
 
 
 class LoginVerifyRequest(BaseModel):
+    challenge_token: str
+    challenge_answer: int | str
+
+
+class GoogleChallengeVerifyRequest(BaseModel):
     challenge_token: str
     challenge_answer: int | str
 
@@ -484,6 +589,7 @@ def logout(request: Request, response: Response):
         auth_service.revoke_session(session_cookie)
 
     _clear_session_cookie(response)
+    _clear_google_pending_cookie(response)
     return {"success": True, "message": "Berhasil keluar."}
 
 
@@ -546,6 +652,7 @@ def google_auth_start(request: Request):
         resp.headers["Cache-Control"] = "no-store"
         return resp
     except Exception:
+        logger.exception("Gagal memulai alur autentikasi Google OIDC.")
         return _google_redirect("google_temporarily_unavailable")
 
 
@@ -619,13 +726,16 @@ def google_auth_callback(
 ):
     """Menangani kembalian dari Google Identity, memvalidasi PKCE, dan menyetel sesi."""
     if error:
+        logger.warning("Callback Google dibatalkan atau mengembalikan error OAuth.")
         return _google_redirect("google_cancelled")
 
     if not code or not state:
+        logger.warning("Callback Google tanpa parameter code atau state.")
         return _google_redirect("google_invalid_response")
 
     browser_binding = request.cookies.get(settings.GOOGLE_OAUTH_COOKIE_NAME)
     if not browser_binding:
+        logger.warning("Callback Google tanpa cookie transaksi OAuth.")
         return _google_redirect("google_invalid_response")
 
     state_hash = hash_token(state)
@@ -638,6 +748,7 @@ def google_auth_callback(
         now=now,
     )
     if not tx:
+        logger.warning("Transaksi OAuth Google tidak ditemukan, kedaluwarsa, atau sudah dipakai.")
         return _google_redirect("google_invalid_response")
 
     redirect_uri = google_oidc_service.get_redirect_uri(_resolve_base_url(request))
@@ -647,7 +758,32 @@ def google_auth_callback(
             code_verifier=tx.code_verifier,
             redirect_uri=redirect_uri,
         )
+    except GoogleOIDCTransientError:
+        logger.warning("Pertukaran kode Google gagal: gangguan koneksi ke Google.")
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="exchange_code",
+            reason="transient_error",
+        )
+        return _google_redirect("google_temporarily_unavailable")
+    except GoogleOIDCInvalidTokenError as exc:
+        logger.warning("Pertukaran kode Google ditolak: %s", exc)
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="exchange_code",
+            reason=str(exc)[:200],
+        )
+        return _google_redirect("google_invalid_response")
     except Exception:
+        logger.exception("Kesalahan tak terduga saat pertukaran kode Google.")
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="exchange_code",
+            reason="unexpected_error",
+        )
         return _google_redirect("google_temporarily_unavailable")
 
     try:
@@ -655,8 +791,33 @@ def google_auth_callback(
             id_token_jwt=tokens["id_token"],
             expected_nonce=tx.nonce,
         )
-    except Exception:
+    except GoogleOIDCTransientError:
+        logger.warning("Verifikasi ID token Google gagal: gangguan koneksi ke Google.")
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="verify_id_token",
+            reason="transient_error",
+        )
+        return _google_redirect("google_temporarily_unavailable")
+    except GoogleOIDCInvalidTokenError as exc:
+        logger.warning("Verifikasi ID token Google ditolak: %s", exc)
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="verify_id_token",
+            reason=str(exc)[:200],
+        )
         return _google_redirect("google_invalid_response")
+    except Exception:
+        logger.exception("Kesalahan tak terduga saat verifikasi ID token Google.")
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "failed",
+            stage="verify_id_token",
+            reason="unexpected_error",
+        )
+        return _google_redirect("google_temporarily_unavailable")
 
     if tx.intent == "login":
         try:
@@ -668,35 +829,36 @@ def google_auth_callback(
                 avatar_url=user_info.get("avatar_url"),
             )
         except AccountMergeRequiredError:
+            logger.warning(
+                "Login Google memerlukan penautan manual karena email telah memiliki kata sandi."
+            )
             return _google_redirect("account_merge_required")
         except Exception:
+            logger.exception("Gagal membuat atau memuat akun dari identitas Google.")
             return _google_redirect("google_temporarily_unavailable")
 
-        # Sesi baru: cabut sesi lama jika ada
-        old_session = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
-            LEGACY_SESSION_COOKIE_NAME
-        )
-        if old_session:
-            auth_service.revoke_session(old_session)
+        try:
+            pending_token = _create_google_pending_token(user.id)
+        except Exception:
+            logger.exception("Gagal membuat token verifikasi sementara untuk login Google.")
+            return _google_redirect("google_temporarily_unavailable")
 
-        client_ip = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        raw_token, _, _ = auth_service.create_session(
-            user.id, ip_address=client_ip, user_agent=user_agent
+        resp = _google_redirect("google_challenge_required")
+        _set_google_pending_cookie(resp, pending_token)
+        audit.audit_logger.record(
+            "auth.google_oidc_callback",
+            "challenge_required",
+            intent="login",
         )
-
-        resp = _google_redirect("google_login_success")
-        _set_session_cookie(resp, raw_token)
         return resp
 
     if tx.intent == "link":
         session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
             LEGACY_SESSION_COOKIE_NAME
         )
-        user_session = (
-            auth_service.validate_session(session_cookie) if session_cookie else None
-        )
+        user_session = auth_service.validate_session(session_cookie) if session_cookie else None
         if not user_session or user_session[0].id != tx.user_id:
+            logger.warning("Callback penautan Google tidak cocok dengan sesi pengguna.")
             return _google_redirect("google_invalid_response")
 
         try:
@@ -709,14 +871,109 @@ def google_auth_callback(
             )
         except HTTPException as exc:
             if exc.status_code == 409:
+                logger.warning("Penautan akun Google ditolak karena konflik akun (HTTP 409).")
                 return _google_redirect("google_link_conflict")
+            logger.warning(
+                "Penautan akun Google ditolak (HTTP %d): %s",
+                exc.status_code,
+                exc.detail,
+            )
             return _google_redirect("google_link_error")
         except Exception:
+            logger.exception("Gagal menautkan akun Google pada callback.")
             return _google_redirect("google_temporarily_unavailable")
 
         return _google_redirect("google_link_success")
 
     return _google_redirect("google_invalid_response")
+
+
+@router.post("/google/challenge", response_model=ChallengeResponse)
+def google_challenge_init(request: Request, response: Response):
+    """Menerbitkan tantangan anti-bot matematika untuk pengguna Google pending."""
+    rate_limiter.enforce(
+        f"google_challenge:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak permintaan tantangan keamanan. Silakan tunggu 1 menit.",
+    )
+    user = _require_pending_google_user(request)
+    response.headers["Cache-Control"] = "no-store"
+    return bot_challenge_service.generate_challenge(user_id=user.id)
+
+
+@router.post("/google/challenge/refresh", response_model=ChallengeResponse)
+def google_challenge_refresh(
+    request: Request,
+    response: Response,
+    req: ChallengeRefreshRequest | None = None,
+):
+    """Menghasilkan soal tantangan matematika baru untuk sesi verifikasi Google yang masih valid."""
+    _ = req
+    rate_limiter.enforce(
+        f"google_challenge_refresh:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak permintaan pembaruan tantangan keamanan. Silakan tunggu 1 menit.",
+    )
+    user = _require_pending_google_user(request)
+    response.headers["Cache-Control"] = "no-store"
+    return bot_challenge_service.generate_challenge(user_id=user.id)
+
+
+@router.post("/google/challenge/verify", response_model=AuthResponse)
+def google_challenge_verify(
+    req: GoogleChallengeVerifyRequest,
+    request: Request,
+    response: Response,
+):
+    """Memverifikasi jawaban anti-bot untuk menyelesaikan login Google."""
+    rate_limiter.enforce(
+        f"google_challenge_verify:{get_client_ip(request)}",
+        max_requests=10,
+        window_seconds=60,
+        detail="Terlalu banyak percobaan jawaban anti-bot. Silakan tunggu 1 menit.",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    user = _require_pending_google_user(request)
+
+    is_valid, err_msg, challenge_user_id = bot_challenge_service.verify_challenge(
+        token=req.challenge_token,
+        answer_input=req.challenge_answer,
+    )
+    if not is_valid:
+        raise HTTPException(
+            status_code=400,
+            detail=err_msg or "Jawaban soal anti-bot salah atau token kedaluwarsa.",
+        )
+
+    if not challenge_user_id or challenge_user_id != user.id:
+        raise HTTPException(
+            status_code=401,
+            detail="Tantangan keamanan tidak cocok dengan sesi autentikasi Google Anda.",
+        )
+
+    # Sesi baru: cabut sesi lama jika ada (anti-session-fixation)
+    old_session = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
+        LEGACY_SESSION_COOKIE_NAME
+    )
+    if old_session:
+        auth_service.revoke_session(old_session)
+
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    raw_token, csrf_token, _ = auth_service.create_session(
+        user.id, ip_address=client_ip, user_agent=user_agent
+    )
+
+    _set_session_cookie(response, raw_token)
+    _clear_google_pending_cookie(response)
+    audit.audit_logger.record(
+        "auth.google_challenge_verify",
+        "success",
+        intent="login",
+    )
+    return AuthResponse(success=True, user=user.to_dict(), csrf_token=csrf_token)
 
 
 @router.post("/google/unlink")
@@ -736,6 +993,25 @@ def google_unlink(req: UnlinkGoogleRequest, request: Request):
 # --- Backward Compatible Endpoints ---
 
 
+def _get_active_user_csrf(request: Request) -> str | None:
+    """Mengembalikan CSRF token sesi pengguna jika request sudah membawa cookie sesi akun aktif."""
+    session_cookie = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get(
+        LEGACY_SESSION_COOKIE_NAME
+    )
+    if not session_cookie or (
+        not settings.IS_PRODUCTION and session_manager.verify_session(session_cookie)
+    ):
+        return None
+    try:
+        user_session = auth_service.validate_session(session_cookie)
+    except Exception:
+        return None
+    if user_session is None:
+        return None
+    _, expected_csrf = user_session
+    return expected_csrf
+
+
 @router.post("/bootstrap", response_model=BootstrapResponse)
 def bootstrap_session(req: BootstrapRequest, request: Request, response: Response):
     """Menukarkan token bootstrap lokal menjadi Session Cookie HttpOnly dan CSRF token."""
@@ -743,9 +1019,12 @@ def bootstrap_session(req: BootstrapRequest, request: Request, response: Respons
     if origin and not is_allowed_origin(origin):
         raise HTTPException(status_code=403, detail="Forbidden: Origin tidak tepercaya")
 
-    if settings.IS_PRODUCTION:
-        import secrets
+    if not req.bootstrap_token:
+        active_csrf = _get_active_user_csrf(request)
+        if active_csrf is not None:
+            return BootstrapResponse(success=True, csrf_token=active_csrf)
 
+    if settings.IS_PRODUCTION:
         return BootstrapResponse(success=True, csrf_token=secrets.token_hex(16))
 
     if req.bootstrap_token:
@@ -771,9 +1050,11 @@ def bootstrap_session_get(request: Request, response: Response):
     if origin and not is_allowed_origin(origin):
         raise HTTPException(status_code=403, detail="Forbidden: Origin tidak tepercaya")
 
-    if settings.IS_PRODUCTION:
-        import secrets
+    active_csrf = _get_active_user_csrf(request)
+    if active_csrf is not None:
+        return BootstrapResponse(success=True, csrf_token=active_csrf)
 
+    if settings.IS_PRODUCTION:
         return BootstrapResponse(success=True, csrf_token=secrets.token_hex(16))
 
     response.set_cookie(

@@ -167,6 +167,40 @@ describe('Office Converter Modals Component Suite', () => {
       })
     })
 
+    it('menampilkan pemilih orientasi pada tab xlsx2pdf dan meneruskan pilihan landscape/portrait', async () => {
+      vi.mocked(converterService.convertSpreadsheetToPdf).mockResolvedValueOnce({
+        success: true,
+        filename: 'lebar.pdf'
+      })
+
+      render(<SpreadsheetConverterModal isOpen={true} onClose={vi.fn()} />)
+
+      expect(screen.getByTestId('orientation-auto')).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(screen.getByTestId('orientation-landscape'))
+      expect(screen.getByTestId('orientation-landscape')).toHaveAttribute('aria-pressed', 'true')
+
+      const input = screen.getByTestId('input-file-spreadsheet')
+      const xlsxFile = new File(['PK\x03\x04 dummy'], 'lebar.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
+      fireEvent.change(input, { target: { files: [xlsxFile] } })
+
+      fireEvent.click(screen.getByTestId('btn-start-spreadsheet-convert'))
+
+      await waitFor(() => {
+        expect(converterService.convertSpreadsheetToPdf).toHaveBeenCalledWith(
+          xlsxFile,
+          'landscape'
+        )
+        expect(screen.getByText(/Konversi Berhasil!/i)).toBeInTheDocument()
+      })
+    })
+
+    it('menyembunyikan pemilih orientasi saat berpindah ke tab pdf2xlsx', () => {
+      render(<SpreadsheetConverterModal isOpen={true} onClose={vi.fn()} initialTab="pdf2xlsx" />)
+      expect(screen.queryByTestId('orientation-auto')).not.toBeInTheDocument()
+    })
+
     it('berpindah ke tab PDF ke Excel dan mengekstrak tabel PDF ke XLSX', async () => {
       vi.mocked(converterService.convertPdfToXlsx).mockResolvedValueOnce({
         success: true,

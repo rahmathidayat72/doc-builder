@@ -15,18 +15,49 @@ security_review_due: "2026-11-20"
 remediation_gate_status: "NOT_REQUIRED"
 remediation_allowed: false
 remediation_task: null
-status: "READY"
+status: "IN_PROGRESS"
 requirements_approved: true
 plan_approved: true
 implementation_allowed: true
-current_phase: "phase-google-oidc"
-current_task: null
+current_phase: "phase-beta-release"
+current_task: "EXCEL-PDF-001"
 last_completed_task: "GOOGLE-OIDC-001"
 blocked_reason: null
-last_updated: "2026-11-16"
+last_updated: "2026-11-19"
 ```
 
 ## Ringkasan Fokus
+Task **`EXCEL-PDF-001`** (`.agent/plan.md` — Perbaikan Normalisasi Tata Letak Konversi Excel ke PDF) **berstatus `🧪 Menunggu verifikasi`** (implementasi normalisasi `openpyxl`, jalur `.xls` → `.xlsx` sementara, parameter API & UI pemilih orientasi, pembaruan `frontend/dist`, serta seluruh suite backend & frontend lulus, menunggu uji manual visual berkas Excel nyata di browser):
+- **Normalisasi Workbook & Jalur `.xls`:** `backend/app/services/office_converter.py` & `backend/app/services/libreoffice.py` kini menormalkan `print_area` ke rentang sel terpakai nyata (termasuk nilai `0`, formula `=0`, merged cells, tabel Excel, dan style lokal anti-ekspansi `XFD`), menyembunyikan sheet kosong awal beserta memindahkan `wb.active`, membersihkan manual row/col page break, mengaktifkan `fitToPage=True`/`fitToWidth=1`/`fitToHeight=0`/`scale=None`, menyetel margin wajar, memilih orientasi otomatis (landscape untuk tabel lebar) atau sesuai pilihan (`auto`/`portrait`/`landscape`), dan mempra-konversi `.xls` → `.xlsx` terisolasi sebelum normalisasi.
+- **API & UI Orientasi:** `POST /api/converter/spreadsheet-to-pdf` (`backend/app/api/converter.py`), `frontend/src/services/converter.ts`, dan `frontend/src/components/converter/SpreadsheetConverterModal.tsx` mendukung pemilih orientasi **Otomatis / Portrait / Landscape** pada tab *Excel ke PDF*.
+- **Verifikasi Otomatis Pasca-Edit Akhir:** Ruff (`check` & `format --check`) `0` error (`4` file), `36/36` targeted Pytest (`test_libreoffice` + `test_office_converter` termasuk 3 tes LibreOffice nyata `.xlsx`/`.xls`→PDF), `437/437` full backend Pytest PASS, Oxlint `0` error, `14/14` `office_converter.test.tsx`, `53/53` full Vitest (`425/425` tests) PASS, `tsc -b && vite build` PASS (`frontend/dist` diperbarui), dan `scan_secrets.py` (`0` secrets) PASS.
+
+Task **`WORD-PDF-MERGE-001`** (`.agent/plan.md` — Penggabungan Kartu `DOCX ke PDF` & `PDF ke DOCX` Menjadi `Word & PDF`) **berstatus `🧪 Menunggu verifikasi`** (implementasi komponen + integrasi `App.tsx` + pembaruan `frontend/dist` & seluruh 53 suite Vitest lulus, menunggu uji manual UI di `#/tools`):
+- **Kartu & Modal Gabungan:** `frontend/src/App.tsx` menggabungkan `DOCX ke PDF` dan `PDF ke DOCX` menjadi satu kartu **Word & PDF** (`Konversi Dokumen`: `3 alat`; total alat aktif `18` / `9 Coming Soon`). `frontend/src/components/converter/WordPdfModal.tsx` menyediakan tab **Word ke PDF** (`DocxToPdfModal` `embedded`) & **PDF ke Word** (`PdfToDocxModal` `embedded`) tanpa overlay/tombol tutup ganda dengan reset state saat berganti tab.
+- **Verifikasi Otomatis Pasca-Edit Akhir:** Oxlint `0` errors, `35/35` targeted Vitest (`word_pdf_modal`, `converter`, `pdf2docx`, `accessibility` WCAG 2.2 AA, `app.integration`), `53/53` full Vitest (`423/423` tests) PASS, `tsc -b && vite build` PASS (`frontend/dist` diperbarui), serta `scan_secrets.py` (`1659` file, `0` secrets) PASS.
+
+Task **`SESSION-TTL-001`** (`.agent/plan.md` — Sesi Login 6 Jam Absolut) **berstatus `🧪 Menunggu verifikasi`** (implementasi config, service, cookie, env docs, Alembic `008_shorten_session_ttl.py`, eksekusi migrasi DB lokal, & seluruh suite backend lulus, menunggu restart server & uji manual browser):
+- **TTL Absolut 6 Jam:** `SESSION_TTL_DAYS = 30` diganti menjadi `SESSION_TTL_HOURS = 6` (`_env_int("SESSION_TTL_HOURS", 6)`) pada `backend/app/core/config.py`, `auth_service.create_session` (`expires_at = now + SESSION_TTL_HOURS * 3600` tanpa sliding window pada `validate_session`), cookie `satukit_session` (`max_age = SESSION_TTL_HOURS * 3600` -> `Max-Age=21600`), dan `deploy/satukit.env.example`.
+- **Migrasi Sesi Lama:** Ditambahkan `AuthRepository.shorten_existing_sessions`, Alembic `008_shorten_session_ttl.py`, serta CLI `scripts/shorten_session_ttl.py`. Eksekusi pada DB lokal memangkas `130` sesi lama PostgreSQL (`129` langsung kedaluwarsa).
+- **Verifikasi Otomatis Pasca-Edit Akhir:** Ruff `0` error (`8` file), `19/19` Pytest (`test_auth_service`, `test_postgres_migration`, `test_postgres_setup`), `21/21` `test_auth_api`, `430/430` full backend Pytest PASS, dan `scan_secrets.py` (`1657` file, `0` secrets) PASS.
+
+Task **`FS-10`** (`.agent/plan.md` — Pemindaian Berkas Rak Berkas Tidak Pernah Selesai) **berstatus `🧪 Menunggu verifikasi`** (implementasi launcher + worker heartbeat/recovery + dev R2/keyring lintas-proses + UI status + build `frontend/dist` & seluruh suite tes otomatis lulus, menunggu uji manual `start-satukit.bat` live):
+- **Launcher:** `start-satukit.bat` kini menyingkirkan worker sisa sebelumnya, menunggu kesiapan `http://127.0.0.1:8000/api/health`, menjalankan `backend\.venv\Scripts\python.exe -m app.workers.file_worker` di jendela terpisah, dan menghentikan proses `app.workers.file_worker` pada blok cleanup.
+- **Worker Heartbeat & Recovery:** `backend/app/workers/heartbeat.py` + `backend/app/workers/file_worker.py` mencatat `RuntimeState(key="file_worker_last_seen")` di setiap `run_worker_pass` (dan status `"stopped"` saat loop berhenti), serta memulihkan item `CHECKING` tertinggal > 15 menit (`STALE_CHECKING_TIMEOUT_SECONDS = 900.0`) hanya bila heartbeat worker aktif dengan log peringatan non-PII.
+- **Fallback Lintas-Proses Dev:** `backend/app/services/r2_storage.py` (`LocalDiskR2StorageClient`) & `backend/app/services/file_crypto.py` (`_ensure_dev_keyring_file` di `.local_security/`) menjaga objek terenkripsi dan kunci enkripsi konsisten antara `uvicorn` dan `file_worker` saat kredensial R2 belum disetel di `.env` lokal.
+- **Health & UI:** `/api/health` (`file_worker`) dan `/api/files/metrics` melaporkan `worker_status`, `worker_fresh`, dan `heartbeat_age_seconds`; `FileShelfView.tsx` menampilkan `"Memproses & memindai..."` atau `"Menunggu worker pemindai..."` pada `status-checking` beserta badge status worker kecil.
+- **Verifikasi Otomatis:** Ruff `0` error (`10` file), `19/19` worker/crypto Pytest, `30/30` health/file-shelf Pytest, `427/427` full Pytest, Oxlint `0` error, `9/9` `FileShelfView.test.tsx`, `52/52` (`419/419`) Vitest, `tsc -b && vite build`, serta `scan_secrets.py` (`1655` file, `0` secrets) seluruhnya PASS.
+
+Task **`GOOGLE-OIDC-003`** (`.agent/plan.md` — Wajib Verifikasi Anti-Bot untuk Login Google) **berstatus `🧪 Menunggu verifikasi`** (implementasi backend + frontend + pembaruan `frontend/dist` & seluruh suite tes otomatis lulus, menunggu restart server host & uji manual browser):
+- **Backend Pending Cookie & Endpoints:** Callback login/register Google (`tx.intent == "login"`) di `backend/app/api/auth.py` kini tidak menerbitkan `satukit_session` langsung, melainkan menyetel cookie HttpOnly HMAC `satukit_google_pending` (`path=/api/auth/google/challenge`, TTL `600s` via `backend/app/core/config.py`) dan mengarahkan ke `/#/login?auth_status=google_challenge_required`. Tersedia 3 endpoint publik rate-limited (`10/min`) di `PUBLIC_PATHS` (`backend/app/core/middleware.py`): `POST /api/auth/google/challenge`, `/refresh`, dan `/verify` (`Cache-Control: no-store`, validasi `user_id` cookie vs `challenge_token`, pencabutan sesi lama, serta penghapusan cookie pending).
+- **Frontend Flow & UI:** `frontend/src/services/auth.ts`, `frontend/src/App.tsx`, dan `frontend/src/components/auth/LoginPage.tsx` menangani rute `google_challenge_required` langsung ke tampilan Step 2 verifikasi anti-bot Google tanpa alert error, mendukung ganti soal, fallback ke Step 1 saat pending cookie kedaluwarsa (`401`), dan meneruskan `onLoginSuccess(user)`.
+- **Verifikasi Otomatis Pasca-Edit Akhir:** Ruff (`check` & `format --check`) PASS, `37/37` targeted Pytest (`test_google_oidc`, `test_auth_api`, `test_production_config`) PASS, `425/425` full backend Pytest PASS, Oxlint `0` errors, `29/29` targeted Vitest (`LoginPage` + `app.integration`) PASS, `52/52` full Vitest (`418/418` tests) PASS, `tsc -b && vite build` PASS (`frontend/dist` diperbarui), dan `scan_secrets.py` (`1653` file, `0` secrets) PASS.
+
+Task **`GOOGLE-OIDC-002`** (`.agent/plan.md` — Klasifikasi Error, Retry Transport, Clock Skew Adaptif, Logging Callback Google OIDC, & Pelestarian Sesi Bootstrap) **berstatus `🧪 Menunggu verifikasi`** (dua akar masalah ditemukan & diperbaiki; seluruh 422 tes backend lulus, menunggu restart server host & retest browser):
+- **Fix #1 (Clock Skew):** Mengidentifikasi penyebab `google_invalid_response` pada `10:19:50 WIB`: `Token used too early, 1794971990 < 1794972051` (jam Windows tertinggal 61 detik). Menaikkan `TOKEN_CLOCK_SKEW_SECONDS = 300` serta menambahkan adaptasi otomatis dari header `Date` server Google (`_compute_skew_from_headers`, maks `MAX_CLOCK_SKEW_SECONDS = 3600`) di `backend/app/services/google_oidc.py`.
+- **Fix #2 (Bootstrap menimpa sesi login menjadi guest):** Setelah login Google sukses (`OAUTH_ACCOUNTS: 1`, redirect `/#/home?auth_status=google_login_success`), panggilan awal `POST /api/auth/bootstrap` dari `App.tsx` menimpa cookie `satukit_session` pengguna dengan `session_manager.session_token` sehingga `/api/auth/me` kembali ke mode `guest` dan Navbar tetap menampilkan `Masuk`. Menambahkan `_get_active_user_csrf(request)` di `backend/app/api/auth.py` agar `POST/GET /api/auth/bootstrap` mempertahankan cookie sesi akun aktif dan mengembalikan `csrf_token` sesi pengguna.
+- Hasil verifikasi otomatis pasca-edit akhir: `34/34` targeted (`13/13` `test_google_oidc.py`, `17/17` `test_auth_api.py`, `4/4` `test_production_config.py`) PASS, `422/422` full backend Pytest PASS, Ruff check & format `All checks passed!`, dan `scan_secrets.py` (`1653` file, `0` secrets) PASS.
+
 Task **`GOOGLE-OIDC-001`** (`CR-026`, `DEC-033` — Autentikasi Google OpenID Connect PKCE Backend & Linking/Unlinking Aman Akun Password) **telah selesai dan terverifikasi**:
 
 1. **Task `GOOGLE-OIDC-001` Selesai & Terverifikasi (Google OIDC PKCE Backend & Account Linking/Unlinking):**

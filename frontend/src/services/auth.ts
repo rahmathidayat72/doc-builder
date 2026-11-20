@@ -1,5 +1,20 @@
 import { apiFetch, setCsrfToken } from './apiClient'
 
+export class AuthApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'AuthApiError'
+    this.status = status
+  }
+}
+
+async function parseAuthError(res: Response, fallbackMessage: string): Promise<AuthApiError> {
+  const err = await res.json().catch(() => ({}))
+  return new AuthApiError(err.detail || fallbackMessage, res.status)
+}
+
 export interface OAuthAccount {
   provider: string
   email: string
@@ -124,6 +139,49 @@ export async function loginVerify(params: LoginVerifyParams): Promise<AuthUser> 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || 'Jawaban soal anti-bot salah. Silakan coba lagi.')
+  }
+  const data = await res.json()
+  if (data.csrf_token) {
+    setCsrfToken(data.csrf_token)
+  }
+  return data.user
+}
+
+export async function getGoogleChallenge(): Promise<BotChallenge> {
+  const res = await apiFetch('/api/auth/google/challenge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) {
+    throw await parseAuthError(
+      res,
+      'Sesi verifikasi Google tidak ditemukan atau telah kedaluwarsa. Silakan masuk kembali dengan Google.'
+    )
+  }
+  return res.json()
+}
+
+export async function refreshGoogleChallenge(challengeToken: string): Promise<BotChallenge> {
+  const res = await apiFetch('/api/auth/google/challenge/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_token: challengeToken }),
+  })
+  if (!res.ok) {
+    throw await parseAuthError(res, 'Gagal memuat ulang soal anti-bot.')
+  }
+  return res.json()
+}
+
+export async function verifyGoogleChallenge(params: LoginVerifyParams): Promise<AuthUser> {
+  const res = await apiFetch('/api/auth/google/challenge/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) {
+    throw await parseAuthError(res, 'Jawaban soal anti-bot salah. Silakan coba lagi.')
   }
   const data = await res.json()
   if (data.csrf_token) {

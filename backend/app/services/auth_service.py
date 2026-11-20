@@ -339,7 +339,7 @@ class AuthService:
         token_hash = hash_token(raw_session_token)
         csrf_token = generate_secure_token(32)
         now = time.time()
-        expires_at = now + (settings.SESSION_TTL_DAYS * 86400)
+        expires_at = now + (settings.SESSION_TTL_HOURS * 3600)
 
         self.repo.create_session(
             token_hash=token_hash,

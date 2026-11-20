@@ -134,6 +134,8 @@ def build_libreoffice_command(
     input_file: Path,
     out_dir: Path,
     profile_dir: Path,
+    *,
+    target_format: str = "pdf",
 ) -> list[str]:
     """Membangun argumen baris perintah LibreOffice headless dengan isolasi profil."""
     return [
@@ -148,7 +150,7 @@ def build_libreoffice_command(
         "--norestore",
         "--nolockcheck",
         "--convert-to",
-        "pdf",
+        target_format,
         str(input_file),
         "--outdir",
         str(out_dir),
@@ -263,6 +265,85 @@ def convert_bytes_to_pdf_sandboxed(
             out = io.BytesIO(pdf_bytes)
             out.seek(0)
             return out, None
+        except FileNotFoundError:
+            return None, "LIBREOFFICE_NOT_FOUND"
+        except LibreOfficeBusyError as e:
+            return None, f"CONVERSION_BUSY: {e}"
+        except Exception as e:
+            return None, f"{error_prefix}: {e}"
+
+
+def convert_bytes_to_format_sandboxed(
+    file_bytes: bytes,
+    filename: str,
+    *,
+    target_format: str,
+    expected_ext: str,
+    validator: Callable[[bytes], bool] | None = None,
+    prefix: str = "docbuilder_conv_",
+    timeout_sec: float = 300.0,
+    max_memory_mb: int = 1000,
+    error_prefix: str = "CONVERSION_ERROR",
+    job_type: str = "office_conversion",
+    session_factory: Callable[[], Session] | None = None,
+) -> tuple[bytes | None, str | None]:
+    """Mengonversi berkas biner ke format target via LibreOffice headless terisolasi."""
+    lo_available, lo_path = detect_libreoffice()
+    if not lo_available or not lo_path:
+        return None, "LIBREOFFICE_NOT_FOUND"
+
+    clean_stem = Path(filename).stem
+    safe_stem = "".join([c for c in clean_stem if c.isalnum() or c in ("-", "_")]) or "document"
+    ext = Path(filename).suffix.lower() or ".bin"
+    out_ext = expected_ext if expected_ext.startswith(".") else f".{expected_ext}"
+    unique_prefix = f"lo_{uuid.uuid4().hex[:8]}"
+
+    with tempfile.TemporaryDirectory(prefix=prefix) as tmpdir:
+        work_dir = Path(tmpdir)
+        input_file = work_dir / f"{safe_stem}_{unique_prefix}{ext}"
+        input_file.write_bytes(file_bytes)
+
+        try:
+            with (
+                acquire_libreoffice_slot(
+                    job_type=job_type,
+                    ttl_sec=timeout_sec + 10.0,
+                    session_factory=session_factory,
+                ),
+                tempfile.TemporaryDirectory(prefix="docbuilder_lo_prof_") as profile_tmp,
+            ):
+                profile_dir = Path(profile_tmp)
+                cmd = build_libreoffice_command(
+                    lo_path,
+                    input_file,
+                    work_dir,
+                    profile_dir,
+                    target_format=target_format,
+                )
+                config = SandboxConfig(
+                    working_dir=work_dir,
+                    timeout_sec=timeout_sec,
+                    max_memory_mb=max_memory_mb,
+                    allow_network=False,
+                )
+                result = run_sandboxed_subprocess(cmd, config)
+                if result.exit_code != 0:
+                    err = (
+                        result.error_message
+                        or result.stderr
+                        or result.stdout
+                        or f"exit code {result.exit_code}"
+                    )
+                    raise RuntimeError(f"LibreOffice conversion failed: {err}")
+
+                expected_out = work_dir / f"{input_file.stem}{out_ext}"
+                if not expected_out.is_file() or expected_out.stat().st_size == 0:
+                    raise RuntimeError("Berkas luaran LibreOffice tidak ditemukan atau kosong.")
+
+                out_bytes = expected_out.read_bytes()
+                if validator is not None and not validator(out_bytes):
+                    raise RuntimeError("Berkas luaran LibreOffice tidak lolos validasi format.")
+                return out_bytes, None
         except FileNotFoundError:
             return None, "LIBREOFFICE_NOT_FOUND"
         except LibreOfficeBusyError as e:

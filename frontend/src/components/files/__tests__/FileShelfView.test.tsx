@@ -94,7 +94,7 @@ describe('FileShelfView Component', () => {
   })
 
   // 5. STATE: CHECKING
-  it('State 5 (CHECKING): menampilkan status pemindaian ClamAV & inspeksi in-flight', async () => {
+  it('State 5 (CHECKING): menampilkan status pemrosesan & pemindaian saat worker aktif', async () => {
     const checkingItem: fileShelfService.FileShelfItem = {
       id: 'item-checking-1',
       filename: 'dokumen_kerja.pdf',
@@ -106,6 +106,12 @@ describe('FileShelfView Component', () => {
     }
 
     vi.mocked(fileShelfService.fetchUserFiles).mockResolvedValue([checkingItem])
+    vi.mocked(fileShelfService.fetchFileMetrics).mockResolvedValue({
+      ...defaultMetrics,
+      worker_status: 'healthy',
+      worker_fresh: true,
+      heartbeat_age_seconds: 1.5,
+    })
 
     render(<FileShelfView currentUser={verifiedUser} onNavigate={mockNavigate} />)
 
@@ -114,8 +120,41 @@ describe('FileShelfView Component', () => {
       expect(view).toHaveAttribute('data-state', 'checking')
     })
 
-    expect(screen.getByTestId('status-checking')).toHaveTextContent('Memindai ClamAV...')
+    expect(screen.getByTestId('status-checking')).toHaveTextContent('Memproses & memindai...')
+    expect(screen.getByTestId('file-worker-badge')).toHaveTextContent('Worker pemindai aktif')
     expect(screen.getByText('dokumen_kerja.pdf')).toBeInTheDocument()
+  })
+
+  it('State 5b (CHECKING tanpa heartbeat worker): menampilkan status menunggu worker pemindai', async () => {
+    const checkingItem: fileShelfService.FileShelfItem = {
+      id: 'item-checking-2',
+      filename: 'tertunda.pdf',
+      content_type: 'application/pdf',
+      size_bytes: 54700,
+      status: 'CHECKING',
+      has_exif_warning: false,
+      uploaded_at: Date.now() / 1000,
+    }
+
+    vi.mocked(fileShelfService.fetchUserFiles).mockResolvedValue([checkingItem])
+    vi.mocked(fileShelfService.fetchFileMetrics).mockResolvedValue({
+      ...defaultMetrics,
+      worker_status: 'unavailable',
+      worker_fresh: false,
+      heartbeat_age_seconds: null,
+    })
+
+    render(<FileShelfView currentUser={verifiedUser} onNavigate={mockNavigate} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status-checking')).toHaveTextContent(
+        'Menunggu worker pemindai...'
+      )
+    })
+
+    expect(screen.getByTestId('file-worker-badge')).toHaveTextContent(
+      'Worker pemindai tidak aktif'
+    )
   })
 
   // 6. STATE: AVAILABLE

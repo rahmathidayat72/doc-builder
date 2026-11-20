@@ -264,3 +264,75 @@ def test_delete_user_account_cascades_instantly(auth_svc: AuthService):
 
     assert auth_svc.get_user_by_id(user.id) is None
     assert auth_svc.validate_session(raw_session) is None
+
+
+def test_session_ttl_6h_absolute_boundary_and_expiry(
+    auth_svc: AuthService, monkeypatch: pytest.MonkeyPatch
+):
+    """Memastikan TTL sesi absolut 6 jam (21600 dtk) tanpa sliding window extension."""
+    from app.core.config import settings
+
+    assert settings.SESSION_TTL_HOURS == 6
+    base_time = 1_800_000_000.0
+    monkeypatch.setattr("app.services.auth_service.time.time", lambda: base_time)
+
+    user, _ = auth_svc.register_user("ttl6h@example.com", "Password123", "TTL User")
+    raw_session, _, expires_at = auth_svc.create_session(user.id)
+    assert expires_at == pytest.approx(base_time + 21_600.0)
+
+    # 5 jam 59 menit (21540 dtk) setelah dibuat -> masih valid
+    monkeypatch.setattr("app.services.auth_service.time.time", lambda: base_time + 21_540.0)
+    valid_res = auth_svc.validate_session(raw_session)
+    assert valid_res is not None
+    assert valid_res[0].id == user.id
+
+    # Tepat 6 jam 1 detik (21601 dtk) -> wajib kedaluwarsa meskipun baru divalidasi di 5j 59m
+    monkeypatch.setattr("app.services.auth_service.time.time", lambda: base_time + 21_601.0)
+    assert auth_svc.validate_session(raw_session) is None
+
+
+def test_shorten_existing_sessions_migration(auth_svc: AuthService):
+    """Memendekkan sesi 30 hari lama menjadi maksimal created_at + 6 jam."""
+    from app.core.security import generate_secure_token, hash_token
+
+    now = 1_800_100_000.0
+    user, _ = auth_svc.register_user("migrate6h@example.com", "Password123", "Migrate User")
+
+    # Sesi 2 jam lalu (lama TTL 30 hari) -> setelah dipendekkan masih punya sisa ~4 jam
+    tok_recent = generate_secure_token(32)
+    recent_created = now - (2 * 3600.0)
+    auth_svc.repo.create_session(
+        token_hash=hash_token(tok_recent),
+        user_id=user.id,
+        csrf_token="csrf-recent",
+        ip_address="127.0.0.1",
+        user_agent="pytest",
+        created_at=recent_created,
+        expires_at=recent_created + (30 * 86400.0),
+    )
+
+    # Sesi 7 jam lalu (lama TTL 30 hari) -> setelah dipendekkan langsung kedaluwarsa
+    tok_old = generate_secure_token(32)
+    old_created = now - (7 * 3600.0)
+    auth_svc.repo.create_session(
+        token_hash=hash_token(tok_old),
+        user_id=user.id,
+        csrf_token="csrf-old",
+        ip_address="127.0.0.1",
+        user_agent="pytest",
+        created_at=old_created,
+        expires_at=old_created + (30 * 86400.0),
+    )
+
+    stats = auth_svc.repo.shorten_existing_sessions(ttl_hours=6, now=now)
+    assert stats["shortened"] == 2
+    assert stats["expired"] == 1
+
+    res_recent = auth_svc.repo.get_session_with_user(hash_token(tok_recent))
+    assert res_recent is not None
+    assert res_recent[2] == pytest.approx(recent_created + 21_600.0)
+
+    res_old = auth_svc.repo.get_session_with_user(hash_token(tok_old))
+    assert res_old is not None
+    assert res_old[2] == pytest.approx(old_created + 21_600.0)
+    assert res_old[2] <= now

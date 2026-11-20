@@ -16,6 +16,7 @@ from app.api.health import set_health_engine_override
 from app.db.models import RuntimeState
 from app.db.postgres import Base
 from app.main import app
+from app.workers.heartbeat import FILE_WORKER_HEARTBEAT_KEY
 from app.workers.video_worker import HEARTBEAT_STATE_KEY
 
 client = TestClient(app)
@@ -33,6 +34,8 @@ def test_health_check_returns_ready():
     assert isinstance(data["ffmpeg_available"], bool)
     assert isinstance(data["ffprobe_available"], bool)
     assert data["video_worker"]["status"] in ("healthy", "stale", "unavailable")
+    assert data["file_worker"]["status"] in ("healthy", "stale", "unavailable")
+    assert "heartbeat_age_seconds" in data["file_worker"]
     assert "disk" in data
     assert data["disk"]["status"] in ("healthy", "warning", "critical")
     assert "used_percent" in data["disk"]
@@ -68,6 +71,9 @@ def test_health_reports_ffmpeg_and_worker_heartbeat_without_internal_paths(
         assert d_missing["ffprobe_available"] is True
         assert d_missing["video_worker"]["status"] == "unavailable"
         assert d_missing["video_worker"]["fresh"] is False
+        assert d_missing["file_worker"]["status"] == "unavailable"
+        assert d_missing["file_worker"]["fresh"] is False
+        assert d_missing["file_worker"]["heartbeat_age_seconds"] is None
         assert "/opt/internal-bin" not in json.dumps(d_missing)
 
         # 2. Fresh heartbeat -> healthy
@@ -86,6 +92,16 @@ def test_health_reports_ffmpeg_and_worker_heartbeat_without_internal_paths(
                     updated_at=now - 5.0,
                 )
             )
+            session.add(
+                RuntimeState(
+                    key=FILE_WORKER_HEARTBEAT_KEY,
+                    value={
+                        "status": "idle",
+                        "last_heartbeat_at": now - 3.0,
+                    },
+                    updated_at=now - 3.0,
+                )
+            )
             session.commit()
 
         res_fresh = client.get("/api/health")
@@ -95,6 +111,10 @@ def test_health_reports_ffmpeg_and_worker_heartbeat_without_internal_paths(
         assert d_fresh["video_worker"]["fresh"] is True
         assert d_fresh["video_worker"]["worker_status"] == "processing"
         assert d_fresh["video_worker"]["has_active_job"] is True
+        assert d_fresh["file_worker"]["status"] == "healthy"
+        assert d_fresh["file_worker"]["fresh"] is True
+        assert isinstance(d_fresh["file_worker"]["heartbeat_age_seconds"], (int, float))
+        assert d_fresh["file_worker"]["heartbeat_age_seconds"] < 60.0
         assert "/opt/internal-bin" not in json.dumps(d_fresh)
 
         # 3. Stale heartbeat + binary absen -> stale & False

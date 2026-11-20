@@ -4,6 +4,419 @@ Laporan ini mencatat setiap eksekusi task, Planned vs Actual, hasil pengujian, a
 
 ---
 
+## EXCEL-PDF-001 — Perbaikan Normalisasi Tata Letak Konversi Excel ke PDF — 2026-11-19
+
+**Task:** `EXCEL-PDF-001` (eksekusi `.agent/plan.md`)
+**Requirement:** `FR-012`, `BUS-005`, `NFR-UX-002`
+
+### Ringkasan
+1. Menambahkan `target_format` pada `build_libreoffice_command` dan helper `convert_bytes_to_format_sandboxed` di [libreoffice.py](file:///d:/app/Doc-builder/backend/app/services/libreoffice.py) memakai single-active `acquire_libreoffice_slot`, profil `-env:UserInstallation` terisolasi, dan `SandboxConfig(allow_network=False)` untuk jalur pra-konversi `.xls` → `.xlsx` sementara.
+2. Menambahkan normalisasi workbook berbasis `openpyxl` (`normalize_spreadsheet_workbook_bytes`, `_find_worksheet_used_range`, `_estimate_sheet_print_width`, `_normalize_worksheet_print_setup`) pada [office_converter.py](file:///d:/app/Doc-builder/backend/app/services/office_converter.py):
+   - Mendeteksi rentang data nyata (nilai, angka `0`, formula termasuk `=0`, merged cells, tabel Excel resmi `ws.tables`, dan sel ber-style tabel di sekitar area konten tanpa tertipu format penuh satu baris/kolom hingga `XFD`).
+   - Menyembunyikan sheet kosong bila ada sheet lain berisi data dan memindahkan `wb.active` + `tabSelected` ke sheet terisi pertama agar halaman pertama PDF tidak kosong.
+   - Menghapus manual `row_breaks` & `col_breaks`, menyetel ulang `print_area` ke rentang nyata, mengaktifkan `pageSetUpPr.fitToPage = True`, `fitToWidth = 1`, `fitToHeight = 0`, menghapus `scale` lama (`None`), menyetel kertas `A4` default & margin wajar (`0.4`/`0.5` inci), serta memilih orientasi otomatis **landscape** untuk tabel lebar (`>= 7` kolom terlihat atau estimasi lebar `>= 75.0`) dan **portrait** untuk tabel sempit (dengan dukungan override `portrait` / `landscape`).
+   - Mempertahankan formula (`data_only=False`), formatting, merged cells, dan lebar kolom.
+   - Mendukung `.xlsx` langsung maupun `.xls` via pra-konversi sementara `.xls` → `.xlsx` → normalisasi → PDF (dengan fallback aman bila normalisasi gagal).
+3. Memperbarui `POST /api/converter/spreadsheet-to-pdf` di [converter.py](file:///d:/app/Doc-builder/backend/app/api/converter.py) untuk menerima parameter opsional `orientation` (`auto` | `portrait` | `landscape`, HTTP `400` bila tidak valid).
+4. Menambahkan parameter `orientation` di [converter.ts](file:///d:/app/Doc-builder/frontend/src/services/converter.ts) dan pemilih orientasi **Otomatis / Portrait / Landscape** pada tab *Excel ke PDF* di [SpreadsheetConverterModal.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/SpreadsheetConverterModal.tsx) beserta keterangan penyesuaian `fitToWidth`, lalu memperbarui suite uji [test_office_converter.py](file:///d:/app/Doc-builder/backend/tests/test_office_converter.py), [office_converter.test.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/__tests__/office_converter.test.tsx), serta build produksi `frontend/dist`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh item wajib dan opsional pada `.agent/plan.md` (normalisasi `openpyxl`, jalur `.xls` → `.xlsx` sementara, parameter API `orientation`, pilihan orientasi UI, pembaruan tes backend/frontend, dan build frontend) diimplementasikan sesuai rencana tanpa dependensi baru.
+
+### File Dibuat
+- Tidak ada file baru (menggunakan dependensi `openpyxl>=3.1.5` dan modul yang ada).
+
+### File Diubah
+- `backend/app/services/libreoffice.py`
+- `backend/app/services/office_converter.py`
+- `backend/app/api/converter.py`
+- `backend/tests/test_office_converter.py`
+- `frontend/src/services/converter.ts`
+- `frontend/src/components/converter/SpreadsheetConverterModal.tsx`
+- `frontend/src/components/converter/__tests__/office_converter.test.tsx`
+- `frontend/dist/*` (hasil build produksi `tsc -b && vite build`)
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Backend Ruff Lint & Format | `backend/.venv/Scripts/ruff.exe check` & `format --check` (`4` file) | PASS | `All checks passed!`, `4 files already formatted` |
+| Targeted Backend Pytest | `backend/.venv/Scripts/pytest.exe backend/tests/test_libreoffice.py backend/tests/test_office_converter.py -v` | PASS | `36/36` passed (`35.56s`), termasuk 3 tes LibreOffice nyata: Page 1 berisi tabel (tanpa halaman kosong), tabel 10 kolom otomatis landscape tanpa kolom terpotong, dan roundtrip `.xls`→`.xlsx`→PDF |
+| Full Backend Pytest | `backend/.venv/Scripts/pytest.exe backend/tests -q` | PASS | `437/437` passed (`102.35s`) |
+| Frontend Oxlint | `npm --prefix frontend run lint` | PASS | `0` errors (`23` warnings pre-existing pada file lain) |
+| Targeted Frontend Vitest | `npm --prefix frontend test -- src/components/converter/__tests__/office_converter.test.tsx` | PASS | `1/1` file, `14/14` passed (`3.76s`) |
+| Full Frontend Vitest | `npm --prefix frontend test` | PASS | `53/53` files, `425/425` passed (`51.49s`, termasuk WCAG 2.2 AA `accessibility.test.tsx`) |
+| TypeScript & Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` selesai `736ms` (`frontend/dist` diperbarui) |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1659` files scanned, `0` hardcoded secrets |
+| Uji Manual Visual Excel → PDF | Unggah `.xlsx`/`.xls` nyata dengan `print_area` rusak di `#/tools` → `Excel & PDF` | NOT RUN | Menunggu uji manual pengguna setelah restart server backend |
+
+### Acceptance Criteria
+- [x] Workbook dengan `print_area` rusak, manual page break, dan sheet awal kosong menghasilkan PDF dengan tabel langsung di halaman pertama (terverifikasi otomatis via PyMuPDF + LibreOffice lokal).
+- [x] Tabel lebar otomatis menggunakan orientasi landscape dengan `fitToWidth=1` sehingga seluruh kolom muat satu lebar halaman tanpa terpotong ke samping.
+- [x] Formula (termasuk `=0`), angka `0`, formatting, merged cells, dan lebar kolom tetap dipertahankan.
+- [x] Format `.xlsx` dan `.xls` (via pra-konversi sementara `.xls` → `.xlsx`) didukung, dan opsi orientasi **Otomatis / Portrait / Landscape** tersedia di API & UI.
+- [x] Seluruh pengujian otomatis backend (`437/437`), frontend (`425/425`), Ruff, Oxlint, Vite build, dan secret scan lulus pasca-edit akhir.
+- [ ] Uji manual pengguna mengunggah dokumen Excel nyata di browser (`#/tools` → `Excel & PDF`) dan memeriksa kerapian PDF hasil unduhan.
+
+### Keputusan dan Technical Debt
+- Menambahkan jendela batas perluasan style (`_MAX_STYLE_EXPAND_COLS=15`, `_MAX_STYLE_EXPAND_ROWS=30`) pada deteksi rentang sel agar format border/fill tak sengaja pada baris/kolom penuh (mis. hingga kolom `XFD`) tidak mengecilkan tabel secara ekstrem saat `fitToWidth=1`.
+- Pra-konversi `.xls` → `.xlsx` menggunakan `convert_bytes_to_format_sandboxed` yang melepas lease LibreOffice sebelum normalisasi Python lalu mengambil lease kembali untuk render PDF, menghindari deadlock lease tunggal.
+
+### Risiko Tersisa
+- Workbook Excel kompleks dengan objek mengambang (grafik/gambar di luar sel berteks) tidak dibaca batas anchor gambarnya oleh `_find_worksheet_used_range`; apabila terdapat grafik tanpa sel teks di bawahnya, pengguna dapat meninjaunya pada uji manual.
+- Uji visual langsung di browser atas berkas Excel produksi pengguna berstatus `NOT RUN`.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis `PASS`; uji manual Excel → PDF `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Jalankan ulang server lokal (`start-satukit.bat`), buka `http://127.0.0.1:8000/#/tools` → kartu **Excel & PDF**, lalu unggah berkas `.xlsx`/`.xls` yang sebelumnya berantakan untuk memverifikasi halaman pertama langsung memuat tabel dan seluruh kolom tersusun rapi.
+
+---
+
+## WORD-PDF-MERGE-001 — Penggabungan Kartu `DOCX ke PDF` & `PDF ke DOCX` Menjadi `Word & PDF` — 2026-11-19
+
+**Task:** `WORD-PDF-MERGE-001` (eksekusi `.agent/plan.md`)
+**Requirement:** `FR-012`, `CR-024`, `NFR-UX-002`
+
+### Ringkasan
+1. Menambahkan props opsional `embedded?: boolean` pada [DocxToPdfModal.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/DocxToPdfModal.tsx) dan [PdfToDocxModal.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/PdfToDocxModal.tsx) agar saat dipakai sebagai isi tab, overlay `fixed inset-0` dan tombol tutup ganda tidak dirender, sembari mempertahankan perilaku standalone, kontrak API (`convertDocxToPdf`, `convertPdfToDocx`), serta `data-testid` (`btn-close-converter`, `btn-close-pdf2docx`, `dropzone-docx`, `dropzone-pdf`, `input-file-docx`, `input-file-pdf`).
+2. Membuat [WordPdfModal.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/WordPdfModal.tsx) sebagai modal bertab (*Word ke PDF* / *PDF ke Word*) bergaya konsisten dengan `PresentationConverterModal`, lengkap dengan `role="dialog"`, `initialTab?: 'docx2pdf' | 'pdf2docx'`, serta reset otomatis komponen tersemat saat tab diganti atau modal ditutup.
+3. Memperbarui [App.tsx](file:///d:/app/Doc-builder/frontend/src/App.tsx): menghapus `showConverterModal` & `showPdfToDocxModal`, menggantinya dengan `showWordPdfModal` & `wordPdfTab`, membuat ikon gabungan `WordPdfIcon` (`FileCode` + `ArrowRightLeft` + `FileText`), menggabungkan dua entri `TOOLS` menjadi satu kartu **Word & PDF** (`Konversi Dokumen` menjadi `3 alat`; total alat aktif menjadi `18`), dan memasang `<WordPdfModal />`.
+4. Menambahkan suite komponen [word_pdf_modal.test.tsx](file:///d:/app/Doc-builder/frontend/src/components/converter/__tests__/word_pdf_modal.test.tsx), memperbarui uji aksesibilitas `vitest-axe` di [accessibility.test.tsx](file:///d:/app/Doc-builder/frontend/src/components/__tests__/accessibility.test.tsx), memperbarui skenario integrasi di [app.integration.test.tsx](file:///d:/app/Doc-builder/frontend/src/__tests__/app.integration.test.tsx), serta memperbarui ekspektasi jumlah alat di [dashboard.spec.ts](file:///d:/app/Doc-builder/frontend/e2e/dashboard.spec.ts), lalu membangun `frontend/dist`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh persyaratan desain dan cakupan perubahan file pada `.agent/plan.md` terpenuhi; tambahan terukur dilakukan pada `accessibility.test.tsx` (cakupan axe `WordPdfModal`), `word_pdf_modal.test.tsx` (tes komponen khusus modal gabungan), serta penyesuaian angka dinamis `stat-tools-count` (`19` → `18`) pada `app.integration.test.tsx` dan `e2e/dashboard.spec.ts`.
+
+### File Dibuat
+- `frontend/src/components/converter/WordPdfModal.tsx`
+- `frontend/src/components/converter/__tests__/word_pdf_modal.test.tsx`
+
+### File Diubah
+- `frontend/src/components/converter/DocxToPdfModal.tsx`
+- `frontend/src/components/converter/PdfToDocxModal.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/components/__tests__/accessibility.test.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/e2e/dashboard.spec.ts`
+- `frontend/dist/*` (hasil build produksi `tsc -b && vite build`)
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Frontend Oxlint | `npm --prefix frontend run lint` | PASS | `0` errors (`23` warnings pre-existing pada file lain) |
+| Targeted Converter, Accessibility, & Integration Vitest | `npm --prefix frontend test -- ...` | PASS | `5/5` files, `35/35` passed (`converter`, `pdf2docx`, `word_pdf_modal`, `accessibility`, `app.integration`) |
+| Full Frontend Vitest | `npm --prefix frontend test` | PASS | `53/53` files, `423/423` passed (`48.28s`) |
+| TypeScript & Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` selesai `967ms` (`frontend/dist` diperbarui) |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1659` files scanned, `0` hardcoded secrets |
+| Uji Manual `#/tools` Browser | Klik kartu `Word & PDF`, pindah tab & uji konversi DOCX→PDF dan PDF→DOCX | NOT RUN | Menunggu uji manual pengguna pada `http://127.0.0.1:8000/#/tools` |
+
+### Acceptance Criteria
+- [x] Kategori **Konversi Dokumen** menampilkan `3 alat` (termasuk satu kartu **Word & PDF** tanpa kartu terpisah `DOCX ke PDF` / `PDF ke DOCX`).
+- [x] `WordPdfModal` membuka tab **Word ke PDF** dan **PDF ke Word** dengan konten `DocxToPdfModal`/`PdfToDocxModal` mode `embedded` (tanpa overlay/tombol tutup ganda), mereset state saat pindah tab, dan mempertahankan `data-testid` lama.
+- [x] Seluruh regresi Vitest (`423/423`), Oxlint (`0` errors), `vitest-axe`, `tsc -b && vite build`, dan `scan_secrets.py` lulus pasca-edit akhir.
+- [ ] Uji manual browser di `http://127.0.0.1:8000/#/tools` (kartu berjumlah 3, buka modal bertab, dan konversi DOCX→PDF serta PDF→DOCX berhasil).
+
+### Keputusan dan Technical Debt
+- Memisahkan konten tab `WordPdfModal` ke `WordPdfModalContent` bersyarat (`key={initialTab}` & render kondisional per tab) sehingga reset state tab terjadi secara deklaratif tanpa `useEffect` `setState` sinkron (`oxlint` 0 warning baru).
+
+### Risiko Tersisa
+- Playwright E2E `dashboard.spec.ts` diperbarui selektor angkanya (`18`) namun belum dijalankan langsung di browser (`NOT RUN`); uji manual konversi live juga menunggu eksekusi pengguna.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis `PASS`; uji manual `#/tools` `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Buka `http://127.0.0.1:8000/#/tools` (atau jalankan [start-satukit.bat](file:///d:/app/Doc-builder/start-satukit.bat)), pastikan kategori **Konversi Dokumen** menampilkan 3 kartu (*Word & PDF*, *PowerPoint & PDF*, *Excel & PDF*), lalu uji konversi pada kedua tab *Word ke PDF* dan *PDF ke Word*.
+
+---
+
+## SESSION-TTL-001 — Pemendekan Sesi Login Menjadi 6 Jam Absolut — 2026-11-19
+
+**Task:** `SESSION-TTL-001` (eksekusi `.agent/plan.md`)
+**Requirement:** `CR-026`, `DEC-033`, `NFR-SEC-006`
+
+### Ringkasan
+1. Mengganti `SESSION_TTL_DAYS: int = 30` dengan `SESSION_TTL_HOURS: int = Field(default_factory=lambda: _env_int("SESSION_TTL_HOURS", 6))` di [config.py](file:///d:/app/Doc-builder/backend/app/core/config.py) serta menambahkan dokumentasi `SESSION_TTL_HOURS=6` di [satukit.env.example](file:///d:/app/Doc-builder/deploy/satukit.env.example).
+2. Memperbarui `create_session` di [auth_service.py](file:///d:/app/Doc-builder/backend/app/services/auth_service.py) untuk menghitung `expires_at = now + (settings.SESSION_TTL_HOURS * 3600)` (TTL absolut 21.600 detik tanpa perpanjangan/sliding window pada `validate_session`) dan memperbarui `_set_session_cookie` di [auth.py](file:///d:/app/Doc-builder/backend/app/api/auth.py) menjadi `max_age=settings.SESSION_TTL_HOURS * 3600` (`Max-Age=21600`) untuk login password maupun Google.
+3. Menambahkan metode `shorten_existing_sessions` di [auth_repository.py](file:///d:/app/Doc-builder/backend/app/db/repositories/auth_repository.py), migrasi Alembic [008_shorten_session_ttl.py](file:///d:/app/Doc-builder/backend/alembic/versions/008_shorten_session_ttl.py), dan skrip CLI [shorten_session_ttl.py](file:///d:/app/Doc-builder/scripts/shorten_session_ttl.py) (kompatibel PostgreSQL & SQLite), lalu mengeksekusi pemendekan sesi pada DB lokal (`primary-db`: `shortened=130, expired=129, deleted=0`; `sqlite:docbuilder.db`: `0`).
+4. Menambahkan tes unit, migrasi, boundary waktu (5 jam 59 menit valid vs 6 jam 1 detik HTTP 401), dan validasi `Max-Age=21600` untuk password & Google login di [test_auth_service.py](file:///d:/app/Doc-builder/backend/tests/test_auth_service.py) serta [test_auth_api.py](file:///d:/app/Doc-builder/backend/tests/test_auth_api.py).
+
+### Kesesuaian dengan Code Plan
+- Seluruh poin `.agent/plan.md` (config `SESSION_TTL_HOURS`, service, cookie `Max-Age=21600`, env example, migrasi sesi lama pada PostgreSQL & SQLite, dan seluruh skenario uji) telah diimplementasikan dan dieksekusi sesuai rencana.
+
+### File Dibuat
+- `backend/alembic/versions/008_shorten_session_ttl.py`
+- `scripts/shorten_session_ttl.py`
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/services/auth_service.py`
+- `backend/app/api/auth.py`
+- `backend/app/db/repositories/auth_repository.py`
+- `deploy/satukit.env.example`
+- `backend/tests/test_auth_service.py`
+- `backend/tests/test_auth_api.py`
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Eksekusi Migrasi Sesi Lokal | `backend/.venv/Scripts/python.exe scripts/shorten_session_ttl.py` | PASS | `primary-db`: `shortened=130, expired=129, deleted=0`; `sqlite:docbuilder.db`: `0` |
+| Ruff Lint & Format (`8` file) | `backend/.venv/Scripts/ruff.exe check ...` & `ruff.exe format --check ...` | PASS | `All checks passed!`, `8 files already formatted` |
+| Service & Alembic Migration Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_auth_service.py backend/tests/test_postgres_migration.py backend/tests/test_postgres_setup.py -v` | PASS | `19/19` passed (`15.50s`) |
+| Auth API Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_auth_api.py -v` | PASS | `21/21` passed (`40.75s`, di luar sandbox karena Windows `TestClient` memerlukan `socketpair`) |
+| Full Backend Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` | PASS | `430/430` passed (`266.85s`, `96` warnings pre-existing) |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1657` files scanned, `0` hardcoded secrets |
+| Uji Manual Browser TTL 6 Jam | Restart backend → login password/Google (cek cookie `Max-Age=21600` & expire 6 jam) | NOT RUN | Menunggu restart server dan verifikasi manual pengguna |
+
+### Acceptance Criteria
+- [x] `SESSION_TTL_DAYS` diganti dengan `SESSION_TTL_HOURS=6` absolut pada konfigurasi dan didokumentasikan di `deploy/satukit.env.example`.
+- [x] Sesi baru (password maupun Google) memiliki `expires_at = created_at + 21600` detik dan cookie `satukit_session` membawa `Max-Age=21600`.
+- [x] Sesi masih valid pada 5 jam 59 menit (HTTP `200`) dan kedaluwarsa pada 6 jam 1 detik tanpa perpanjangan (HTTP `401` pada `/api/auth/me`).
+- [x] Sesi lama pada PostgreSQL dan SQLite lokal telah dipendekkan via skrip migrasi satu kali (`130` sesi dipendekkan, `129` langsung kedaluwarsa), plus revisi Alembic `008_shorten_session_ttl.py` lulus lifecycle upgrade/downgrade.
+- [x] Seluruh regresi Pytest (`430/430`), Ruff, dan secret scan lulus pasca-edit kode.
+- [ ] Uji manual live login & verifikasi cookie `Max-Age=21600` / kedaluwarsa 6 jam pasca-restart server.
+
+### Keputusan dan Technical Debt
+- Menyediakan dua jalur migrasi yang konsisten: revisi Alembic `008_shorten_session_ttl.py` untuk deploy produksi serta CLI `scripts/shorten_session_ttl.py` untuk pemendekan satu-kali langsung pada PostgreSQL & SQLite lokal tanpa menunggu manual `alembic upgrade`.
+
+### Risiko Tersisa
+- Uji manual browser pasca-restart backend belum dijalankan oleh pengguna.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis & migrasi lokal `PASS`; uji manual browser `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Restart server aplikasi, uji login password & Google di browser, periksa DevTools cookie `satukit_session` (`Max-Age` 21600 / Expires +6 jam), dan pastikan setelah kedaluwarsa `/api/auth/me` mengembalikan HTTP 401 serta pengguna diminta login ulang.
+
+---
+
+## FS-10 — Launcher File Worker, Heartbeat, Recovery `CHECKING`, & Status UI Rak Berkas — 2026-11-18
+
+**Task:** `FS-10` (eksekusi `.agent/plan.md`)
+**Requirement:** `CR-018`, `CR-019`, `BUS-019`, `NFR-REL-003`
+
+### Ringkasan
+1. Memperbarui [start-satukit.bat](file:///d:/app/Doc-builder/start-satukit.bat) untuk menyiapkan `PYTHONPATH`, membersihkan proses sisa `app.workers.file_worker`, menunggu endpoint `http://127.0.0.1:8000/api/health` siap (maks 30 detik), lalu meluncurkan `backend\.venv\Scripts\python.exe -m app.workers.file_worker` di jendela terpisah serta menghentikan worker pada blok cleanup launcher.
+2. Menambahkan [heartbeat.py](file:///d:/app/Doc-builder/backend/app/workers/heartbeat.py) (`FILE_WORKER_HEARTBEAT_KEY = "file_worker_last_seen"`, `FILE_WORKER_HEARTBEAT_STALE_SECONDS = 60.0`, `STALE_CHECKING_TIMEOUT_SECONDS = 900.0`, `evaluate_worker_heartbeat`) dan mengintegrasikan `write_file_worker_heartbeat` serta `recover_stale_checking_items` pada `run_worker_pass` dan shutdown `run_daemon_loop` di [file_worker.py](file:///d:/app/Doc-builder/backend/app/workers/file_worker.py) tanpa mengubah alur pemindaian, inspeksi, enkripsi, dan upload R2.
+3. Menambahkan dukungan fallback lokal lintas-proses dev pada [r2_storage.py](file:///d:/app/Doc-builder/backend/app/services/r2_storage.py) (`LocalDiskR2StorageClient` di `.local_security/r2_dev` dengan guard anti-path-traversal) dan [file_crypto.py](file:///d:/app/Doc-builder/backend/app/services/file_crypto.py) (`_ensure_dev_keyring_file` di `.local_security/file_shelf_dev_keyring.json`) hanya untuk mode development non-pytest non-produksi, agar proses `uvicorn` dan `file_worker` dapat berbagi objek terenkripsi dan kunci enkripsi secara konsisten saat kredensial R2 belum dikonfigurasi.
+4. Mengekspos indikator worker (`worker_status`, `worker_fresh`, `heartbeat_age_seconds`) pada `/api/health` (`file_worker`) di [health.py](file:///d:/app/Doc-builder/backend/app/api/health.py) dan `GET /api/files/metrics` di [file_shelf.py](file:///d:/app/Doc-builder/backend/app/api/file_shelf.py).
+5. Memperbarui [fileShelf.ts](file:///d:/app/Doc-builder/frontend/src/services/fileShelf.ts) dan [FileShelfView.tsx](file:///d:/app/Doc-builder/frontend/src/components/files/FileShelfView.tsx): status `CHECKING` menampilkan `"Memproses & memindai..."` saat worker aktif atau `"Menunggu worker pemindai..."` saat worker offline/stale (mempertahankan `data-testid="status-checking"`), polling memantau metrics heartbeat, serta badge status worker kecil (`data-testid="file-worker-badge"`).
+
+### Kesesuaian dengan Code Plan
+- Seluruh komponen `.agent/plan.md` diimplementasikan (launcher, heartbeat, recovery >15m, UI checking + badge health, tes backend & frontend, build `frontend/dist`).
+- Penambahan terukur dilakukan pada `r2_storage.py` (`LocalDiskR2StorageClient`) & `file_crypto.py` (dev keyring persisten di `.local_security/`) setelah teridentifikasi bahwa `.env` dev lokal belum memiliki kredensial Cloudflare R2 sehingga dua proses terpisah membutuhkan fallback disk/keyring terpadu saat unduhan berkas dicoba setelah `CHECKING -> AVAILABLE`.
+
+### File Dibuat
+- `backend/app/workers/heartbeat.py`
+
+### File Diubah
+- `start-satukit.bat`
+- `backend/app/workers/file_worker.py`
+- `backend/app/api/health.py`
+- `backend/app/api/file_shelf.py`
+- `backend/app/services/r2_storage.py`
+- `backend/app/services/file_crypto.py`
+- `backend/tests/test_file_worker.py`
+- `backend/tests/test_health.py`
+- `backend/tests/test_file_shelf_api.py`
+- `backend/tests/test_file_crypto_r2.py`
+- `frontend/src/services/fileShelf.ts`
+- `frontend/src/components/files/FileShelfView.tsx`
+- `frontend/src/components/files/__tests__/FileShelfView.test.tsx`
+- `frontend/dist/*` (hasil build produksi `tsc -b && vite build`)
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Ruff Lint & Format | `backend/.venv/Scripts/ruff.exe check ...` & `ruff.exe format --check ...` | PASS | `All checks passed!`, `10 files already formatted` |
+| Worker & Crypto Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_file_worker.py backend/tests/test_file_crypto_r2.py -v` | PASS | `19/19` passed (`7.51s`) |
+| Targeted Health & File Shelf Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_health.py backend/tests/test_file_shelf_api.py backend/tests/test_file_shelf_db.py backend/tests/test_file_shelf_comprehensive.py -v` | PASS | `30/30` passed (`15.38s`; di luar sandbox karena Windows `TestClient` memerlukan `socketpair`) |
+| Full Backend Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` | PASS | `427/427` passed (`81.28s`, `89` warnings pre-existing) |
+| Frontend Oxlint | `npm --prefix frontend run lint` | PASS | `0` errors (`23` warnings pre-existing) |
+| Targeted FileShelfView Vitest | `npm --prefix frontend test -- src/components/files/__tests__/FileShelfView.test.tsx` | PASS | `9/9` passed |
+| Full Frontend Vitest | `npm --prefix frontend test` | PASS | `52/52` files, `419/419` passed (`48.71s`) |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` selesai `1.94s`, memperbarui `frontend/dist` |
+| Launcher PowerShell Syntax | AST `Parser::ParseInput` pada blok PowerShell di `start-satukit.bat` | PASS | `0` parse errors |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1655` files scanned, `0` hardcoded secrets |
+| Uji Manual `start-satukit.bat` Live | Jalankan `start-satukit.bat`, unggah berkas, verifikasi `CHECKING -> AVAILABLE` | NOT RUN | Menunggu eksekusi manual oleh pengguna di host Windows |
+
+### Acceptance Criteria
+- [x] `start-satukit.bat` menjalankan `app.workers.file_worker` di jendela terpisah setelah Uvicorn/port `8000` siap dan membersihkan proses worker saat dihentikan/restart.
+- [x] `file_worker.py` menyimpan `RuntimeState(key="file_worker_last_seen")` tiap pass serta memulihkan item `CHECKING` > 15 menit saat heartbeat aktif tanpa menyentuh item `CHECKING` baru.
+- [x] `/api/health` dan `/api/files/metrics` mengekspos status dan `heartbeat_age_seconds` worker tanpa path internal/PII.
+- [x] `FileShelfView.tsx` menampilkan `"Memproses & memindai..."` / `"Menunggu worker pemindai..."` pada `status-checking` serta badge status worker.
+- [x] Seluruh regresi Pytest (`427/427`), Vitest (`419/419`), Ruff, Oxlint, Vite build, dan secret scan lulus pasca-edit kode.
+- [ ] Uji manual menjalankan `start-satukit.bat`, mengunggah berkas di Rak Berkas, dan memverifikasi transisi `CHECKING` → `AVAILABLE` (serta unduhan berfungsi).
+
+### Keputusan dan Technical Debt
+- Fallback disk lokal dev (`LocalDiskR2StorageClient` + `.local_security/file_shelf_dev_keyring.json`) hanya aktif bila kredensial Cloudflare R2 / keyring eksternal tidak ada, dan tidak berjalan pada `PYTEST_CURRENT_TEST` maupun `ENVIRONMENT=production`.
+
+### Risiko Tersisa
+- Uji manual `start-satukit.bat` di Windows desktop (verifikasi jendela worker terbuka, memproses antrean `CHECKING` yang tersisa atau berkas baru, serta cleanup saat berhenti) belum dijalankan secara live.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis `PASS`; uji manual launcher + unggah `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Hentikan proses `uvicorn` lama bila masih berjalan, jalankan [start-satukit.bat](file:///d:/app/Doc-builder/start-satukit.bat), buka Rak Berkas Privat, lalu verifikasi berkas yang tertunda maupun unggahan baru berubah dari `CHECKING` menjadi `Aman (Terenkripsi)` (`AVAILABLE`) dalam hitungan detik.
+
+---
+
+## GOOGLE-OIDC-003 — Wajib Verifikasi Anti-Bot untuk Login Google — 2026-11-18
+
+**Task:** `GOOGLE-OIDC-003` (eksekusi `.agent/plan.md`)
+**Requirement:** `CR-026`, `DEC-033`, `NFR-SEC-006`, `BRULE-013`
+
+### Ringkasan
+1. Menambahkan konfigurasi `GOOGLE_PENDING_COOKIE_NAME` (`"satukit_google_pending"`) dan `GOOGLE_PENDING_TTL_SECONDS` (`600`) di `backend/app/core/config.py`, serta mendaftarkan `/api/auth/google/challenge`, `/api/auth/google/challenge/refresh`, dan `/api/auth/google/challenge/verify` pada `PUBLIC_PATHS` di `backend/app/core/middleware.py`.
+2. Mengubah callback login/register Google (`tx.intent == "login"`) di `backend/app/api/auth.py` agar **tidak** langsung membuat sesi resmi `satukit_session`, melainkan menandatangani token sementara `user_id.expires_at.nonce.hmac` dan mengirim cookie HttpOnly `satukit_google_pending` (`SameSite=Lax`, `path=/api/auth/google/challenge`, `secure=settings.IS_PRODUCTION`, TTL `600s`) lalu mengalihkan browser ke `/#/login?auth_status=google_challenge_required`. Alur `tx.intent == "link"` dan login password 2-tahap tidak berubah.
+3. Menambahkan 3 endpoint rate-limited (10 req/menit per IP) di `backend/app/api/auth.py` dengan header `Cache-Control: no-store`: `POST /api/auth/google/challenge`, `POST /api/auth/google/challenge/refresh`, dan `POST /api/auth/google/challenge/verify`. Endpoint verifikasi memeriksa validitas & masa berlaku `satukit_google_pending`, memvalidasi jawaban anti-bot lewat `bot_challenge_service`, memastikan kecocokan `challenge_user_id == pending_user_id`, mencabut sesi lama (anti-session-fixation), menerbitkan `satukit_session` + CSRF token baru, serta menghapus cookie `satukit_google_pending`.
+4. Mengimplementasikan client API (`AuthApiError`, `getGoogleChallenge`, `refreshGoogleChallenge`, `verifyGoogleChallenge`) di `frontend/src/services/auth.ts`, penanganan rute `google_challenge_required` tanpa alert error di `frontend/src/App.tsx`, serta tampilan Step 2 tantangan matematika Google (termasuk tombol muat ulang soal dan fallback ke Step 1 saat sesi pending Google kedaluwarsa/401) di `frontend/src/components/auth/LoginPage.tsx`.
+5. Memperbarui dan menambahkan cakupan pengujian backend (`backend/tests/test_auth_api.py`) serta pengujian komponen & integrasi frontend (`frontend/src/components/auth/__tests__/LoginPage.test.tsx`, `frontend/src/__tests__/app.integration.test.tsx`), sekaligus memperbarui bundel produksi `frontend/dist`.
+
+### Kesesuaian dengan Code Plan
+- Seluruh kontrak, endpoint, cookie flags, keamanan HMAC binding, rate limit, penanganan kedaluwarsa, dan cakupan uji sesuai `.agent/plan.md`. Penambahan terukur dilakukan pada `backend/app/core/middleware.py` (`PUBLIC_PATHS`) agar endpoint publik Google challenge tetap dapat diakses di mode produksi maupun dev tanpa memicu bypass guard.
+
+### File Dibuat
+- Tidak ada file baru (eksekusi dari `.agent/plan.md` yang sudah disiapkan).
+
+### File Diubah
+- `backend/app/core/config.py`
+- `backend/app/core/middleware.py`
+- `backend/app/api/auth.py`
+- `backend/tests/test_auth_api.py`
+- `frontend/src/services/auth.ts`
+- `frontend/src/App.tsx`
+- `frontend/src/components/auth/LoginPage.tsx`
+- `frontend/src/components/auth/__tests__/LoginPage.test.tsx`
+- `frontend/src/__tests__/app.integration.test.tsx`
+- `frontend/dist/*` (hasil build produksi `tsc -b && vite build`)
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Ruff Lint & Format | `backend/.venv/Scripts/ruff.exe check ...` & `ruff.exe format --check ...` | PASS | `All checks passed!`, `4 files already formatted` |
+| Targeted Google & Auth Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_google_oidc.py backend/tests/test_auth_api.py backend/tests/test_production_config.py -v` | PASS | `37/37` passed (`15.63s`; dijalankan di luar sandbox karena Windows `asyncio` `TestClient` memerlukan `socketpair`) |
+| Full Backend Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` | PASS | `425/425` passed (`136.80s`, `89` warnings pre-existing) |
+| Frontend Oxlint | `npm --prefix frontend run lint` | PASS | `0` errors (`23` warnings pre-existing; zero warning baru pada file `GOOGLE-OIDC-003`) |
+| Targeted Auth & App Vitest | `npm --prefix frontend test -- src/components/auth/__tests__/LoginPage.test.tsx src/__tests__/app.integration.test.tsx` | PASS | `2/2` files, `29/29` passed (`17` `LoginPage`, `12` `app.integration`) |
+| Full Frontend Vitest | `npm --prefix frontend test` | PASS | `52/52` files, `418/418` passed (`57.04s`) |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | `tsc -b && vite build` selesai `1.97s`, memperbarui `frontend/dist` |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1653` files scanned, `0` hardcoded secrets |
+| Uji Manual Browser Google + Challenge | Logout -> klik Masuk dengan Google -> jawab soal matematika -> beranda | NOT RUN | Menunggu restart server host (`start-satukit.bat` / `uvicorn`) dan verifikasi manual pengguna |
+
+### Acceptance Criteria
+- [x] Callback login Google tetap memvalidasi `state`, PKCE, nonce, ID token, issuer, email terverifikasi, dan aturan `ACCOUNT_MERGE_REQUIRED`.
+- [x] Callback login Google **tidak** langsung menerbitkan cookie `satukit_session`, melainkan menyetel cookie `satukit_google_pending` (`HttpOnly`, `SameSite=Lax`, `path=/api/auth/google/challenge`, TTL `600s`, HMAC terikat `user_id`) dan mengalihkan ke `/#/login?auth_status=google_challenge_required`.
+- [x] Endpoint `/api/auth/google/challenge`, `/refresh`, dan `/verify` terdaftar di `PUBLIC_PATHS`, menerapkan rate limit `10/menit`, `Cache-Control: no-store`, validasi pending cookie, kecocokan `user_id`, pencabutan sesi lama, serta menghapus `satukit_google_pending` saat verifikasi sukses.
+- [x] Alur `tx.intent == "link"` dan login password 2-tahap tetap berjalan tanpa regresi.
+- [x] Frontend menampilkan form tantangan anti-bot Google saat status `google_challenge_required` tanpa alert error, mendukung ganti soal, fallback ke Step 1 saat sesi pending kedaluwarsa, dan masuk setelah terjawab benar.
+- [x] Seluruh regresi backend (`425/425`), frontend (`418/418`), Ruff, Oxlint, Vite build, dan secret scan lulus pasca-edit terakhir.
+- [ ] Uji manual live di browser (restart server -> logout -> klik Masuk dengan Google -> selesaikan soal matematika -> masuk ke beranda).
+
+### Keputusan dan Technical Debt
+- Token pending `satukit_google_pending` menggunakan tanda tangan HMAC-SHA256 berbasis `BOT_CHALLENGE_SECRET` (`user_id.expires_at.nonce.sig`) dan memvalidasi keberadaan user di database pada setiap pemanggilan endpoint `/api/auth/google/challenge*`.
+- Penambahan path `/api/auth/google/challenge*` ke `PUBLIC_PATHS` tetap dilindungi `Origin`/`Referer` check di `SecurityMiddleware` dan `SameSite=Lax` + HMAC pending cookie.
+
+### Risiko Tersisa
+- Uji manual end-to-end dengan akun Google live di browser (`start-satukit.bat` / `uvicorn`) belum dijalankan.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis `PASS`; uji manual browser `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Restart aplikasi (`start-satukit.bat` atau `uvicorn`), buka halaman login, klik **Lanjutkan dengan Google**, selesaikan soal matematika anti-bot, lalu pastikan pengguna masuk ke Beranda dengan profil & avatar Google tampil di Navbar.
+
+---
+
+## GOOGLE-OIDC-002 — Klasifikasi Error, Retry Transport, Clock Skew, & Logging Callback Google OIDC — 2026-11-18
+
+**Task:** `GOOGLE-OIDC-002` (eksekusi `.agent/plan.md`)
+**Requirement:** `CR-026`, `DEC-033`, `NFR-SEC-006`, `NFR-REL-001`
+
+### Ringkasan
+1. Menambahkan klasifikasi exception `GoogleOIDCError`, `GoogleOIDCTransientError`, dan `GoogleOIDCInvalidTokenError(GoogleOIDCError, ValueError)` serta logger `satukit.google_oidc` di `backend/app/services/google_oidc.py`.
+2. Memisahkan error transport/timeout/koneksi jaringan (`GoogleOIDCTransientError`) dari penolakan grant/token/klaim (`GoogleOIDCInvalidTokenError`) pada `exchange_code_for_tokens` dan `verify_id_token`, disertai retry terbatas (`TOKEN_VERIFY_ATTEMPTS = 2`) dan pembersihan JSON error aman tanpa mencatat authorization code, client secret, atau token.
+3. Menambahkan toleransi selisih jam OS dasar `TOKEN_CLOCK_SKEW_SECONDS = 300` (5 menit) disertai deteksi drift adaptif dari header HTTP `Date` server Google (`_compute_skew_from_headers`, maks `MAX_CLOCK_SKEW_SECONDS = 3600`) setelah teridentifikasi bahwa pada percobaan `10:19:50 WIB` jam Windows telah tertinggal **61 detik** dari server Google (`Token used too early, 1794971990 < 1794972051`, melewati batas 60 detik sebelumnya). Juga menambahkan adapter transport berbatas timeout `_BoundedTimeoutRequest` (`TOKEN_HTTP_TIMEOUT_SECONDS = 10.0` dalam `requests.Session()`) dan sanitasi error `MalformedError` via `_sanitize_verify_error`.
+4. Menambahkan logger `satukit.auth` dan pencatatan `audit.audit_logger.record("auth.google_oidc_callback", "failed", ...)` di `backend/app/api/auth.py` agar kegagalan callback tercatat permanen di `backend/logs/audit-YYYY-MM-DD.jsonl` tanpa tergeser oleh request `/health` di buffer konsol.
+5. Memperbaiki bug pelestarian sesi pada `POST /api/auth/bootstrap` dan `GET /api/auth/bootstrap` di `backend/app/api/auth.py` melalui helper `_get_active_user_csrf(request)`: saat browser membawa cookie `satukit_session` milik akun terautentikasi yang valid, `/api/auth/bootstrap` kini mengembalikan `csrf_token` sesi akun tersebut tanpa menimpa cookie dengan `session_manager.session_token` (sesi tamu lokal). Ini menyelesaikan gejala toast `Berhasil masuk dengan akun Google!` muncul tetapi Navbar tetap menampilkan tombol `Masuk`.
+6. Menambahkan tes unit dan API di `backend/tests/test_google_oidc.py` dan `backend/tests/test_auth_api.py` (termasuk `test_bootstrap_preserves_existing_authenticated_user_session` dan isolasi `BREVO_API_KEY = None` pada `fresh_db`), serta isolasi `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET = None` pada `backend/tests/test_production_config.py`.
+
+### Kesesuaian dengan Code Plan
+- Scope, file, symbol, dan kontrak sesuai `.agent/plan.md` dengan penambahan terukur untuk temuan jam Windows (`TOKEN_CLOCK_SKEW_SECONDS = 300` + adaptif header `Date` hingga `3600`), timeout HTTP sertifikat (`TOKEN_HTTP_TIMEOUT_SECONDS = 10.0`), sanitasi pesan `MalformedError` (`AGENTS.md` §18.5), serta perbaikan pelestarian sesi `/api/auth/bootstrap` yang ditemukan saat uji manual callback Google berhasil.
+
+### File Dibuat
+- `.agent/plan.md` (rencana perbaikan yang dieksekusi)
+
+### File Diubah
+- `backend/app/services/google_oidc.py`
+- `backend/app/api/auth.py`
+- `backend/tests/test_google_oidc.py`
+- `backend/tests/test_auth_api.py`
+- `backend/tests/test_production_config.py`
+- `.agent/plan.md`
+- `.agent/TASKS.md`
+- `.agent/PROJECT-STATE.md`
+- `.agent/REPORT.md`
+- `docs/project/TRACEABILITY.md`
+
+### Verifikasi
+| Pemeriksaan | Command | Hasil | Bukti/Catatan |
+|---|---|---|---|
+| Unit Tests Google OIDC | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_google_oidc.py -v` | PASS | `13/13` passed (`0.26s`) |
+| Targeted Auth & Config Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests/test_google_oidc.py backend/tests/test_auth_api.py backend/tests/test_production_config.py -v` | PASS | `34/34` passed (`7.19s`); dijalankan di luar sandbox karena Windows `asyncio` `TestClient` memerlukan `socketpair` |
+| Full Backend Pytest | `backend/.venv/Scripts/python.exe -m pytest backend/tests -q` | PASS | `422/422` passed (`79.06s`, 70 warnings pre-existing) |
+| Ruff Linter & Format | `backend/.venv/Scripts/ruff.exe check ...` & `ruff.exe format --check ...` | PASS | `All checks passed!`, `5 files already formatted` |
+| Secret Scanner | `backend/.venv/Scripts/python.exe scripts/scan_secrets.py` | PASS | `1653` files scanned, `0` hardcoded secrets |
+| Uji Manual Login Google Live | Restart backend + login Google di browser + verifikasi profil Navbar | PARTIAL / RETEST NEEDED | Google OIDC callback berhasil (toast sukses tampil, `OAUTH_ACCOUNTS: 1` di PostgreSQL), lalu terdeteksi bug `/api/auth/bootstrap` menimpa sesi menjadi guest; fix sudah diterapkan & butuh restart backend + retest browser |
+
+### Acceptance Criteria
+- [x] Gangguan transport/timeout/metadata Google pada exchange & verifikasi diklasifikasikan sebagai `GoogleOIDCTransientError` dan dialihkan ke `google_temporarily_unavailable`.
+- [x] Penolakan grant/klaim/token tidak valid diklasifikasikan sebagai `GoogleOIDCInvalidTokenError` dan dialihkan ke `google_invalid_response`.
+- [x] Retry terbatas (`2` percobaan) dan toleransi clock skew (`300s` + adaptif header `Date` hingga `3600s`) berjalan untuk verifikasi ID token.
+- [x] Seluruh jalur gagal callback mencatat alasan terklasifikasi ke log server & audit JSONL tanpa authorization code, client secret, atau JWT mentah.
+- [x] `POST/GET /api/auth/bootstrap` mempertahankan cookie sesi akun aktif tanpa menimpanya menjadi sesi tamu.
+- [x] Seluruh unit test, API test, full regression Pytest (`422/422`), Ruff, dan secret scan lulus.
+- [ ] Retest manual login Google setelah restart backend oleh pengguna (memastikan Navbar menampilkan nama & avatar akun Google).
+
+### Keputusan dan Technical Debt
+- Menetapkan `TOKEN_CLOCK_SKEW_SECONDS = 300`, `MAX_CLOCK_SKEW_SECONDS = 3600`, dan `TOKEN_HTTP_TIMEOUT_SECONDS = 10.0` di `google_oidc.py`; di Windows dev tetap disarankan menyinkronkan waktu sistem (`w32tm /resync`).
+- Mempertahankan sesi akun aktif pada `/api/auth/bootstrap` via `_get_active_user_csrf` di `auth.py`.
+
+### Risiko Tersisa
+- Retest manual browser setelah perbaikan `/api/auth/bootstrap` belum dijalankan pasca-restart server host.
+
+### Dokumentasi Diperbarui
+- `.agent/plan.md`, `.agent/TASKS.md`, `.agent/REPORT.md`, `.agent/PROJECT-STATE.md`, `docs/project/TRACEABILITY.md`
+
+### Status
+Menunggu verifikasi (otomatis `PASS`; uji manual login Google `NOT RUN`)
+
+### Rekomendasi Berikutnya
+Restart backend (`start-backend.bat` atau `uvicorn`), lakukan uji login Google di browser (`http://127.0.0.1:8000` / frontend dev), dan periksa log terminal untuk memastikan alur berhasil atau mencatat alasan spesifik.
+
+---
+
 ## GOOGLE-OIDC-001 — Autentikasi Google OpenID Connect PKCE Backend & Linking/Unlinking Akun — 2026-11-16
 
 **Task:** `GOOGLE-OIDC-001`

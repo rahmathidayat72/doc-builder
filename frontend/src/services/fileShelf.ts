@@ -32,6 +32,9 @@ export interface FileShelfMetrics {
   max_downloads_per_hour: number
   r2_storage_status: string
   retention_days: number
+  worker_status?: 'healthy' | 'stale' | 'unavailable'
+  worker_fresh?: boolean
+  heartbeat_age_seconds?: number | null
 }
 
 export function toBase64UrlJson(data: Record<string, any>): string {

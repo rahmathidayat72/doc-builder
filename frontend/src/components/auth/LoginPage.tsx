@@ -16,15 +16,18 @@ import {
 } from 'lucide-react'
 import {
   forgotPassword,
+  getGoogleChallenge,
   loginInit,
   loginVerify,
+  refreshGoogleChallenge,
   refreshLoginChallenge,
   registerUser,
   resendVerification,
   resetPassword,
   verifyEmail,
+  verifyGoogleChallenge,
   type AuthUser,
-  type LoginInitResult,
+  type BotChallenge,
 } from '../../services/auth'
 import { KituMascotImg } from '../brand/KituNotice'
 import type { KituExpression } from '../brand/kituExpressions'
@@ -36,6 +39,21 @@ interface LoginPageProps {
   onNavigateHome: () => void
   noticeMessage?: string
   initialErrorMessage?: string
+  googleChallengeRequired?: boolean
+  onGoogleChallengeReset?: () => void
+}
+
+function isExpiredGooglePendingError(err: unknown): boolean {
+  if (
+    err &&
+    typeof err === 'object' &&
+    'status' in err &&
+    (err as { status?: unknown }).status === 401
+  ) {
+    return true
+  }
+  const message = err instanceof Error ? err.message.toLowerCase() : ''
+  return message.includes('masuk kembali dengan google')
 }
 
 const GoogleIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -64,6 +82,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   onNavigateHome,
   noticeMessage,
   initialErrorMessage,
+  googleChallengeRequired = false,
+  onGoogleChallengeReset,
 }) => {
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
@@ -72,16 +92,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [tokenInput, setTokenInput] = useState('')
   const [newPassword, setNewPassword] = useState('')
 
-  // State alur 2-tahap login
-  const [loginStep, setLoginStep] = useState<1 | 2>(1)
-  const [challengeData, setChallengeData] = useState<LoginInitResult | null>(null)
+  // State alur 2-tahap login (password maupun Google OIDC)
+  const [loginStep, setLoginStep] = useState<1 | 2>(googleChallengeRequired ? 2 : 1)
+  const [challengeKind, setChallengeKind] = useState<'password' | 'google'>(
+    googleChallengeRequired ? 'google' : 'password'
+  )
+  const [challengeData, setChallengeData] = useState<BotChallenge | null>(null)
   const [challengeAnswer, setChallengeAnswer] = useState('')
-  const [isLoadingChallenge, setIsLoadingChallenge] = useState(false)
+  const [isLoadingChallenge, setIsLoadingChallenge] = useState(Boolean(googleChallengeRequired))
 
   // Status proses, error, dan informasi
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(initialErrorMessage || null)
   const [infoMessage, setInfoMessage] = useState<string | null>(null)
+
+  const resetGoogleChallengeRef = React.useRef(onGoogleChallengeReset)
+
+  React.useEffect(() => {
+    resetGoogleChallengeRef.current = onGoogleChallengeReset
+  }, [onGoogleChallengeReset])
 
   React.useEffect(() => {
     if (initialErrorMessage) {
@@ -89,14 +118,64 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   }, [initialErrorMessage])
 
+  React.useEffect(() => {
+    if (!googleChallengeRequired) return
+    let cancelled = false
+
+    const startGoogleChallenge = async () => {
+      const challengePromise = getGoogleChallenge()
+      await Promise.resolve()
+      if (cancelled) return
+
+      setMode('login')
+      setErrorMessage(null)
+      setInfoMessage(null)
+      setChallengeKind('google')
+      setLoginStep(2)
+      setChallengeData(null)
+      setChallengeAnswer('')
+      setIsLoadingChallenge(true)
+
+      try {
+        const challenge = await challengePromise
+        if (cancelled) return
+        setChallengeData(challenge)
+      } catch (err: unknown) {
+        if (cancelled) return
+        setLoginStep(1)
+        setChallengeKind('password')
+        setChallengeData(null)
+        setErrorMessage(
+          (err instanceof Error && err.message) ||
+            'Sesi verifikasi Google tidak ditemukan atau telah kedaluwarsa. Silakan masuk kembali dengan Google.'
+        )
+        resetGoogleChallengeRef.current?.()
+      } finally {
+        if (!cancelled) {
+          setIsLoadingChallenge(false)
+        }
+      }
+    }
+
+    void startGoogleChallenge()
+
+    return () => {
+      cancelled = true
+    }
+  }, [googleChallengeRequired])
+
   const handleGoogleAuth = () => {
     window.location.href = '/api/auth/google/start'
   }
 
   const handleModeChange = (newMode: AuthMode) => {
+    if (challengeKind === 'google') {
+      resetGoogleChallengeRef.current?.()
+    }
     setMode(newMode)
     setErrorMessage(null)
     setInfoMessage(null)
+    setChallengeKind('password')
     setLoginStep(1)
     setChallengeData(null)
     setChallengeAnswer('')
@@ -146,6 +225,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         email: email.trim(),
         password,
       })
+      setChallengeKind('password')
       setChallengeData(result)
       setLoginStep(2)
       setChallengeAnswer('')
@@ -175,13 +255,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
     setIsSubmitting(true)
     try {
-      const user = await loginVerify({
-        challenge_token: challengeData.challenge_token,
-        challenge_answer: challengeAnswer.trim(),
-      })
+      const user =
+        challengeKind === 'google'
+          ? await verifyGoogleChallenge({
+              challenge_token: challengeData.challenge_token,
+              challenge_answer: challengeAnswer.trim(),
+            })
+          : await loginVerify({
+              challenge_token: challengeData.challenge_token,
+              challenge_answer: challengeAnswer.trim(),
+            })
       onLoginSuccess(user)
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Jawaban soal anti-bot salah. Silakan coba lagi.')
+    } catch (err: unknown) {
+      if (challengeKind === 'google' && isExpiredGooglePendingError(err)) {
+        setLoginStep(1)
+        setChallengeKind('password')
+        setChallengeData(null)
+        setChallengeAnswer('')
+        setErrorMessage(
+          (err instanceof Error && err.message) ||
+            'Sesi verifikasi Google telah kedaluwarsa. Silakan masuk kembali dengan Google.'
+        )
+        resetGoogleChallengeRef.current?.()
+        return
+      }
+      setErrorMessage(
+        (err instanceof Error && err.message) || 'Jawaban soal anti-bot salah. Silakan coba lagi.'
+      )
       await handleRefreshChallenge()
     } finally {
       setIsSubmitting(false)
@@ -194,15 +294,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsLoadingChallenge(true)
     setChallengeAnswer('')
     try {
-      const refreshed = await refreshLoginChallenge(challengeData.challenge_token)
-      setChallengeData({
-        ...challengeData,
-        challenge_token: refreshed.challenge_token,
-        question: refreshed.question,
-        expires_in: refreshed.expires_in,
-      })
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal memuat ulang soal anti-bot.')
+      const refreshed =
+        challengeKind === 'google'
+          ? await refreshGoogleChallenge(challengeData.challenge_token)
+          : await refreshLoginChallenge(challengeData.challenge_token)
+      setChallengeData(refreshed)
+    } catch (err: unknown) {
+      if (challengeKind === 'google' && isExpiredGooglePendingError(err)) {
+        setLoginStep(1)
+        setChallengeKind('password')
+        setChallengeData(null)
+        setErrorMessage(
+          (err instanceof Error && err.message) ||
+            'Sesi verifikasi Google telah kedaluwarsa. Silakan masuk kembali dengan Google.'
+        )
+        resetGoogleChallengeRef.current?.()
+        return
+      }
+      setErrorMessage(
+        (err instanceof Error && err.message) || 'Gagal memuat ulang soal anti-bot.'
+      )
     } finally {
       setIsLoadingChallenge(false)
     }
@@ -337,9 +448,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const getSubtitle = () => {
     switch (mode) {
       case 'login':
-        return loginStep === 2
-          ? 'Tahap 2: Selesaikan hitungan anti-bot'
-          : 'Verifikasi aman dua tahap untuk akses utilitas dokumen'
+        if (loginStep === 2) {
+          return challengeKind === 'google'
+            ? 'Verifikasi anti-bot untuk menyelesaikan login Google'
+            : 'Tahap 2: Selesaikan hitungan anti-bot'
+        }
+        return 'Verifikasi aman dua tahap untuk akses utilitas dokumen'
       case 'register':
         return 'Buat akun untuk akses penuh utilitas dokumen Beresin by Satukit'
       case 'forgot':
@@ -630,30 +744,58 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           )}
 
           {/* Form Content: Step 1 vs Step 2 (Mode Login & Register) */}
-          {mode === 'login' && loginStep === 2 && challengeData ? (
+          {mode === 'login' && loginStep === 2 && !challengeData ? (
+            <div className="p-6 text-center space-y-3" data-testid="google-challenge-loading">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300">
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              </div>
+              <p className="text-xs font-bold text-stone-700 dark:text-stone-300">
+                Menyiapkan verifikasi anti-bot untuk akun Google Anda...
+              </p>
+            </div>
+          ) : mode === 'login' && loginStep === 2 && challengeData ? (
             /* --- TAHAP 2: SOAL MATEMATIKA ANTI-BOT --- */
             <form onSubmit={handleChallengeSubmit} className="p-6 space-y-5" data-testid="form-step-2">
               <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  {challengeKind === 'google' ? (
+                    <GoogleIcon className="w-5 h-5 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  )}
                   <div className="min-w-0">
                     <p className="text-3xs font-extrabold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
-                      Tahap 1: Kredensial Benar
+                      {challengeKind === 'google'
+                        ? 'Tahap 1: Akun Google Terverifikasi'
+                        : 'Tahap 1: Kredensial Benar'}
                     </p>
-                    <p className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate" title={email}>
-                      {email}
+                    <p
+                      className="text-xs font-bold text-stone-800 dark:text-stone-200 truncate"
+                      title={challengeKind === 'google' ? 'Autentikasi Google' : email}
+                    >
+                      {challengeKind === 'google'
+                        ? 'Selesaikan soal matematika untuk mengaktifkan sesi Anda'
+                        : email}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
+                    if (challengeKind === 'google') {
+                      setChallengeKind('password')
+                      setChallengeData(null)
+                      resetGoogleChallengeRef.current?.()
+                    }
                     setLoginStep(1)
                     setErrorMessage(null)
                   }}
                   className="text-3xs font-bold text-emerald-800 dark:text-emerald-300 hover:underline cursor-pointer ml-2 shrink-0"
+                  data-testid={
+                    challengeKind === 'google' ? 'btn-cancel-google-challenge' : undefined
+                  }
                 >
-                  Ubah
+                  {challengeKind === 'google' ? 'Batal' : 'Ubah'}
                 </button>
               </div>
 

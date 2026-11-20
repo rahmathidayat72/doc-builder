@@ -34,6 +34,12 @@ from app.services.file_inspector import (
 )
 from app.services.file_scanner import ClamAVError, get_clamav_scanner
 from app.services.r2_storage import get_r2_storage
+from app.workers.heartbeat import (
+    FILE_WORKER_HEARTBEAT_KEY,
+    FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+    STALE_CHECKING_TIMEOUT_SECONDS,
+    evaluate_worker_heartbeat,
+)
 
 logger = logging.getLogger("satukit.file_worker")
 
@@ -82,9 +88,9 @@ def poll_cloudflare_graphql_metrics(
 
     if token and acc_id:
         now_dt = datetime.datetime.now(datetime.UTC)
-        start_of_month = now_dt.replace(
-            day=1, hour=0, minute=0, second=0, microsecond=0
-        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        start_of_month = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         end_of_month = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         variables = {
@@ -117,16 +123,12 @@ def poll_cloudflare_graphql_metrics(
 
             if resp.status_code == 200:
                 body = resp.json()
-                accounts = (
-                    body.get("data", {}).get("viewer", {}).get("accounts", [])
-                )
+                accounts = body.get("data", {}).get("viewer", {}).get("accounts", [])
                 if accounts:
                     acc_data = accounts[0]
                     storage_groups = acc_data.get("r2StorageAdaptiveGroups", [])
                     if storage_groups:
-                        storage_bytes = (
-                            storage_groups[0].get("max", {}).get("payloadSize", 0) or 0
-                        )
+                        storage_bytes = storage_groups[0].get("max", {}).get("payloadSize", 0) or 0
 
                     ops_groups = acc_data.get("r2OperationsAdaptiveGroups", [])
                     for op in ops_groups:
@@ -139,9 +141,7 @@ def poll_cloudflare_graphql_metrics(
                         elif action in ("GetObject", "HeadObject"):
                             class_b_ops += count
             else:
-                logger.warning(
-                    "Cloudflare GraphQL returned non-200 status: %d", resp.status_code
-                )
+                logger.warning("Cloudflare GraphQL returned non-200 status: %d", resp.status_code)
         except Exception as e:
             logger.error("Failed to query Cloudflare GraphQL API: %s", e)
             if settings.IS_PRODUCTION:
@@ -217,9 +217,7 @@ def process_checking_items(session: Session, limit: int = 10) -> int:
                 scan_res = scanner.scan_bytes(raw_bytes)
                 if not scan_res.is_clean:
                     item.status = "FAILED"
-                    item.error_message = (
-                        f"Malware terdeteksi oleh antivirus: {scan_res.virus_name}"
-                    )
+                    item.error_message = f"Malware terdeteksi oleh antivirus: {scan_res.virus_name}"
                     qm.remove_file(qpath)
                     session.flush()
                     continue
@@ -362,22 +360,103 @@ def process_retention_sweep(session: Session) -> int:
     return expired_count
 
 
+def write_file_worker_heartbeat(
+    session: Session,
+    *,
+    status: str = "idle",
+    now: float | None = None,
+    stats: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Menyimpan heartbeat worker Rak Berkas non-PII ke `runtime_state`."""
+    ts = time.time() if now is None else now
+    payload: dict[str, Any] = {
+        "status": status,
+        "last_heartbeat_at": ts,
+    }
+    if stats is not None:
+        payload["checked"] = int(stats.get("checked", 0))
+        payload["recovered"] = int(stats.get("recovered", 0))
+        payload["deleted"] = int(stats.get("deleted", 0))
+        payload["expired"] = int(stats.get("expired", 0))
+
+    state = session.get(RuntimeState, FILE_WORKER_HEARTBEAT_KEY)
+    if state is None:
+        session.add(RuntimeState(key=FILE_WORKER_HEARTBEAT_KEY, value=payload, updated_at=ts))
+    else:
+        state.value = payload
+        state.updated_at = ts
+    session.flush()
+    return payload
+
+
+def recover_stale_checking_items(
+    session: Session,
+    *,
+    timeout_seconds: float = STALE_CHECKING_TIMEOUT_SECONDS,
+    stale_heartbeat_seconds: float = FILE_WORKER_HEARTBEAT_STALE_SECONDS,
+    now: float | None = None,
+) -> int:
+    """Memulihkan item CHECKING yang tertinggal > timeout ketika heartbeat worker aktif."""
+    ts = time.time() if now is None else now
+    hb_state = session.get(RuntimeState, FILE_WORKER_HEARTBEAT_KEY)
+    hb_eval = evaluate_worker_heartbeat(
+        hb_state,
+        stale_seconds=stale_heartbeat_seconds,
+        now=ts,
+    )
+    if not hb_eval["fresh"]:
+        return 0
+
+    cutoff = ts - timeout_seconds
+    stmt = (
+        select(FileShelfItem)
+        .where(
+            FileShelfItem.status == "CHECKING",
+            FileShelfItem.deleted_at.is_(None),
+            FileShelfItem.uploaded_at <= cutoff,
+        )
+        .order_by(FileShelfItem.uploaded_at.asc())
+    )
+    stale_items = list(session.execute(stmt).scalars().all())
+    if not stale_items:
+        return 0
+
+    for item in stale_items:
+        age_seconds = max(0.0, ts - float(item.uploaded_at))
+        logger.warning(
+            "Memulihkan item Rak Berkas CHECKING tertinggal (item_id=%s, age_seconds=%.1f) "
+            "untuk diproses ulang.",
+            item.id,
+            age_seconds,
+        )
+        item.status = "CHECKING"
+        item.error_message = None
+
+    session.flush()
+    return len(stale_items)
+
+
 def run_worker_pass(session: Session, poll_metrics: bool = True) -> dict[str, Any]:
     """Runs a single pass of all worker tasks."""
     stats: dict[str, Any] = {
+        "recovered": 0,
         "checked": 0,
         "deleted": 0,
         "expired": 0,
         "metrics": {},
     }
 
+    write_file_worker_heartbeat(session, status="processing")
+
     if poll_metrics:
         stats["metrics"] = poll_cloudflare_graphql_metrics(session)
 
+    stats["recovered"] = recover_stale_checking_items(session)
     stats["checked"] = process_checking_items(session)
     stats["deleted"] = process_deletion_jobs(session)
     stats["expired"] = process_retention_sweep(session)
 
+    write_file_worker_heartbeat(session, status="idle", stats=stats)
     return stats
 
 
@@ -395,6 +474,11 @@ def run_daemon_loop(
     while True:
         if stop_event is not None and stop_event.is_set():
             logger.info("Stop event received. Exiting file worker loop.")
+            try:
+                with get_db_session() as session:
+                    write_file_worker_heartbeat(session, status="stopped")
+            except Exception as e:
+                logger.warning("Gagal mencatat status berhenti worker: %s", e)
             break
 
         now = time.time()
@@ -405,7 +489,12 @@ def run_daemon_loop(
                 stats = run_worker_pass(session, poll_metrics=should_poll_metrics)
                 if should_poll_metrics:
                     last_metrics_poll = now
-                if stats["checked"] > 0 or stats["deleted"] > 0 or stats["expired"] > 0:
+                if (
+                    stats["recovered"] > 0
+                    or stats["checked"] > 0
+                    or stats["deleted"] > 0
+                    or stats["expired"] > 0
+                ):
                     logger.info("Worker pass stats: %s", stats)
         except Exception as e:
             logger.error("Error during worker pass: %s", e)

@@ -207,15 +207,21 @@ export async function convertPdfToPptx(file: File): Promise<ConversionResult> {
   }
 }
 
+export type SpreadsheetOrientation = 'auto' | 'portrait' | 'landscape'
+
 /**
  * Mengonversi berkas spreadsheet Excel (.xlsx / .xls) ke PDF via backend lokal
  */
-export async function convertSpreadsheetToPdf(file: File): Promise<ConversionResult> {
+export async function convertSpreadsheetToPdf(
+  file: File,
+  orientation: SpreadsheetOrientation = 'auto'
+): Promise<ConversionResult> {
   const outputFilename = `${file.name.replace(/\.[^/.]+$/, '')}.pdf`
 
   try {
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('orientation', orientation)
 
     const response = await apiFetch('/api/converter/spreadsheet-to-pdf', {
       method: 'POST',

@@ -23,7 +23,9 @@ from app.services.file_crypto import (
 )
 from app.services.r2_storage import (
     InMemoryR2StorageClient,
+    LocalDiskR2StorageClient,
     R2ObjectNotFoundError,
+    R2StorageError,
 )
 
 
@@ -330,3 +332,24 @@ def test_in_memory_r2_storage_crud():
     # 6. Get non-existent
     with pytest.raises(R2ObjectNotFoundError):
         r2.get_object(key)
+
+
+def test_local_disk_r2_storage_crud_and_anti_traversal(tmp_path):
+    r2 = LocalDiskR2StorageClient(root_dir=tmp_path / "r2_dev")
+    key = "usr_1/item_1/payload.enc"
+    data = b"LOCAL_DISK_ENCRYPTED_PAYLOAD"
+
+    etag = r2.upload_object(key=key, data=data)
+    assert etag is not None
+    assert r2.get_object(key) == data
+    meta = r2.head_object(key)
+    assert meta is not None and meta["size"] == len(data)
+    assert r2.list_objects("usr_1/") == [key]
+    assert r2.delete_object(key) is True
+    assert r2.head_object(key) is None
+
+    with pytest.raises(R2ObjectNotFoundError):
+        r2.get_object(key)
+
+    with pytest.raises(R2StorageError):
+        r2.get_object("../escape.bin")

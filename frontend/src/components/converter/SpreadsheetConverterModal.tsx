@@ -14,10 +14,17 @@ import {
 import {
   convertSpreadsheetToPdf,
   convertPdfToXlsx,
-  type ConversionResult
+  type ConversionResult,
+  type SpreadsheetOrientation
 } from '../../services/converter'
 
 export type SpreadsheetTab = 'xlsx2pdf' | 'pdf2xlsx'
+
+const ORIENTATION_OPTIONS: Array<{ value: SpreadsheetOrientation; label: string }> = [
+  { value: 'auto', label: 'Otomatis' },
+  { value: 'portrait', label: 'Portrait' },
+  { value: 'landscape', label: 'Landscape' }
+]
 
 interface SpreadsheetConverterModalProps {
   isOpen: boolean
@@ -32,6 +39,7 @@ export const SpreadsheetConverterModal: React.FC<SpreadsheetConverterModalProps>
 }) => {
   const [activeTab, setActiveTab] = useState<SpreadsheetTab>(initialTab)
   const [file, setFile] = useState<File | null>(null)
+  const [orientation, setOrientation] = useState<SpreadsheetOrientation>('auto')
   const [isConverting, setIsConverting] = useState(false)
   const [progressStep, setProgressStep] = useState<string>('')
   const [result, setResult] = useState<ConversionResult | null>(null)
@@ -42,6 +50,7 @@ export const SpreadsheetConverterModal: React.FC<SpreadsheetConverterModalProps>
 
   const handleReset = () => {
     setFile(null)
+    setOrientation('auto')
     setResult(null)
     setErrorMessage(null)
     setIsConverting(false)
@@ -109,8 +118,11 @@ export const SpreadsheetConverterModal: React.FC<SpreadsheetConverterModalProps>
 
     let res: ConversionResult
     if (activeTab === 'xlsx2pdf') {
-      setProgressStep('Mengonversi lembar kerja ke PDF via LibreOffice...')
-      res = await convertSpreadsheetToPdf(file)
+      setProgressStep('Menormalkan tata letak & mengonversi ke PDF via LibreOffice...')
+      res =
+        orientation === 'auto'
+          ? await convertSpreadsheetToPdf(file)
+          : await convertSpreadsheetToPdf(file, orientation)
     } else {
       setProgressStep('Mendeteksi dan mengekstrak tabel PDF ke Excel...')
       res = await convertPdfToXlsx(file)
@@ -217,6 +229,39 @@ export const SpreadsheetConverterModal: React.FC<SpreadsheetConverterModalProps>
                 data-testid="input-file-spreadsheet"
               />
             </div>
+
+            {activeTab === 'xlsx2pdf' && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-700">Orientasi Halaman</span>
+                  <div
+                    role="group"
+                    aria-label="Orientasi halaman PDF"
+                    className="inline-flex bg-white border border-slate-200 p-0.5 rounded-lg gap-0.5"
+                  >
+                    {ORIENTATION_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        aria-pressed={orientation === opt.value}
+                        onClick={() => setOrientation(opt.value)}
+                        data-testid={`orientation-${opt.value}`}
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
+                          orientation === opt.value
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-2xs text-slate-500 leading-relaxed">
+                  Seluruh kolom otomatis disesuaikan dalam satu lebar halaman (fit to width), dan halaman kosong awal akan dibersihkan.
+                </p>
+              </div>
+            )}
 
             {activeTab === 'pdf2xlsx' && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex gap-2 text-xs text-amber-800">
